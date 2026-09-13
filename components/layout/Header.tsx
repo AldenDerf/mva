@@ -41,18 +41,11 @@ export const Header: React.FC = () => {
 
         {/* Primary CTA (Desktop) */}
         <div className="hidden sm:flex items-center gap-3">
-          <div className="relative group">
-            <Button
-              variant="primary"
-              size="md"
-              disabled
-              aria-disabled="true"
-              className="opacity-75 cursor-not-allowed"
-            >
+          <Link href="/register">
+            <Button variant="primary" size="md">
               Register Team
             </Button>
-            <span className="sr-only">(Registration opens in next phase)</span>
-          </div>
+          </Link>
         </div>
 
         {/* Mobile Hamburger Button */}

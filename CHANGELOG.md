@@ -41,8 +41,21 @@ Git commits remain the authoritative technical history. This file records meanin
 * Added Next.js Server Actions in `app/actions/registration.ts` (`fetchOpenLeaguesAction`, `fetchLeagueCategoriesAction`, `validateLeagueAndCategoryAction`) with error handling and serialization for client components.
 * Created automated verification suite in `scripts/verify-phase-04-1.ts` validating all foundation functions against live Supabase test data.
 
+### Public Team Registration (Phase 04.2 — League & Category Selection UI)
+
+* Created the public registration entry page at `/register` (`app/register/page.tsx`) with server-side pre-fetching of open leagues and categories.
+* Implemented the interactive `RegistrationWizard` client component (`app/register/RegistrationWizard.tsx`):
+  * Dynamic league selection with automatic single-open-league pre-selection.
+  * Dynamic category cards displaying registration fees (PHP formatted) and roster limits (min-max players).
+  * Accessible radio group structure with keyboard navigation (`Enter`/`Space`) and visible selection cues.
+  * Robust state handling for loading states, empty leagues, empty categories, and server validation errors.
+  * Step confirmation view verifying server-side boundary validation before continuing.
+* Connected the "Register Team" CTA buttons in `Header.tsx` and `MobileNav.tsx` directly to `/register`.
+* Created automated verification suite in `scripts/verify-phase-04-2.ts` verifying zero database writes and complete selection flow.
+
 ### Planned
 
-* Public registration multi-step wizard UI (Phase 04.2+).
+* Team Search and Creation UI (Phase 04.3).
+
 
 

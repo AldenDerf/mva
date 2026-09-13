@@ -103,18 +103,17 @@ export const MobileNav: React.FC<MobileNavProps> = ({
 
         {/* Action button in drawer */}
         <div className="pt-6 border-t border-[#DDE3DE] flex flex-col gap-3">
-          <Button
-            variant="primary"
-            fullWidth
-            size="lg"
-            disabled
-            aria-disabled="true"
-            title="Team registration opens in the next phase"
-          >
-            Register Team
-          </Button>
+          <Link href="/register" onClick={onClose}>
+            <Button
+              variant="primary"
+              fullWidth
+              size="lg"
+            >
+              Register Team
+            </Button>
+          </Link>
           <p className="text-xs text-center text-[#5F6B61]">
-            Public registration opening soon
+            Official Mahatao Volleyball Association Registration
           </p>
         </div>
       </div>
