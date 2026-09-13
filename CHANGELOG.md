@@ -31,7 +31,18 @@ Git commits remain the authoritative technical history. This file records meanin
 * Created a demonstration homepage showcasing the design system, typography, components, and core association pillars without placeholder statistical data.
 * Verified WCAG 2.2 AA contrast standards, keyboard accessibility, and production build.
 
+### Public Team Registration (Phase 04.1 — Foundation)
+
+* Implemented safe server-side registration foundation layer in `lib/registration.ts`:
+  * `getOpenLeagues`: Retrieves only leagues with `status: OPEN_FOR_REGISTRATION`.
+  * `getOpenLeagueById`: Retrieves a specific open league with strict UUID validation.
+  * `getLeagueCategories`: Retrieves categories for a selected open league with validation and Decimal-to-number fee serialization.
+  * `validateLeagueAndCategory`: Enforces league/category association boundary and open status.
+* Added Next.js Server Actions in `app/actions/registration.ts` (`fetchOpenLeaguesAction`, `fetchLeagueCategoriesAction`, `validateLeagueAndCategoryAction`) with error handling and serialization for client components.
+* Created automated verification suite in `scripts/verify-phase-04-1.ts` validating all foundation functions against live Supabase test data.
+
 ### Planned
 
-* Build the public MVA team registration system.
+* Public registration multi-step wizard UI (Phase 04.2+).
+
 
