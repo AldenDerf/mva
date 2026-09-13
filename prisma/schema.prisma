@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model league_categories {
+  id                                                                          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  league_id                                                                   String          @db.Uuid
+  name                                                                        String          @db.VarChar(100)
+  description                                                                 String?
+  registration_fee                                                            Decimal         @default(0) @db.Decimal(10, 2)
+  min_players                                                                 Int             @default(6)
+  max_players                                                                 Int             @default(12)
+  created_at                                                                  DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at                                                                  DateTime        @default(now()) @db.Timestamptz(6)
+  leagues                                                                     leagues         @relation(fields: [league_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_league_categories_league")
+  registrations_registrations_league_category_idToleague_categories           registrations[] @relation("registrations_league_category_idToleague_categories")
+  registrations_registrations_league_category_id_league_idToleague_categories registrations[] @relation("registrations_league_category_id_league_idToleague_categories")
+
+  @@unique([id, league_id], map: "uq_league_categories_id_league")
+  @@unique([league_id, name], map: "uq_league_category_name")
+  @@index([league_id], map: "idx_league_categories_league")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model leagues {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String              @db.VarChar(150)
+  year                  Int?
+  description           String?
+  registration_open_at  DateTime?           @db.Timestamptz(6)
+  registration_close_at DateTime?           @db.Timestamptz(6)
+  start_date            DateTime?           @db.Date
+  end_date              DateTime?           @db.Date
+  status                league_status       @default(DRAFT)
+  created_at            DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime            @default(now()) @db.Timestamptz(6)
+  league_categories     league_categories[]
+  registrations         registrations[]
+
+  @@index([status], map: "idx_leagues_status")
+  @@index([year], map: "idx_leagues_year")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model payments {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  registration_id  String         @db.Uuid
+  payment_method   payment_method
+  amount           Decimal        @db.Decimal(10, 2)
+  reference_number String?        @db.VarChar(100)
+  receipt_url      String?
+  status           payment_status @default(PENDING)
+  verified_at      DateTime?      @db.Timestamptz(6)
+  notes            String?
+  created_at       DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime       @default(now()) @db.Timestamptz(6)
+  registrations    registrations  @relation(fields: [registration_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_payments_registration")
+
+  @@index([registration_id], map: "idx_payments_registration")
+  @@index([status], map: "idx_payments_status")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model players {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  first_name           String                 @db.VarChar(100)
+  middle_name          String?                @db.VarChar(100)
+  last_name            String                 @db.VarChar(100)
+  suffix               String?                @db.VarChar(20)
+  contact_number       String?                @db.VarChar(30)
+  date_of_birth        DateTime?              @db.Date
+  photo_url            String?
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  registration_players registration_players[]
+
+  @@index([last_name], map: "idx_players_last_name")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model registration_players {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  registration_id String        @db.Uuid
+  player_id       String        @db.Uuid
+  jersey_number   Int?
+  position        String?       @db.VarChar(50)
+  is_captain      Boolean       @default(false)
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  players         players       @relation(fields: [player_id], references: [id], onUpdate: NoAction, map: "fk_registration_players_player")
+  registrations   registrations @relation(fields: [registration_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_registration_players_registration")
+
+  @@unique([registration_id, player_id], map: "uq_registration_player")
+  @@index([player_id], map: "idx_registration_players_player")
+  @@index([registration_id], map: "idx_registration_players_registration")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model registrations {
+  id                                                                              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  registration_number                                                             BigInt                 @default(autoincrement())
+  league_id                                                                       String                 @db.Uuid
+  league_category_id                                                              String                 @db.Uuid
+  team_id                                                                         String                 @db.Uuid
+  registrant_first_name                                                           String                 @db.VarChar(100)
+  registrant_middle_name                                                          String?                @db.VarChar(100)
+  registrant_last_name                                                            String                 @db.VarChar(100)
+  registrant_suffix                                                               String?                @db.VarChar(20)
+  registrant_contact                                                              String                 @db.VarChar(30)
+  registrant_email                                                                String?                @db.VarChar(255)
+  status                                                                          registration_status    @default(PENDING_PAYMENT)
+  notes                                                                           String?
+  submitted_at                                                                    DateTime               @default(now()) @db.Timestamptz(6)
+  verified_at                                                                     DateTime?              @db.Timestamptz(6)
+  created_at                                                                      DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at                                                                      DateTime               @default(now()) @db.Timestamptz(6)
+  registration_code                                                               String?                @unique(map: "uq_registration_code") @db.VarChar(30)
+  payments                                                                        payments[]
+  registration_players                                                            registration_players[]
+  league_categories_registrations_league_category_idToleague_categories           league_categories      @relation("registrations_league_category_idToleague_categories", fields: [league_category_id], references: [id], onUpdate: NoAction, map: "fk_registrations_category")
+  league_categories_registrations_league_category_id_league_idToleague_categories league_categories      @relation("registrations_league_category_id_league_idToleague_categories", fields: [league_category_id, league_id], references: [id, league_id], onUpdate: NoAction, map: "fk_registrations_category_league")
+  leagues                                                                         leagues                @relation(fields: [league_id], references: [id], onUpdate: NoAction, map: "fk_registrations_league")
+  teams                                                                           teams                  @relation(fields: [team_id], references: [id], onUpdate: NoAction, map: "fk_registrations_team")
+
+  @@unique([league_id, league_category_id, team_id], map: "uq_team_league_category")
+  @@index([league_category_id], map: "idx_registrations_category")
+  @@index([league_id], map: "idx_registrations_league")
+  @@index([status], map: "idx_registrations_status")
+  @@index([team_id], map: "idx_registrations_team")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model teams {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  team_name     String          @unique(map: "uq_team_name") @db.VarChar(150)
+  slug          String          @unique(map: "uq_team_slug") @db.VarChar(180)
+  logo_url      String?
+  description   String?
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @default(now()) @db.Timestamptz(6)
+  registrations registrations[]
+
+  @@index([team_name], map: "idx_teams_team_name")
+}
+
+enum league_status {
+  DRAFT
+  OPEN_FOR_REGISTRATION
+  REGISTRATION_CLOSED
+  ONGOING
+  COMPLETED
+  ARCHIVED
+}
+
+enum payment_method {
+  CASH
+  GCASH
+  BANK_TRANSFER
+  OTHER
+}
+
+enum payment_status {
+  PENDING
+  VERIFIED
+  REJECTED
+  REFUNDED
+}
+
+enum registration_status {
+  PENDING_PAYMENT
+  VERIFIED
+  REJECTED
+  CANCELLED
+}
