@@ -130,6 +130,33 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     });
   };
 
+  const getCategoryDivisionInfo = (categoryName: string) => {
+    const normalized = categoryName.trim().toLowerCase();
+    if (
+      normalized.includes("all mahatao") ||
+      normalized.includes("mahatao only") ||
+      normalized.includes("mahatao")
+    ) {
+      return {
+        label: "Mixed / Co-ed Division",
+        note: "Mixed / co-ed division — male and female players may be on the same roster.",
+      };
+    }
+    if (normalized.includes("women")) {
+      return {
+        label: "Women's Division",
+        note: "Women's division.",
+      };
+    }
+    if (normalized.includes("men")) {
+      return {
+        label: "Men's Division",
+        note: "Men's division.",
+      };
+    }
+    return null;
+  };
+
   // 1. EMPTY STATE: No open leagues
   if (initialLeagues.length === 0) {
     return (
@@ -219,9 +246,23 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                   <p className="text-xs font-semibold uppercase tracking-wider text-[#5F6B61]">
                     Category
                   </p>
-                  <h4 className="text-lg font-bold text-[#172019]">
-                    {confirmedData.category.name}
-                  </h4>
+                  <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                    <h4 className="text-lg font-bold text-[#172019]">
+                      {confirmedData.category.name}
+                    </h4>
+                    {getCategoryDivisionInfo(confirmedData.category.name) && (
+                      <Badge
+                        variant="outline"
+                        size="sm"
+                        className="bg-white text-[#5F6B61] border-[#DDE3DE]"
+                      >
+                        {
+                          getCategoryDivisionInfo(confirmedData.category.name)
+                            ?.label
+                        }
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-semibold uppercase tracking-wider text-[#5F6B61]">
@@ -236,6 +277,13 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               {confirmedData.category.description && (
                 <p className="text-xs text-[#5F6B61] border-t border-[#DDE3DE] pt-2">
                   {confirmedData.category.description}
+                </p>
+              )}
+
+              {getCategoryDivisionInfo(confirmedData.category.name)?.note && (
+                <p className="text-xs text-[#205823] font-medium flex items-center gap-1.5 pt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#205823] shrink-0" />
+                  {getCategoryDivisionInfo(confirmedData.category.name)?.note}
                 </p>
               )}
 
@@ -503,6 +551,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           >
             {categories.map((category) => {
               const isSelected = selectedCategoryId === category.id;
+              const division = getCategoryDivisionInfo(category.name);
               return (
                 <div
                   key={category.id}
@@ -525,14 +574,25 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="text-base sm:text-lg font-bold text-[#172019] group-hover:text-[#205823] transition-colors">
-                          {category.name}
-                        </h3>
-                        {isSelected && (
-                          <Badge variant="green" size="sm" className="mt-1">
-                            Selected
-                          </Badge>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-base sm:text-lg font-bold text-[#172019] group-hover:text-[#205823] transition-colors">
+                            {category.name}
+                          </h3>
+                          {division && (
+                            <Badge
+                              variant="outline"
+                              size="sm"
+                              className="bg-[#FAFAF8] text-[#5F6B61] border-[#DDE3DE]"
+                            >
+                              {division.label}
+                            </Badge>
+                          )}
+                          {isSelected && (
+                            <Badge variant="green" size="sm">
+                              Selected
+                            </Badge>
+                          )}
+                        </div>
                       </div>
 
                       {/* Radio Indicator */}
@@ -553,6 +613,13 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                     {category.description && (
                       <p className="text-xs text-[#5F6B61] leading-relaxed">
                         {category.description}
+                      </p>
+                    )}
+
+                    {division?.note && (
+                      <p className="text-xs text-[#205823] font-medium flex items-center gap-1.5 pt-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#205823] shrink-0" />
+                        {division.note}
                       </p>
                     )}
                   </div>

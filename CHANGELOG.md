@@ -47,6 +47,7 @@ Git commits remain the authoritative technical history. This file records meanin
 * Implemented the interactive `RegistrationWizard` client component (`app/register/RegistrationWizard.tsx`):
   * Dynamic league selection with automatic single-open-league pre-selection.
   * Dynamic category cards displaying registration fees (PHP formatted) and roster limits (min-max players).
+  * Added division tags (Men's, Women's, and Mixed / Co-ed Division) and clarified mixed/co-ed roster guidance for All Mahatao / Mahatao Only category records.
   * Accessible radio group structure with keyboard navigation (`Enter`/`Space`) and visible selection cues.
   * Robust state handling for loading states, empty leagues, empty categories, and server validation errors.
   * Step confirmation view verifying server-side boundary validation before continuing.
