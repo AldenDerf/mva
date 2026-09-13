@@ -717,3 +717,201 @@ When a meaningful task is completed and verified:
 
 
 Maintain CHANGELOG.md for meaningful project updates. Git commits remain the detailed technical history. Update the changelog only for significant features, fixes, architecture changes, database changes, security improvements, or major milestones. Do not add entries for every minor code change.
+
+# MVA UI/UX Design System
+
+## Brand Identity
+
+The Mahatao Volleyball Association website should visually reflect:
+
+* Volleyball
+* Mahatao
+* Community
+* Competition
+* Energy
+* Professionalism
+* Local identity
+
+The uploaded official MVA logo is the primary brand reference.
+
+The visual identity is based primarily on:
+
+* Deep athletic green
+* Gold/yellow
+* White
+* Neutral dark text
+* Soft neutral surfaces
+
+Do not use the logo colors mechanically on every UI element. Maintain visual hierarchy and accessibility.
+
+## Color System
+
+Use these as the starting brand tokens:
+
+* Primary Green: `#205823`
+* Primary Gold: `#F5D025`
+* Dark Gold: `#B99531`
+* Background: `#FAFAF8`
+* Surface: `#FFFFFF`
+* Text: `#172019`
+* Muted Text: `#5F6B61`
+* Border: `#DDE3DE`
+
+Colors may be adjusted when necessary to meet accessibility requirements.
+
+Do not use gold/yellow as small body text on white backgrounds.
+
+Do not use color alone to communicate status.
+
+## Accessibility
+
+Target WCAG 2.2 Level AA.
+
+Prioritize:
+
+* Text contrast
+* Keyboard accessibility
+* Visible focus states
+* Accessible labels
+* Semantic HTML
+* Responsive reflow
+* Accessible forms
+* Clear validation messages
+* Adequate interactive target sizes
+* Screen-reader-friendly controls
+
+Normal body text should target at least a 4.5:1 contrast ratio.
+
+## Visual Style
+
+The MVA website should feel:
+
+* Modern
+* Athletic
+* Clean
+* Professional
+* Community-oriented
+* Energetic without being flashy
+
+Avoid:
+
+* Excessive gradients
+* Excessive glassmorphism
+* Excessive shadows
+* Excessive animations
+* Overly decorative interfaces
+* Generic SaaS aesthetics
+* Excessive green/yellow combinations
+* Cluttered layouts
+
+The logo should remain the primary brand identifier.
+
+## Layout
+
+Use a strong visual hierarchy.
+
+Prefer:
+
+* generous whitespace
+* clear sections
+* readable typography
+* consistent spacing
+* restrained card usage
+* clear primary actions
+* mobile-first layouts
+
+Do not turn every piece of content into a card.
+
+## Navigation
+
+Keep the primary navigation simple.
+
+Suggested main navigation:
+
+* Home
+* Leagues
+* Teams
+* Players
+* About
+
+The primary CTA should be:
+
+**Register Team**
+
+On mobile, use a simple accessible navigation menu.
+
+## Typography
+
+Use a modern, highly readable sans-serif typeface such as Inter or Manrope.
+
+Use stronger display typography only for major headings or sports branding.
+
+Body text must prioritize readability over stylistic effects.
+
+## Public Registration UX
+
+The team registration experience is the first major user-facing feature.
+
+Design it as a focused multi-step flow:
+
+1. League & Category
+2. Team Information
+3. Players
+4. Review & Submit
+
+The registration process must be:
+
+* Mobile-first
+* Simple
+* Clear
+* Progressive
+* Easy to recover from errors
+* Accessible
+* Fast to understand
+
+Avoid presenting the entire registration process as one extremely long form on mobile.
+
+## Components
+
+Prefer a consistent design system using reusable components.
+
+Before creating a new component, check whether an existing component can be reused.
+
+Buttons, inputs, cards, badges, dialogs, tables, and navigation elements should have consistent visual behavior.
+
+## Responsive Design
+
+Design for mobile first.
+
+Then progressively enhance for:
+
+* tablet
+* laptop
+* desktop
+* large desktop
+
+The registration flow must remain comfortable on small phone screens.
+
+## Motion
+
+Use animation sparingly.
+
+Animation should communicate:
+
+* transition
+* feedback
+* state change
+* hierarchy
+
+Do not use animation simply for decoration.
+
+Respect reduced-motion preferences.
+
+## Brand Asset
+
+The official MVA logo supplied by the project owner is the authoritative logo.
+
+Do not recreate the logo using text, CSS, or a different generated graphic.
+
+Use the official asset when available in the project.
+
