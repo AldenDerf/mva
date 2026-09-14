@@ -121,7 +121,7 @@ export async function validateLeagueAndCategoryAction(
 
 /**
  * Server Action: Calculate total registration fee and roster completion status
- * using the selected category's per-player fee from the database.
+ * using the selected category's per-player fee and min_players from the database.
  */
 export async function calculateRosterAction(
   leagueId: string,
@@ -137,8 +137,20 @@ export async function calculateRosterAction(
       };
     }
 
+    if (playerCount > validation.category.max_players) {
+      return {
+        success: false,
+        error: `Player count (${playerCount}) exceeds maximum roster limit of ${validation.category.max_players} players for this category.`,
+      };
+    }
+
     const feePerPlayer = validation.category.registration_fee;
-    const calculation = calculateRosterFeeAndStatus(playerCount, feePerPlayer);
+    const requiredPlayers = validation.category.min_players;
+    const calculation = calculateRosterFeeAndStatus(
+      playerCount,
+      feePerPlayer,
+      requiredPlayers
+    );
 
     return {
       success: true,

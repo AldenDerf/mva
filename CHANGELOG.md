@@ -57,9 +57,9 @@ Git commits remain the authoritative technical history. This file records meanin
 
 * Clarified and implemented the MVA registration rate of ₱300.00 per player (dynamically derived from `league_categories.registration_fee` rather than hardcoded or treated as a fixed team fee).
 * Added dynamic roster fee calculation formula: `total = registered player count × ratePerPlayer`.
-* Implemented the distinction between initial public registration validation and the final competition roster requirement (minimum 12 players).
-* Permitted submissions with fewer than 12 players while displaying clear "Incomplete — X/12 players" visual indicators and reminders to finalize the 12-player minimum before the competition deadline.
-* Added live-updating roster counters and fee calculation displays as players are added or removed during the registration process.
+* Sourced roster limits dynamically from `league_categories.min_players` (as the final roster requirement) and `league_categories.max_players`, eliminating all hardcoded roster constants.
+* Permitted submissions with fewer than `category.min_players` while displaying clear "Incomplete — X/{category.min_players} players" visual indicators and reminders to finalize the roster before the competition deadline.
+* Added live-updating roster counters and fee calculation displays as players are added or removed during the registration process, with enforcement of `category.max_players`.
 * Preserved all existing database structures, category limits, and server-side integrity validations without modifying the Prisma schema.
 
 ### Planned

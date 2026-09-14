@@ -36,8 +36,6 @@ export interface LeagueCategoryValidationResult {
   error?: string;
 }
 
-export const FINAL_ROSTER_MINIMUM = 12;
-
 export interface RosterCalculationResult {
   player_count: number;
   fee_per_player: number;
@@ -50,15 +48,18 @@ export interface RosterCalculationResult {
 
 /**
  * Calculates total registration fee based on player count and per-player fee,
- * and determines whether the roster meets the final 12-player minimum requirement.
- * Note: Teams are permitted to register with fewer than 12 players (marked INCOMPLETE).
+ * and determines whether the roster meets the final minimum player requirement
+ * configured for the selected category in the database.
+ * Note: Teams are permitted to register with fewer players (marked INCOMPLETE).
  */
 export function calculateRosterFeeAndStatus(
   playerCount: number,
-  feePerPlayer: number
+  feePerPlayer: number,
+  requiredPlayers: number
 ): RosterCalculationResult {
   const count = Math.max(0, Math.floor(playerCount));
-  const isComplete = count >= FINAL_ROSTER_MINIMUM;
+  const minRequired = Math.max(1, Math.floor(requiredPlayers));
+  const isComplete = count >= minRequired;
   const total = count * feePerPlayer;
 
   return {
@@ -66,11 +67,11 @@ export function calculateRosterFeeAndStatus(
     fee_per_player: feePerPlayer,
     total_fee: total,
     is_complete: isComplete,
-    required_minimum: FINAL_ROSTER_MINIMUM,
+    required_minimum: minRequired,
     status: isComplete ? "COMPLETE" : "INCOMPLETE",
     message: isComplete
-      ? "Roster meets the final requirement of at least 12 players."
-      : `Roster is currently incomplete (${count}/${FINAL_ROSTER_MINIMUM} players). Registration is permitted, but the roster must reach 12 players before final roster lock.`,
+      ? `Roster meets the final requirement of at least ${minRequired} players.`
+      : `Roster is currently incomplete (${count}/${minRequired} players). Registration is permitted, but the roster must reach at least ${minRequired} players before final roster lock.`,
   };
 }
 

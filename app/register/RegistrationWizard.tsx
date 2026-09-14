@@ -142,6 +142,16 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
       return;
     }
 
+    const activeCat = confirmedData ? confirmedData.category : selectedCategory;
+    const maxPlayers = activeCat ? activeCat.max_players : 20;
+
+    if (roster.length >= maxPlayers) {
+      setAddPlayerError(
+        `Roster limit reached. Maximum allowed players for this category is ${maxPlayers}.`
+      );
+      return;
+    }
+
     const newPlayer: RosterPlayer = {
       id: `player-${Date.now()}`,
       firstName: newFirstName.trim(),
@@ -262,10 +272,14 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   const selectedLeague = initialLeagues.find((l) => l.id === selectedLeagueId);
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
 
-  // Dynamic fee calculation for active roster
-  const feeRate = confirmedData ? confirmedData.category.registration_fee : 300;
+  // Dynamic fee calculation for active roster based on selected category in DB
+  const activeCategory = confirmedData ? confirmedData.category : selectedCategory;
+  const feeRate = activeCategory ? activeCategory.registration_fee : 300;
+  const minRequiredPlayers = activeCategory ? activeCategory.min_players : 12;
+  const maxAllowedPlayers = activeCategory ? activeCategory.max_players : 20;
+
   const currentRosterCount = roster.length;
-  const isRosterComplete = currentRosterCount >= 12;
+  const isRosterComplete = currentRosterCount >= minRequiredPlayers;
   const totalRegistrationFee = currentRosterCount * feeRate;
 
   // 2. STEP: ROSTER & PER-PLAYER FEE CALCULATION
@@ -337,7 +351,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               <strong className="text-[#205823]">
                 {formatCurrency(feeRate)} per player
               </strong>
-              . Roster must ultimately reach at least 12 players.
+              . Roster must ultimately reach at least {minRequiredPlayers} players.
             </p>
           </div>
           <Button
@@ -362,7 +376,8 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                 <span className="text-sm font-normal text-[#5F6B61]">players</span>
               </p>
               <p className="text-xs text-[#5F6B61] mt-1">
-                Final requirement: <strong>Min. 12 players</strong>
+                Final requirement: <strong>Min. {minRequiredPlayers} players</strong>{" "}
+                <span className="text-[#5F6B61]">(Max {maxAllowedPlayers})</span>
               </p>
             </div>
 
@@ -373,11 +388,11 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               <div className="mt-1.5">
                 {isRosterComplete ? (
                   <Badge variant="green" size="md" className="font-bold">
-                    Complete — {currentRosterCount}/12 players
+                    Complete — {currentRosterCount}/{minRequiredPlayers} players
                   </Badge>
                 ) : (
                   <Badge variant="gold" size="md" className="font-bold">
-                    Incomplete — {currentRosterCount}/12 players
+                    Incomplete — {currentRosterCount}/{minRequiredPlayers} players
                   </Badge>
                 )}
               </div>
@@ -410,7 +425,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                 </span>
                 <div className="text-xs sm:text-sm text-[#205823] leading-relaxed">
                   <span className="font-bold">Complete Roster:</span> Your team has{" "}
-                  {currentRosterCount} registered players, meeting the official MVA 12-player minimum
+                  {currentRosterCount} registered players, meeting the official category {minRequiredPlayers}-player minimum
                   requirement.
                 </div>
               </div>
@@ -421,10 +436,10 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                 </span>
                 <div className="text-xs sm:text-sm text-[#876a16] leading-relaxed">
                   <span className="font-bold">
-                    Incomplete Roster ({currentRosterCount}/12 players):
+                    Incomplete Roster ({currentRosterCount}/{minRequiredPlayers} players):
                   </span>{" "}
-                  You are permitted to submit your registration with fewer than 12 players.
-                  However, your team must reach at least 12 players before final roster lock and
+                  You are permitted to submit your registration with fewer than {minRequiredPlayers} players.
+                  However, your team must reach at least {minRequiredPlayers} players before final roster lock and
                   tournament play.
                 </div>
               </div>
@@ -688,11 +703,11 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                 </span>
                 {isRosterComplete ? (
                   <Badge variant="green" size="sm">
-                    Complete ({currentRosterCount}/12)
+                    Complete ({currentRosterCount}/{minRequiredPlayers})
                   </Badge>
                 ) : (
                   <Badge variant="gold" size="sm">
-                    Incomplete ({currentRosterCount}/12)
+                    Incomplete ({currentRosterCount}/{minRequiredPlayers})
                   </Badge>
                 )}
               </div>
@@ -712,12 +727,12 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               </div>
             </div>
 
-            {/* Incomplete Warning if < 12 */}
+            {/* Incomplete Warning if < minRequiredPlayers */}
             {!isRosterComplete && (
               <div className="p-3.5 rounded-lg bg-[#fef9e8] border border-[#F5D025]/40 text-xs text-[#876a16] leading-relaxed">
                 <strong>Incomplete Roster Notice:</strong> Your team is registering with{" "}
                 {currentRosterCount} players. Registration will be accepted, but your team is required
-                to submit at least 12 players prior to the official competition roster lock.
+                to submit at least {minRequiredPlayers} players prior to the official competition roster lock.
               </div>
             )}
 
@@ -1032,7 +1047,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-[#5F6B61]">Final Roster:</span>
                       <span className="font-semibold text-[#172019]">
-                        Min. 12 players{" "}
+                        Min. {category.min_players} players{" "}
                         <span className="font-normal text-[#5F6B61]">
                           (fewer allowed to register)
                         </span>
