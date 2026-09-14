@@ -2,6 +2,7 @@ import {
   fetchOpenLeaguesAction,
   fetchLeagueCategoriesAction,
   validateLeagueAndCategoryAction,
+  calculateRosterAction,
 } from "../app/actions/registration";
 import { prisma } from "../lib/prisma";
 
@@ -46,6 +47,33 @@ async function verifyPhase042() {
     throw new Error("Should have rejected non-existent category.");
   }
   console.log(`[PASS] Non-existent category correctly rejected: "${invalidCatRes.error}"`);
+
+  // 5. Test Per-Player Fee & Incomplete Roster Calculations via Server Action
+  console.log("\n=== Testing Per-Player Fee & Incomplete Roster Rules ===");
+  const testCases = [
+    { count: 6, expectedFee: 1800, expectedComplete: false, expectedStatus: "INCOMPLETE" },
+    { count: 8, expectedFee: 2400, expectedComplete: false, expectedStatus: "INCOMPLETE" },
+    { count: 9, expectedFee: 2700, expectedComplete: false, expectedStatus: "INCOMPLETE" },
+    { count: 10, expectedFee: 3000, expectedComplete: false, expectedStatus: "INCOMPLETE" },
+    { count: 12, expectedFee: 3600, expectedComplete: true, expectedStatus: "COMPLETE" },
+  ];
+
+  for (const tc of testCases) {
+    const calc = await calculateRosterAction(league.id, chosenCategory.id, tc.count);
+    if (!calc.success || !calc.data) {
+      throw new Error(`Failed to calculate roster for ${tc.count} players: ${calc.error}`);
+    }
+    if (calc.data.total_fee !== tc.expectedFee) {
+      throw new Error(`Expected fee ${tc.expectedFee} for ${tc.count} players, got ${calc.data.total_fee}`);
+    }
+    if (calc.data.is_complete !== tc.expectedComplete) {
+      throw new Error(`Expected is_complete=${tc.expectedComplete} for ${tc.count} players, got ${calc.data.is_complete}`);
+    }
+    if (calc.data.status !== tc.expectedStatus) {
+      throw new Error(`Expected status ${tc.expectedStatus} for ${tc.count} players, got ${calc.data.status}`);
+    }
+    console.log(`[PASS] ${tc.count} players: Fee = ₱${calc.data.total_fee} (${tc.count} × ₱${calc.data.fee_per_player}), Status = ${calc.data.status}`);
+  }
 
   // 5. Verify NO database records were written
   const registrationsCount = await prisma.registrations.count();

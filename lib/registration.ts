@@ -36,6 +36,44 @@ export interface LeagueCategoryValidationResult {
   error?: string;
 }
 
+export const FINAL_ROSTER_MINIMUM = 12;
+
+export interface RosterCalculationResult {
+  player_count: number;
+  fee_per_player: number;
+  total_fee: number;
+  is_complete: boolean;
+  required_minimum: number;
+  status: "INCOMPLETE" | "COMPLETE";
+  message: string;
+}
+
+/**
+ * Calculates total registration fee based on player count and per-player fee,
+ * and determines whether the roster meets the final 12-player minimum requirement.
+ * Note: Teams are permitted to register with fewer than 12 players (marked INCOMPLETE).
+ */
+export function calculateRosterFeeAndStatus(
+  playerCount: number,
+  feePerPlayer: number
+): RosterCalculationResult {
+  const count = Math.max(0, Math.floor(playerCount));
+  const isComplete = count >= FINAL_ROSTER_MINIMUM;
+  const total = count * feePerPlayer;
+
+  return {
+    player_count: count,
+    fee_per_player: feePerPlayer,
+    total_fee: total,
+    is_complete: isComplete,
+    required_minimum: FINAL_ROSTER_MINIMUM,
+    status: isComplete ? "COMPLETE" : "INCOMPLETE",
+    message: isComplete
+      ? "Roster meets the final requirement of at least 12 players."
+      : `Roster is currently incomplete (${count}/${FINAL_ROSTER_MINIMUM} players). Registration is permitted, but the roster must reach 12 players before final roster lock.`,
+  };
+}
+
 /**
  * Retrieves all leagues that are currently open for public registration.
  * Only leagues with status OPEN_FOR_REGISTRATION are returned.

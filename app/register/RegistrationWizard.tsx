@@ -5,20 +5,38 @@ import Link from "next/link";
 import {
   fetchLeagueCategoriesAction,
   validateLeagueAndCategoryAction,
+  calculateRosterAction,
   type SerializedOpenLeague,
   type SerializedLeagueCategory,
 } from "@/app/actions/registration";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
 
 interface RegistrationWizardProps {
   initialLeagues: SerializedOpenLeague[];
   initialCategories?: SerializedLeagueCategory[];
 }
+
+interface RosterPlayer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  jerseyNumber?: string;
+  position?: string;
+}
+
+const DEFAULT_SAMPLE_PLAYERS: RosterPlayer[] = [
+  { id: "p-1", firstName: "Juan", lastName: "Dela Cruz", jerseyNumber: "1", position: "Outside Hitter" },
+  { id: "p-2", firstName: "Pedro", lastName: "Santos", jerseyNumber: "4", position: "Middle Blocker" },
+  { id: "p-3", firstName: "Mark", lastName: "Reyes", jerseyNumber: "7", position: "Setter" },
+  { id: "p-4", firstName: "Christian", lastName: "Ramos", jerseyNumber: "10", position: "Opposite" },
+  { id: "p-5", firstName: "Angelo", lastName: "Batan", jerseyNumber: "12", position: "Libero" },
+  { id: "p-6", firstName: "Joshua", lastName: "Garcia", jerseyNumber: "3", position: "Outside Hitter" },
+  { id: "p-7", firstName: "Gabriel", lastName: "Flores", jerseyNumber: "8", position: "Middle Blocker" },
+  { id: "p-8", firstName: "Daniel", lastName: "Ibanes", jerseyNumber: "5", position: "Utility" },
+];
 
 export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   initialLeagues,
@@ -28,15 +46,14 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   const hasSingleLeague = initialLeagues.length === 1;
   const defaultLeagueId = hasSingleLeague ? initialLeagues[0].id : null;
 
-  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(
-    defaultLeagueId
-  );
+  // Step state: 'selection' | 'roster' | 'review'
+  const [currentStep, setCurrentStep] = useState<"selection" | "roster" | "review">("selection");
+
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(defaultLeagueId);
   const [categories, setCategories] = useState<SerializedLeagueCategory[]>(
     defaultLeagueId ? initialCategories : []
   );
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
-    null
-  );
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [categoryError, setCategoryError] = useState<string | null>(null);
@@ -44,13 +61,20 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const [isConfirmed, setIsConfirmed] = useState(false);
   const [confirmedData, setConfirmedData] = useState<{
     league: SerializedOpenLeague;
     category: SerializedLeagueCategory;
   } | null>(null);
 
-  // If league selection changes, load corresponding categories
+  // Roster state
+  const [roster, setRoster] = useState<RosterPlayer[]>(DEFAULT_SAMPLE_PLAYERS);
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newJersey, setNewJersey] = useState("");
+  const [newPosition, setNewPosition] = useState("Outside Hitter");
+  const [addPlayerError, setAddPlayerError] = useState<string | null>(null);
+
+  // When league selection changes
   const handleSelectLeague = async (leagueId: string) => {
     if (leagueId === selectedLeagueId && categories.length > 0) return;
 
@@ -81,7 +105,8 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     setValidationError(null);
   };
 
-  const handleContinue = async () => {
+  // Step 1: Proceed to Roster Step
+  const handleConfirmStep1 = async () => {
     if (!selectedLeagueId || !selectedCategoryId) {
       setValidationError("Please select both a league and a category to continue.");
       return;
@@ -98,7 +123,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
 
       if (result.success && result.data) {
         setConfirmedData(result.data);
-        setIsConfirmed(true);
+        setCurrentStep("roster");
       } else {
         setValidationError(result.error ?? "Selection validation failed.");
       }
@@ -109,8 +134,55 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     }
   };
 
-  const handleResetSelection = () => {
-    setIsConfirmed(false);
+  // Add player to roster
+  const handleAddPlayer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFirstName.trim() || !newLastName.trim()) {
+      setAddPlayerError("First and last name are required.");
+      return;
+    }
+
+    const newPlayer: RosterPlayer = {
+      id: `player-${Date.now()}`,
+      firstName: newFirstName.trim(),
+      lastName: newLastName.trim(),
+      jerseyNumber: newJersey.trim() || undefined,
+      position: newPosition,
+    };
+
+    setRoster((prev) => [...prev, newPlayer]);
+    setNewFirstName("");
+    setNewLastName("");
+    setNewJersey("");
+    setAddPlayerError(null);
+  };
+
+  // Remove player from roster
+  const handleRemovePlayer = (id: string) => {
+    setRoster((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  // Proceed to review
+  const handleProceedToReview = async () => {
+    if (!confirmedData) return;
+    setIsValidating(true);
+    try {
+      // Validate fee and status on the server
+      const calcResult = await calculateRosterAction(
+        confirmedData.league.id,
+        confirmedData.category.id,
+        roster.length
+      );
+      if (calcResult.success) {
+        setCurrentStep("review");
+      } else {
+        setValidationError(calcResult.error ?? "Calculation verification failed.");
+      }
+    } catch {
+      setValidationError("Server validation failed. Please try again.");
+    } finally {
+      setIsValidating(false);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -190,10 +262,350 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   const selectedLeague = initialLeagues.find((l) => l.id === selectedLeagueId);
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
 
-  // 2. CONFIRMED STATE: League and Category successfully selected
-  if (isConfirmed && confirmedData) {
+  // Dynamic fee calculation for active roster
+  const feeRate = confirmedData ? confirmedData.category.registration_fee : 300;
+  const currentRosterCount = roster.length;
+  const isRosterComplete = currentRosterCount >= 12;
+  const totalRegistrationFee = currentRosterCount * feeRate;
+
+  // 2. STEP: ROSTER & PER-PLAYER FEE CALCULATION
+  if (currentStep === "roster" && confirmedData) {
+    const division = getCategoryDivisionInfo(confirmedData.category.name);
+
     return (
-      <div className="max-w-2xl mx-auto animate-in fade-in duration-200">
+      <div className="space-y-8 max-w-3xl mx-auto animate-in fade-in duration-200">
+        {/* Step Progress Tracker */}
+        <nav aria-label="Registration Progress" className="w-full">
+          <ol className="grid grid-cols-4 gap-2 text-center">
+            <li className="flex flex-col items-center">
+              <span className="w-8 h-8 rounded-full bg-[#eef5ef] text-[#205823] border border-[#205823] flex items-center justify-center text-xs font-bold">
+                ✓
+              </span>
+              <span className="text-xs font-semibold text-[#205823] mt-1.5 line-clamp-1">
+                League & Cat
+              </span>
+            </li>
+            <li className="flex flex-col items-center">
+              <span className="w-8 h-8 rounded-full bg-[#205823] text-white flex items-center justify-center text-xs font-bold ring-4 ring-[#205823]/15">
+                2
+              </span>
+              <span className="text-xs font-bold text-[#205823] mt-1.5 line-clamp-1">
+                Team Roster
+              </span>
+            </li>
+            <li className="flex flex-col items-center opacity-50">
+              <span className="w-8 h-8 rounded-full bg-white border border-[#DDE3DE] text-[#5F6B61] flex items-center justify-center text-xs font-medium">
+                3
+              </span>
+              <span className="text-xs text-[#5F6B61] mt-1.5 line-clamp-1">
+                Team Details
+              </span>
+            </li>
+            <li className="flex flex-col items-center opacity-50">
+              <span className="w-8 h-8 rounded-full bg-white border border-[#DDE3DE] text-[#5F6B61] flex items-center justify-center text-xs font-medium">
+                4
+              </span>
+              <span className="text-xs text-[#5F6B61] mt-1.5 line-clamp-1">
+                Review
+              </span>
+            </li>
+          </ol>
+        </nav>
+
+        {/* Header with Selected League & Category */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#DDE3DE]">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#205823]">
+                {confirmedData.league.name}
+              </span>
+              <span className="text-[#5F6B61]">•</span>
+              <span className="text-xs font-bold text-[#172019]">
+                {confirmedData.category.name}
+              </span>
+              {division && (
+                <Badge variant="outline" size="sm">
+                  {division.label}
+                </Badge>
+              )}
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-[#172019]">
+              Team Roster & Player Entry
+            </h2>
+            <p className="text-xs sm:text-sm text-[#5F6B61] mt-0.5">
+              Registration rate is{" "}
+              <strong className="text-[#205823]">
+                {formatCurrency(feeRate)} per player
+              </strong>
+              . Roster must ultimately reach at least 12 players.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentStep("selection")}
+            className="shrink-0 self-start sm:self-auto"
+          >
+            Change Category
+          </Button>
+        </div>
+
+        {/* Dynamic Calculation & Roster Status Card */}
+        <Card className="border-[#205823]/30 shadow-xs overflow-hidden">
+          <div className="bg-[#FAFAF8] p-5 sm:p-6 border-b border-[#DDE3DE] grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#5F6B61]">
+                Current Roster
+              </p>
+              <p className="text-2xl sm:text-3xl font-black text-[#172019] mt-0.5">
+                {currentRosterCount}{" "}
+                <span className="text-sm font-normal text-[#5F6B61]">players</span>
+              </p>
+              <p className="text-xs text-[#5F6B61] mt-1">
+                Final requirement: <strong>Min. 12 players</strong>
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#5F6B61]">
+                Roster Status
+              </p>
+              <div className="mt-1.5">
+                {isRosterComplete ? (
+                  <Badge variant="green" size="md" className="font-bold">
+                    Complete — {currentRosterCount}/12 players
+                  </Badge>
+                ) : (
+                  <Badge variant="gold" size="md" className="font-bold">
+                    Incomplete — {currentRosterCount}/12 players
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-[#5F6B61] mt-1.5">
+                {isRosterComplete
+                  ? "Meets final roster requirement"
+                  : "Registration allowed with fewer"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#5F6B61]">
+                Registration Fee
+              </p>
+              <p className="text-2xl sm:text-3xl font-black text-[#205823] mt-0.5">
+                {formatCurrency(totalRegistrationFee)}
+              </p>
+              <p className="text-xs text-[#5F6B61] mt-1 font-mono">
+                {currentRosterCount} × {formatCurrency(feeRate)}
+              </p>
+            </div>
+          </div>
+
+          {/* Status Message Box */}
+          <div className="p-4 sm:p-5">
+            {isRosterComplete ? (
+              <div className="p-3.5 rounded-lg bg-[#eef5ef] border border-[#205823]/20 flex items-start gap-3">
+                <span className="text-[#205823] text-lg mt-0.5" aria-hidden="true">
+                  ✓
+                </span>
+                <div className="text-xs sm:text-sm text-[#205823] leading-relaxed">
+                  <span className="font-bold">Complete Roster:</span> Your team has{" "}
+                  {currentRosterCount} registered players, meeting the official MVA 12-player minimum
+                  requirement.
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-lg bg-[#fef9e8] border border-[#F5D025]/40 flex items-start gap-3">
+                <span className="text-[#876a16] text-lg mt-0.5" aria-hidden="true">
+                  ⚠️
+                </span>
+                <div className="text-xs sm:text-sm text-[#876a16] leading-relaxed">
+                  <span className="font-bold">
+                    Incomplete Roster ({currentRosterCount}/12 players):
+                  </span>{" "}
+                  You are permitted to submit your registration with fewer than 12 players.
+                  However, your team must reach at least 12 players before final roster lock and
+                  tournament play.
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Player Entry Form */}
+        <Card className="p-5 sm:p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#DDE3DE]">
+            <div>
+              <h3 className="text-base font-bold text-[#172019]">Add Team Player</h3>
+              <p className="text-xs text-[#5F6B61]">
+                Enter player details to add them to your registration roster.
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRoster(DEFAULT_SAMPLE_PLAYERS)}
+              className="text-xs text-[#5F6B61] self-start sm:self-auto"
+            >
+              Reset to 8 Sample Players
+            </Button>
+          </div>
+
+          <form onSubmit={handleAddPlayer} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <Input
+                label="First Name"
+                placeholder="e.g. Juan"
+                value={newFirstName}
+                onChange={(e) => setNewFirstName(e.target.value)}
+                required
+              />
+              <Input
+                label="Last Name"
+                placeholder="e.g. Dela Cruz"
+                value={newLastName}
+                onChange={(e) => setNewLastName(e.target.value)}
+                required
+              />
+              <Input
+                label="Jersey Number"
+                placeholder="e.g. 7"
+                value={newJersey}
+                onChange={(e) => setNewJersey(e.target.value)}
+              />
+              <div>
+                <label className="block text-sm font-medium text-[#172019] mb-1.5">
+                  Position
+                </label>
+                <select
+                  value={newPosition}
+                  onChange={(e) => setNewPosition(e.target.value)}
+                  className="w-full rounded-lg border border-[#DDE3DE] bg-white px-3.5 py-2.5 text-sm text-[#172019] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
+                >
+                  <option value="Outside Hitter">Outside Hitter</option>
+                  <option value="Middle Blocker">Middle Blocker</option>
+                  <option value="Setter">Setter</option>
+                  <option value="Opposite">Opposite</option>
+                  <option value="Libero">Libero</option>
+                  <option value="Utility">Utility</option>
+                </select>
+              </div>
+            </div>
+
+            {addPlayerError && (
+              <p className="text-xs text-red-600 font-medium">{addPlayerError}</p>
+            )}
+
+            <div className="flex justify-end pt-1">
+              <Button type="submit" variant="primary" size="md">
+                + Add Player to Roster
+              </Button>
+            </div>
+          </form>
+        </Card>
+
+        {/* Current Roster List */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[#172019]">
+              Registered Roster ({currentRosterCount} Players)
+            </h3>
+            <span className="text-xs text-[#5F6B61]">
+              Subtotal: {formatCurrency(totalRegistrationFee)}
+            </span>
+          </div>
+
+          {roster.length === 0 ? (
+            <Card className="p-8 text-center bg-[#FAFAF8] border-dashed border-[#DDE3DE]">
+              <p className="text-sm text-[#5F6B61]">
+                No players added yet. Use the form above to add your players.
+              </p>
+            </Card>
+          ) : (
+            <div className="bg-white rounded-xl border border-[#DDE3DE] overflow-hidden divide-y divide-[#DDE3DE]">
+              {roster.map((player, index) => (
+                <div
+                  key={player.id}
+                  className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-[#FAFAF8] transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-[#eef5ef] text-[#205823] flex items-center justify-center text-xs font-bold shrink-0">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-[#172019]">
+                        {player.firstName} {player.lastName}
+                      </p>
+                      <p className="text-xs text-[#5F6B61] flex items-center gap-2">
+                        {player.jerseyNumber && (
+                          <span>Jersey #{player.jerseyNumber}</span>
+                        )}
+                        {player.jerseyNumber && player.position && <span>•</span>}
+                        {player.position && <span>{player.position}</span>}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-[#205823]">
+                      +{formatCurrency(feeRate)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePlayer(player.id)}
+                      className="text-xs text-red-600 hover:text-red-800 p-1.5 rounded hover:bg-red-50 transition-colors"
+                      title={`Remove ${player.firstName} ${player.lastName}`}
+                      aria-label={`Remove ${player.firstName} ${player.lastName}`}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Action Footer */}
+        <div className="pt-4 border-t border-[#DDE3DE] flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-xs text-[#5F6B61] text-center sm:text-left">
+            Total:{" "}
+            <strong className="text-base text-[#205823]">
+              {formatCurrency(totalRegistrationFee)}
+            </strong>{" "}
+            ({currentRosterCount} players × {formatCurrency(feeRate)})
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => setCurrentStep("selection")}
+              className="w-full sm:w-auto"
+            >
+              Back
+            </Button>
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={handleProceedToReview}
+              disabled={roster.length === 0 || isValidating}
+              className="w-full sm:w-auto min-w-[180px]"
+            >
+              {isValidating ? "Verifying..." : "Continue to Review"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. STEP: REVIEW / CONFIRMATION
+  if (currentStep === "review" && confirmedData) {
+    const division = getCategoryDivisionInfo(confirmedData.category.name);
+
+    return (
+      <div className="max-w-2xl mx-auto animate-in fade-in duration-200 space-y-6">
         <Card className="border-[#205823]/30 shadow-sm overflow-hidden">
           <div className="bg-[#205823] px-6 py-4 text-white flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -201,107 +613,122 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                 ✓
               </span>
               <span className="font-semibold text-sm sm:text-base">
-                Step 1 Verified: League & Category
+                Registration Summary
               </span>
             </div>
-            <Badge variant="gold" size="sm">
-              Confirmed
-            </Badge>
+            {isRosterComplete ? (
+              <Badge variant="green" size="sm" className="bg-white text-[#205823]">
+                Roster Complete
+              </Badge>
+            ) : (
+              <Badge variant="gold" size="sm">
+                Roster Incomplete
+              </Badge>
+            )}
           </div>
 
           <CardContent className="p-6 sm:p-8 space-y-6">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-[#5F6B61] mb-1">
-                Selected League
+                Tournament League
               </p>
               <h3 className="text-xl sm:text-2xl font-black text-[#172019]">
                 {confirmedData.league.name}
               </h3>
-              {confirmedData.league.description && (
-                <p className="text-sm text-[#5F6B61] mt-1">
-                  {confirmedData.league.description}
-                </p>
-              )}
             </div>
 
             <div className="p-4 rounded-lg bg-[#FAFAF8] border border-[#DDE3DE] space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-[#5F6B61]">
-                    Category
+                    Category / Division
                   </p>
                   <div className="flex flex-wrap items-center gap-2 mt-0.5">
                     <h4 className="text-lg font-bold text-[#172019]">
                       {confirmedData.category.name}
                     </h4>
-                    {getCategoryDivisionInfo(confirmedData.category.name) && (
-                      <Badge
-                        variant="outline"
-                        size="sm"
-                        className="bg-white text-[#5F6B61] border-[#DDE3DE]"
-                      >
-                        {
-                          getCategoryDivisionInfo(confirmedData.category.name)
-                            ?.label
-                        }
+                    {division && (
+                      <Badge variant="outline" size="sm">
+                        {division.label}
                       </Badge>
                     )}
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-semibold uppercase tracking-wider text-[#5F6B61]">
-                    Entry Fee
+                    Rate
                   </p>
-                  <p className="text-lg font-black text-[#205823]">
-                    {formatCurrency(confirmedData.category.registration_fee)}
+                  <p className="text-base font-bold text-[#172019]">
+                    {formatCurrency(feeRate)} / player
                   </p>
                 </div>
               </div>
 
-              {confirmedData.category.description && (
-                <p className="text-xs text-[#5F6B61] border-t border-[#DDE3DE] pt-2">
-                  {confirmedData.category.description}
+              {division?.note && (
+                <p className="text-xs text-[#205823] font-medium pt-1">
+                  {division.note}
                 </p>
               )}
-
-              {getCategoryDivisionInfo(confirmedData.category.name)?.note && (
-                <p className="text-xs text-[#205823] font-medium flex items-center gap-1.5 pt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#205823] shrink-0" />
-                  {getCategoryDivisionInfo(confirmedData.category.name)?.note}
-                </p>
-              )}
-
-              <div className="pt-2 border-t border-[#DDE3DE] flex items-center justify-between text-xs text-[#5F6B61]">
-                <span>Roster Requirement:</span>
-                <span className="font-semibold text-[#172019]">
-                  {confirmedData.category.min_players}–
-                  {confirmedData.category.max_players} players
-                </span>
-              </div>
             </div>
 
-            <div className="rounded-lg bg-[#eef5ef] p-4 border border-[#205823]/20">
-              <div className="flex items-start gap-3">
-                <span className="text-[#205823] text-lg mt-0.5" aria-hidden="true">
-                  ℹ
+            {/* Roster & Fee Summary */}
+            <div className="p-4 rounded-lg border border-[#DDE3DE] space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-[#172019]">
+                  Registered Players
                 </span>
-                <div className="text-xs sm:text-sm text-[#205823] leading-relaxed">
-                  <span className="font-bold">Phase 04.2 Selection Complete.</span>{" "}
-                  Your league and category boundary have been validated on the server.
-                  The subsequent step (Phase 04.3 — Team Information) will continue from
-                  this verified selection state.
+                <span className="text-sm font-bold text-[#172019]">
+                  {currentRosterCount} players
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-[#172019]">
+                  Roster Status
+                </span>
+                {isRosterComplete ? (
+                  <Badge variant="green" size="sm">
+                    Complete ({currentRosterCount}/12)
+                  </Badge>
+                ) : (
+                  <Badge variant="gold" size="sm">
+                    Incomplete ({currentRosterCount}/12)
+                  </Badge>
+                )}
+              </div>
+
+              <div className="pt-3 border-t border-[#DDE3DE] flex items-center justify-between">
+                <div>
+                  <span className="text-base font-extrabold text-[#172019]">
+                    Total Registration Amount
+                  </span>
+                  <p className="text-xs text-[#5F6B61]">
+                    {currentRosterCount} players × {formatCurrency(feeRate)}
+                  </p>
                 </div>
+                <span className="text-2xl font-black text-[#205823]">
+                  {formatCurrency(totalRegistrationFee)}
+                </span>
               </div>
             </div>
+
+            {/* Incomplete Warning if < 12 */}
+            {!isRosterComplete && (
+              <div className="p-3.5 rounded-lg bg-[#fef9e8] border border-[#F5D025]/40 text-xs text-[#876a16] leading-relaxed">
+                <strong>Incomplete Roster Notice:</strong> Your team is registering with{" "}
+                {currentRosterCount} players. Registration will be accepted, but your team is required
+                to submit at least 12 players prior to the official competition roster lock.
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Button
                 variant="secondary"
                 size="md"
-                onClick={handleResetSelection}
+                onClick={() => setCurrentStep("roster")}
                 className="w-full sm:w-auto"
               >
-                Change Selection
+                ← Back to Roster
               </Button>
               <Button
                 variant="primary"
@@ -309,9 +736,11 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                 disabled
                 aria-disabled="true"
                 className="w-full sm:flex-1 opacity-75 cursor-not-allowed"
-                title="Team search and creation will be connected in Phase 04.3"
+                title="Registration submission will be finalized in later increments"
               >
-                Proceed to Team Info (Phase 04.3)
+                {isRosterComplete
+                  ? "Submit Registration (Complete Roster)"
+                  : "Submit Registration (Incomplete Roster Allowed)"}
               </Button>
             </div>
           </CardContent>
@@ -320,7 +749,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     );
   }
 
-  // 3. SELECTION FORM
+  // 4. STEP 1: LEAGUE & CATEGORY SELECTION FORM
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
       {/* Step Progress Tracker */}
@@ -339,7 +768,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               2
             </span>
             <span className="text-xs text-[#5F6B61] mt-1.5 line-clamp-1">
-              Team Info
+              Team Roster
             </span>
           </li>
           <li className="flex flex-col items-center opacity-50">
@@ -347,7 +776,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               3
             </span>
             <span className="text-xs text-[#5F6B61] mt-1.5 line-clamp-1">
-              Roster
+              Team Details
             </span>
           </li>
           <li className="flex flex-col items-center opacity-50">
@@ -591,16 +1020,22 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
 
                   <div className="pt-4 mt-4 border-t border-[#DDE3DE]/60 space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#5F6B61]">Registration Fee:</span>
+                      <span className="text-[#5F6B61]">Registration Rate:</span>
                       <span className="font-extrabold text-[#205823] text-sm">
-                        {formatCurrency(category.registration_fee)}
+                        {formatCurrency(category.registration_fee)}{" "}
+                        <span className="font-normal text-xs text-[#5F6B61]">
+                          / player
+                        </span>
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#5F6B61]">Roster Limits:</span>
+                      <span className="text-[#5F6B61]">Final Roster:</span>
                       <span className="font-semibold text-[#172019]">
-                        {category.min_players}–{category.max_players} players
+                        Min. 12 players{" "}
+                        <span className="font-normal text-[#5F6B61]">
+                          (fewer allowed to register)
+                        </span>
                       </span>
                     </div>
                   </div>
@@ -630,7 +1065,8 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           {selectedLeague && selectedCategory ? (
             <span>
               Selected: <strong className="text-[#172019]">{selectedLeague.name}</strong> /{" "}
-              <strong className="text-[#205823]">{selectedCategory.name}</strong>
+              <strong className="text-[#205823]">{selectedCategory.name}</strong> • Rate:{" "}
+              <strong>{formatCurrency(selectedCategory.registration_fee)} / player</strong>
             </span>
           ) : (
             <span>Select both a league and category to proceed</span>
@@ -640,11 +1076,11 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
         <Button
           variant="primary"
           size="lg"
-          onClick={handleContinue}
+          onClick={handleConfirmStep1}
           disabled={!selectedLeagueId || !selectedCategoryId || isValidating}
           className="w-full sm:w-auto min-w-[160px]"
         >
-          {isValidating ? "Validating..." : "Continue"}
+          {isValidating ? "Validating..." : "Continue to Roster"}
         </Button>
       </div>
     </div>

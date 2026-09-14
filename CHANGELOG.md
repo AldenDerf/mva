@@ -53,7 +53,14 @@ Git commits remain the authoritative technical history. This file records meanin
   * Robust state handling for loading states, empty leagues, empty categories, and server validation errors.
   * Step confirmation view verifying server-side boundary validation before continuing.
 * Connected the "Register Team" CTA buttons in `Header.tsx` and `MobileNav.tsx` directly to `/register`.
-* Created automated verification suite in `scripts/verify-phase-04-2.ts` verifying zero database writes and complete selection flow.
+### Public Team Registration (Phase 04 — Per-Player Fees & Incomplete Roster Support)
+
+* Clarified and implemented the MVA registration rate of ₱300.00 per player (dynamically derived from `league_categories.registration_fee` rather than hardcoded or treated as a fixed team fee).
+* Added dynamic roster fee calculation formula: `total = registered player count × ratePerPlayer`.
+* Implemented the distinction between initial public registration validation and the final competition roster requirement (minimum 12 players).
+* Permitted submissions with fewer than 12 players while displaying clear "Incomplete — X/12 players" visual indicators and reminders to finalize the 12-player minimum before the competition deadline.
+* Added live-updating roster counters and fee calculation displays as players are added or removed during the registration process.
+* Preserved all existing database structures, category limits, and server-side integrity validations without modifying the Prisma schema.
 
 ### Planned
 

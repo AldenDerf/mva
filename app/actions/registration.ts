@@ -4,8 +4,10 @@ import {
   getOpenLeagues,
   getLeagueCategories,
   validateLeagueAndCategory,
+  calculateRosterFeeAndStatus,
   type OpenLeague,
   type LeagueCategory,
+  type RosterCalculationResult,
 } from "@/lib/registration";
 
 export interface SerializedOpenLeague
@@ -113,6 +115,40 @@ export async function validateLeagueAndCategoryAction(
     return {
       success: false,
       error: "Validation check encountered an unexpected error.",
+    };
+  }
+}
+
+/**
+ * Server Action: Calculate total registration fee and roster completion status
+ * using the selected category's per-player fee from the database.
+ */
+export async function calculateRosterAction(
+  leagueId: string,
+  categoryId: string,
+  playerCount: number
+): Promise<ActionResult<RosterCalculationResult>> {
+  try {
+    const validation = await validateLeagueAndCategory(leagueId, categoryId);
+    if (!validation.valid || !validation.category) {
+      return {
+        success: false,
+        error: validation.error ?? "Invalid league or category.",
+      };
+    }
+
+    const feePerPlayer = validation.category.registration_fee;
+    const calculation = calculateRosterFeeAndStatus(playerCount, feePerPlayer);
+
+    return {
+      success: true,
+      data: calculation,
+    };
+  } catch (error) {
+    console.error("Failed to calculate roster fee:", error);
+    return {
+      success: false,
+      error: "An unexpected error occurred during roster calculation.",
     };
   }
 }
