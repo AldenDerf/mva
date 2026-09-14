@@ -88,6 +88,7 @@ Git commits remain the authoritative technical history. This file records meanin
 * Retained dynamic fee calculation derived directly from database category registration fee ($X \text{ players} \times \text{category.registration\_fee}$).
 * Preserved strict separation between Registrant (team submitter/representative) and Team Captain (selected from current tournament roster).
 * Maintained database safety with zero schema modifications, full transactional integrity, and PostgreSQL trigger-generated user-facing registration codes.
+* Cleaned up public category selection cards by removing public-facing minimum-player descriptions pending formal announcement.
 
 ### Planned
 

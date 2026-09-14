@@ -1816,22 +1816,12 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                     )}
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-[#DDE3DE]/60 space-y-2">
+                  <div className="pt-4 mt-4 border-t border-[#DDE3DE]/60">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-[#5F6B61]">Registration Rate:</span>
                       <span className="font-extrabold text-[#205823] text-sm">
                         {formatCurrency(category.registration_fee)}{" "}
                         <span className="font-normal text-xs text-[#5F6B61]">/ player</span>
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#5F6B61]">Final Roster:</span>
-                      <span className="font-semibold text-[#172019]">
-                        Min. {category.min_players} players{" "}
-                        <span className="font-normal text-[#5F6B61]">
-                          (fewer allowed to register)
-                        </span>
                       </span>
                     </div>
                   </div>
