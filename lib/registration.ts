@@ -281,3 +281,442 @@ export async function validateLeagueAndCategory(
     },
   };
 }
+
+export interface ExistingTeamItem {
+  id: string;
+  team_name: string;
+  slug: string;
+  logo_url: string | null;
+  description: string | null;
+  is_registered_in_category?: boolean;
+}
+
+export interface PreviousTeamMember {
+  player_id: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  suffix: string | null;
+  jersey_number?: string;
+  position?: string;
+}
+
+export interface RegistrationPlayerInput {
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  suffix?: string | null;
+  jersey_number?: string | number | null;
+  position?: string | null;
+  is_captain: boolean;
+  player_id?: string | null;
+}
+
+export interface RegistrantInput {
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  suffix?: string | null;
+  contact: string;
+  email?: string | null;
+}
+
+export interface CreateRegistrationInput {
+  league_id: string;
+  league_category_id: string;
+  team_mode: "existing" | "new";
+  team_id?: string | null;
+  new_team_name?: string | null;
+  registrant: RegistrantInput;
+  players: RegistrationPlayerInput[];
+}
+
+export interface CreateRegistrationResult {
+  registration_id: string;
+  registration_code: string | null;
+  status: "PENDING_PAYMENT";
+  team_id: string;
+  team_name: string;
+  player_count: number;
+  total_fee: number;
+  fee_per_player: number;
+  is_complete: boolean;
+  captain_name: string;
+  registrant_name: string;
+}
+
+function generateSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Retrieves all registered teams, optionally annotating whether each team
+ * is already registered in the specified league & category.
+ */
+export async function getExistingTeams(
+  leagueId?: string,
+  categoryId?: string
+): Promise<ExistingTeamItem[]> {
+  const teams = await prisma.teams.findMany({
+    select: {
+      id: true,
+      team_name: true,
+      slug: true,
+      logo_url: true,
+      description: true,
+      registrations:
+        leagueId && categoryId && isValidUuid(leagueId) && isValidUuid(categoryId)
+          ? {
+              where: {
+                league_id: leagueId,
+                league_category_id: categoryId,
+              },
+              select: {
+                id: true,
+              },
+            }
+          : false,
+    },
+    orderBy: {
+      team_name: "asc",
+    },
+  });
+
+  return teams.map((team) => ({
+    id: team.id,
+    team_name: team.team_name,
+    slug: team.slug,
+    logo_url: team.logo_url,
+    description: team.description,
+    is_registered_in_category: Boolean(
+      team.registrations && team.registrations.length > 0
+    ),
+  }));
+}
+
+/**
+ * Retrieves past members associated with an existing team from previous registrations.
+ * Does NOT mutate or lock historical records; returns reusable player profiles.
+ */
+export async function getTeamPreviousMembers(
+  teamId: string
+): Promise<PreviousTeamMember[]> {
+  if (!isValidUuid(teamId)) {
+    throw new Error("Invalid team ID format.");
+  }
+
+  const registrations = await prisma.registrations.findMany({
+    where: { team_id: teamId },
+    orderBy: { submitted_at: "desc" },
+    include: {
+      registration_players: {
+        include: {
+          players: true,
+        },
+      },
+    },
+  });
+
+  const seenPlayerIds = new Set<string>();
+  const members: PreviousTeamMember[] = [];
+
+  for (const reg of registrations) {
+    for (const rp of reg.registration_players) {
+      if (!seenPlayerIds.has(rp.player_id)) {
+        seenPlayerIds.add(rp.player_id);
+        members.push({
+          player_id: rp.player_id,
+          first_name: rp.players.first_name,
+          middle_name: rp.players.middle_name,
+          last_name: rp.players.last_name,
+          suffix: rp.players.suffix,
+          jersey_number:
+            rp.jersey_number !== null ? String(rp.jersey_number) : undefined,
+          position: rp.position ?? undefined,
+        });
+      }
+    }
+  }
+
+  return members;
+}
+
+/**
+ * Creates a public team registration with all validations applied.
+ * Uses a database transaction to ensure atomicity.
+ * Sets status to PENDING_PAYMENT.
+ */
+export async function createRegistration(
+  input: CreateRegistrationInput
+): Promise<CreateRegistrationResult> {
+  // 1. Authoritative validation of League and Category
+  const validation = await validateLeagueAndCategory(
+    input.league_id,
+    input.league_category_id
+  );
+  if (!validation.valid || !validation.league || !validation.category) {
+    throw new Error(validation.error ?? "Invalid league or category.");
+  }
+
+  const { league, category } = validation;
+
+  // 2. Validate Registrant
+  if (!input.registrant.first_name?.trim() || !input.registrant.last_name?.trim()) {
+    throw new Error("Registrant first and last name are required.");
+  }
+  if (!input.registrant.contact?.trim()) {
+    throw new Error("Registrant contact number is required.");
+  }
+
+  // 3. Validate Roster
+  if (!input.players || input.players.length === 0) {
+    throw new Error("At least one player is required to register a team.");
+  }
+
+  if (input.players.length > category.max_players) {
+    throw new Error(
+      `Player count (${input.players.length}) exceeds the maximum limit of ${category.max_players} players.`
+    );
+  }
+
+  // Check captain assignment: exactly one player must be designated as captain
+  const captains = input.players.filter((p) => p.is_captain);
+  if (captains.length !== 1) {
+    throw new Error(
+      "A single team captain must be selected from the current registration roster."
+    );
+  }
+  const designatedCaptain = captains[0];
+
+  // 4. Validate Team
+  let targetTeamId: string;
+  let targetTeamName: string;
+
+  if (input.team_mode === "existing") {
+    if (!input.team_id || !isValidUuid(input.team_id)) {
+      throw new Error("Please select a valid existing team.");
+    }
+
+    const existingTeam = await prisma.teams.findUnique({
+      where: { id: input.team_id },
+    });
+
+    if (!existingTeam) {
+      throw new Error("The selected existing team was not found.");
+    }
+
+    // Ensure team is not already registered in this league/category
+    const duplicateCheck = await prisma.registrations.findUnique({
+      where: {
+        league_id_league_category_id_team_id: {
+          league_id: league.id,
+          league_category_id: category.id,
+          team_id: existingTeam.id,
+        },
+      },
+    });
+
+    if (duplicateCheck) {
+      throw new Error(
+        `Team "${existingTeam.team_name}" is already registered in this division.`
+      );
+    }
+
+    targetTeamId = existingTeam.id;
+    targetTeamName = existingTeam.team_name;
+  } else {
+    // New Team Flow
+    const trimmedName = input.new_team_name?.trim();
+    if (!trimmedName) {
+      throw new Error("Team name is required for creating a new team.");
+    }
+
+    // Check if team name already exists
+    const duplicateTeam = await prisma.teams.findFirst({
+      where: {
+        team_name: {
+          equals: trimmedName,
+          mode: "insensitive",
+        },
+      },
+    });
+
+    if (duplicateTeam) {
+      throw new Error(
+        `A team named "${trimmedName}" already exists. Please choose another name or select "I have an existing team".`
+      );
+    }
+
+    let slug = generateSlug(trimmedName);
+    if (!slug) slug = `team-${Date.now()}`;
+
+    // Verify slug uniqueness
+    const existingSlug = await prisma.teams.findUnique({
+      where: { slug },
+    });
+    if (existingSlug) {
+      slug = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+
+    const newTeam = await prisma.teams.create({
+      data: {
+        team_name: trimmedName,
+        slug,
+      },
+    });
+
+    targetTeamId = newTeam.id;
+    targetTeamName = newTeam.team_name;
+  }
+
+  // 5. Database Transaction: Process Players and Create Registration
+  const feePerPlayer = category.registration_fee;
+  const playerCount = input.players.length;
+  const totalFee = playerCount * feePerPlayer;
+  const isComplete = playerCount >= category.min_players;
+
+  const result = await prisma.$transaction(async (tx) => {
+    // A. Resolve or create player records
+    const resolvedPlayers: Array<{
+      playerId: string;
+      jerseyNumber: number | null;
+      position: string | null;
+      isCaptain: boolean;
+    }> = [];
+
+    for (const p of input.players) {
+      let resolvedPlayerId: string | null = null;
+
+      // 1. If existing player_id provided and exists
+      if (p.player_id && isValidUuid(p.player_id)) {
+        const existingPlayer = await tx.players.findUnique({
+          where: { id: p.player_id },
+          select: { id: true },
+        });
+        if (existingPlayer) {
+          resolvedPlayerId = existingPlayer.id;
+        }
+      }
+
+      // 2. If no valid ID, search by first_name and last_name
+      if (!resolvedPlayerId) {
+        const matchedPlayer = await tx.players.findFirst({
+          where: {
+            first_name: {
+              equals: p.first_name.trim(),
+              mode: "insensitive",
+            },
+            last_name: {
+              equals: p.last_name.trim(),
+              mode: "insensitive",
+            },
+          },
+          select: { id: true },
+        });
+
+        if (matchedPlayer) {
+          resolvedPlayerId = matchedPlayer.id;
+        }
+      }
+
+      // 3. Create player record if not found
+      if (!resolvedPlayerId) {
+        const newPlayer = await tx.players.create({
+          data: {
+            first_name: p.first_name.trim(),
+            middle_name: p.middle_name?.trim() || null,
+            last_name: p.last_name.trim(),
+            suffix: p.suffix?.trim() || null,
+          },
+          select: { id: true },
+        });
+        resolvedPlayerId = newPlayer.id;
+      }
+
+      const parsedJersey =
+        p.jersey_number !== undefined && p.jersey_number !== null && p.jersey_number !== ""
+          ? parseInt(String(p.jersey_number), 10)
+          : null;
+
+      resolvedPlayers.push({
+        playerId: resolvedPlayerId,
+        jerseyNumber: isNaN(parsedJersey ?? NaN) ? null : parsedJersey,
+        position: p.position?.trim() || null,
+        isCaptain: p.is_captain,
+      });
+    }
+
+    // B. Create Registration Record
+    const registration = await tx.registrations.create({
+      data: {
+        league_id: league.id,
+        league_category_id: category.id,
+        team_id: targetTeamId,
+        registrant_first_name: input.registrant.first_name.trim(),
+        registrant_middle_name: input.registrant.middle_name?.trim() || null,
+        registrant_last_name: input.registrant.last_name.trim(),
+        registrant_suffix: input.registrant.suffix?.trim() || null,
+        registrant_contact: input.registrant.contact.trim(),
+        registrant_email: input.registrant.email?.trim() || null,
+        status: "PENDING_PAYMENT",
+        submitted_at: new Date(),
+      },
+    });
+
+    // C. Create registration_players records
+    for (const rp of resolvedPlayers) {
+      await tx.registration_players.create({
+        data: {
+          registration_id: registration.id,
+          player_id: rp.playerId,
+          jersey_number: rp.jerseyNumber,
+          position: rp.position,
+          is_captain: rp.isCaptain,
+        },
+      });
+    }
+
+    // D. Create pending payment record to retain calculated total fee
+    await tx.payments.create({
+      data: {
+        registration_id: registration.id,
+        payment_method: "OTHER",
+        amount: totalFee,
+        status: "PENDING",
+        notes: `Initial registration fee assessment: ${playerCount} players × ₱${feePerPlayer}.`,
+      },
+    });
+
+    // E. Re-read registration to capture registration_code generated by trigger
+    const updatedReg = await tx.registrations.findUnique({
+      where: { id: registration.id },
+      select: {
+        id: true,
+        registration_code: true,
+        status: true,
+      },
+    });
+
+    return {
+      registration_id: registration.id,
+      registration_code: updatedReg?.registration_code ?? null,
+      status: "PENDING_PAYMENT" as const,
+      team_id: targetTeamId,
+      team_name: targetTeamName,
+      player_count: playerCount,
+      total_fee: totalFee,
+      fee_per_player: feePerPlayer,
+      is_complete: isComplete,
+      captain_name: `${designatedCaptain.first_name} ${designatedCaptain.last_name}`.trim(),
+      registrant_name: `${input.registrant.first_name} ${input.registrant.last_name}`.trim(),
+    };
+  });
+
+  return result;
+}
+

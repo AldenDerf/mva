@@ -5,9 +5,16 @@ import {
   getLeagueCategories,
   validateLeagueAndCategory,
   calculateRosterFeeAndStatus,
+  getExistingTeams,
+  getTeamPreviousMembers,
+  createRegistration,
   type OpenLeague,
   type LeagueCategory,
   type RosterCalculationResult,
+  type ExistingTeamItem,
+  type PreviousTeamMember,
+  type CreateRegistrationInput,
+  type CreateRegistrationResult,
 } from "@/lib/registration";
 
 export interface SerializedOpenLeague
@@ -22,6 +29,12 @@ export interface SerializedOpenLeague
 }
 
 export type SerializedLeagueCategory = LeagueCategory;
+export type {
+  ExistingTeamItem,
+  PreviousTeamMember,
+  CreateRegistrationInput,
+  CreateRegistrationResult,
+};
 
 export interface ActionResult<T> {
   success: boolean;
@@ -164,3 +177,77 @@ export async function calculateRosterAction(
     };
   }
 }
+
+/**
+ * Server Action: Fetch existing teams, annotating whether they are already
+ * registered in the specified league & category.
+ */
+export async function fetchExistingTeamsAction(
+  leagueId?: string,
+  categoryId?: string
+): Promise<ActionResult<ExistingTeamItem[]>> {
+  try {
+    const teams = await getExistingTeams(leagueId, categoryId);
+    return {
+      success: true,
+      data: teams,
+    };
+  } catch (error) {
+    console.error("Failed to fetch existing teams:", error);
+    return {
+      success: false,
+      error: "Unable to retrieve teams at this time.",
+    };
+  }
+}
+
+/**
+ * Server Action: Fetch past team members from previous registrations.
+ */
+export async function fetchTeamPreviousMembersAction(
+  teamId: string
+): Promise<ActionResult<PreviousTeamMember[]>> {
+  try {
+    const members = await getTeamPreviousMembers(teamId);
+    return {
+      success: true,
+      data: members,
+    };
+  } catch (error) {
+    console.error("Failed to fetch previous team members:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to load team members.",
+    };
+  }
+}
+
+/**
+ * Server Action: Submit complete public team registration.
+ * Validates all inputs server-side, verifies business constraints,
+ * creates records in a transaction, and returns the generated registration code.
+ */
+export async function submitTeamRegistrationAction(
+  input: CreateRegistrationInput
+): Promise<ActionResult<CreateRegistrationResult>> {
+  try {
+    const result = await createRegistration(input);
+    return {
+      success: true,
+      data: result,
+    };
+  } catch (error) {
+    console.error("Failed to submit team registration:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred while submitting your registration.",
+    };
+  }
+}
+

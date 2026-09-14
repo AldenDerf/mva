@@ -62,9 +62,21 @@ Git commits remain the authoritative technical history. This file records meanin
 * Added live-updating roster counters and fee calculation displays as players are added or removed during the registration process, with enforcement of `category.max_players`.
 * Preserved all existing database structures, category limits, and server-side integrity validations without modifying the Prisma schema.
 
+### Public Team Registration (Phase 04.3 — Team Information & Team Roster Public Registration UX)
+
+* Implemented user-friendly 5-step registration wizard flow (`RegistrationWizard.tsx`) with simple language tailored for team representatives:
+  * **Choose Division (Step 1)**: Presents tournament and category cards with dynamic ₱300/player fees, division tags, and roster limits.
+  * **Your Team (Step 2)**: Provides clear options for "I have an existing team" (with search filter, past member loading, and duplicate division detection) and "I'm creating a new team" (team name input and player additions).
+  * **Roster Management**: Dynamically loads previous team members while keeping historical records isolated; allows retaining, removing, and adding players; live updates player count, complete/incomplete status, and total fee assessment.
+  * **Your Information (Step 3)**: Collects registrant details (First Name, Middle Name, Last Name, Suffix, Contact Number, Email) with clear guidance that the registrant does not have to be the team captain.
+  * **Team Captain (Step 4)**: Requires selecting the captain exclusively from players in the current tournament roster.
+  * **Review & Submission (Step 5 & 6)**: Comprehensive summary card detailing team name, division, members, captain, registrant, fee calculation, and incomplete roster notice; creates the registration with `PENDING_PAYMENT` status, creates an initial assessed payment record, and displays the official trigger-generated registration code (e.g. `MVA-2026-0003`).
+* Added server actions and database helpers in `lib/registration.ts` and `app/actions/registration.ts`:
+  * `fetchExistingTeamsAction` / `getExistingTeams`: Retrieves existing teams annotated with division registration status.
+  * `fetchTeamPreviousMembersAction` / `getTeamPreviousMembers`: Retrieves past players from previous registrations without mutating historical data.
+  * `submitTeamRegistrationAction` / `createRegistration`: Executes transactional registration creation with comprehensive server-side validations, player reuse/creation, trigger-assigned registration codes, and pending payment tracking.
+* Created automated verification suite `scripts/verify-phase-04-3.ts` confirming all 15 core Phase 04.3 requirements pass.
+
 ### Planned
 
-* Team Search and Creation UI (Phase 04.3).
-
-
-
+* Payment Workflow Integration (Phase 04.4).
