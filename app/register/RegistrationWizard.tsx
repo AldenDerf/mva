@@ -36,53 +36,6 @@ export interface RosterMember {
   isExisting?: boolean;
 }
 
-function parsePlayerFullName(rawName: string): {
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-  suffix?: string;
-} {
-  const trimmed = rawName.trim().replace(/\s+/g, " ");
-  if (!trimmed) {
-    return { firstName: "", lastName: "" };
-  }
-
-  const suffixes = ["jr.", "jr", "sr.", "sr", "ii", "iii", "iv", "v"];
-  const tokens = trimmed.split(" ");
-  let suffix: string | undefined = undefined;
-
-  if (tokens.length > 1 && suffixes.includes(tokens[tokens.length - 1].toLowerCase())) {
-    suffix = tokens.pop();
-  }
-
-  if (tokens.length === 1) {
-    return {
-      firstName: tokens[0],
-      lastName: tokens[0],
-      suffix,
-    };
-  }
-
-  if (tokens.length === 2) {
-    return {
-      firstName: tokens[0],
-      lastName: tokens[1],
-      suffix,
-    };
-  }
-
-  const firstName = tokens[0];
-  const lastName = tokens[tokens.length - 1];
-  const middleName = tokens.slice(1, -1).join(" ");
-
-  return {
-    firstName,
-    middleName: middleName || undefined,
-    lastName,
-    suffix,
-  };
-}
-
 type WizardStep = "division" | "team" | "registrant" | "captain" | "review" | "success";
 
 export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
@@ -121,7 +74,9 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
 
   // Roster
   const [roster, setRoster] = useState<RosterMember[]>([]);
-  const [newPlayerName, setNewPlayerName] = useState("");
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newMiddleName, setNewMiddleName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
   const [rosterError, setRosterError] = useState<string | null>(null);
 
   // Step 3: Registrant Info
@@ -265,15 +220,8 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   // Add player to current roster
   const handleAddPlayer = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = newPlayerName.trim().replace(/\s+/g, " ");
-    if (!trimmed) {
-      setRosterError("Please enter player's full name.");
-      return;
-    }
-
-    const tokens = trimmed.split(" ");
-    if (tokens.length < 2) {
-      setRosterError("Please enter player's full name (e.g. Juan Dela Cruz).");
+    if (!newFirstName.trim() || !newLastName.trim()) {
+      setRosterError("Player first name and last name are required.");
       return;
     }
 
@@ -287,19 +235,18 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
       return;
     }
 
-    const parsed = parsePlayerFullName(trimmed);
-
     const newPlayer: RosterMember = {
       id: `player-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      firstName: parsed.firstName,
-      middleName: parsed.middleName,
-      lastName: parsed.lastName,
-      suffix: parsed.suffix,
+      firstName: newFirstName.trim(),
+      middleName: newMiddleName.trim() || undefined,
+      lastName: newLastName.trim(),
       isExisting: false,
     };
 
     setRoster((prev) => [...prev, newPlayer]);
-    setNewPlayerName("");
+    setNewFirstName("");
+    setNewMiddleName("");
+    setNewLastName("");
     setRosterError(null);
   };
 
@@ -1467,25 +1414,33 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
 
         {/* Add Player Form */}
         <Card className="p-5 sm:p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#DDE3DE]">
-            <div>
-              <h3 className="text-base font-bold text-[#172019]">Add Player</h3>
-              <p className="text-xs text-[#5F6B61]">
-                Enter player name to add them to your tournament roster.
-              </p>
-            </div>
-            <span className="text-xs text-[#5F6B61]">
-              Max {maxAllowedPlayers} players
-            </span>
+          <div className="pb-3 border-b border-[#DDE3DE]">
+            <h3 className="text-base font-bold text-[#172019]">Add Player</h3>
+            <p className="text-xs text-[#5F6B61]">
+              Enter player details to add them to your tournament roster.
+            </p>
           </div>
 
           <form onSubmit={handleAddPlayer} className="space-y-4">
-            <div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Input
-                label="Player Name"
-                placeholder="Enter player's full name"
-                value={newPlayerName}
-                onChange={(e) => setNewPlayerName(e.target.value)}
+                label="First Name"
+                placeholder="e.g. Juan"
+                value={newFirstName}
+                onChange={(e) => setNewFirstName(e.target.value)}
+                required
+              />
+              <Input
+                label="Middle Name (Optional)"
+                placeholder="e.g. Ramos"
+                value={newMiddleName}
+                onChange={(e) => setNewMiddleName(e.target.value)}
+              />
+              <Input
+                label="Last Name"
+                placeholder="e.g. Dela Cruz"
+                value={newLastName}
+                onChange={(e) => setNewLastName(e.target.value)}
                 required
               />
             </div>
