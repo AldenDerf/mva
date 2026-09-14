@@ -70,8 +70,8 @@ export function calculateRosterFeeAndStatus(
     required_minimum: minRequired,
     status: isComplete ? "COMPLETE" : "INCOMPLETE",
     message: isComplete
-      ? `Roster meets the final requirement of at least ${minRequired} players.`
-      : `Roster is currently incomplete (${count}/${minRequired} players). Registration is permitted, but the roster must reach at least ${minRequired} players before final roster lock.`,
+      ? `Roster complete — ${count}/${minRequired} players.`
+      : `Roster incomplete — ${count}/${minRequired} players. You can submit your registration now. Additional players can be added later.`,
   };
 }
 

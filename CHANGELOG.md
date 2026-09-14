@@ -77,6 +77,18 @@ Git commits remain the authoritative technical history. This file records meanin
   * `submitTeamRegistrationAction` / `createRegistration`: Executes transactional registration creation with comprehensive server-side validations, player reuse/creation, trigger-assigned registration codes, and pending payment tracking.
 * Created automated verification suite `scripts/verify-phase-04-3.ts` confirming all 15 core Phase 04.3 requirements pass.
 
+### Public Team Registration (Phase 04 — Public Registration MVP Finalization)
+
+* Finalized the complete, mobile-first public team registration MVP ready for live launch on the MVA Facebook page.
+* Streamlined player entry to minimize friction: only player names are required (First Name, Last Name, optional Middle Name, optional Suffix); jersey numbers and positions are not required for initial submission and have been removed from the public form.
+* Enforced official dynamic roster status messaging based on `category.min_players`:
+  * Below minimum: `"⚠️ Roster incomplete — X/Y players"` with guidance `"You can submit your registration now. Additional players can be added later."`
+  * At or above minimum: `"✓ Roster complete — X/Y players"`.
+* Ensured registrations with any valid player count ($\ge 1$) can be submitted and begin in `PENDING_PAYMENT` status without blocking.
+* Retained dynamic fee calculation derived directly from database category registration fee ($X \text{ players} \times \text{category.registration\_fee}$).
+* Preserved strict separation between Registrant (team submitter/representative) and Team Captain (selected from current tournament roster).
+* Maintained database safety with zero schema modifications, full transactional integrity, and PostgreSQL trigger-generated user-facing registration codes.
+
 ### Planned
 
-* Payment Workflow Integration (Phase 04.4).
+* Payment Verification Workflow & Management (Future Phases).

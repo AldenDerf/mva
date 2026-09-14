@@ -84,12 +84,12 @@ async function verifyPhase043() {
     middle_name: null,
     last_name: "Castillo",
     suffix: null,
-    jersey_number: 99,
-    position: "Setter",
+    jersey_number: null, // Jersey number is not required for initial registration
+    position: null, // Position is not required for initial registration
     is_captain: true, // Captain selected from current roster
   };
   const currentRosterDraft = [...retained, newPlayer];
-  console.log(`[PASS] Current roster draft has ${currentRosterDraft.length} players (2 retained from history, 1 newly added, 1 removed).`);
+  console.log(`[PASS] Current roster draft has ${currentRosterDraft.length} players (2 retained from history, 1 newly added without jersey/position, 1 removed).`);
 
   // 6. Test 6: Registrant can be different from captain
   console.log("\n--- Test 6: Registrant can be different from captain ---");

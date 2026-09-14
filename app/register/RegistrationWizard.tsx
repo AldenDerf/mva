@@ -78,8 +78,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   const [newMiddleName, setNewMiddleName] = useState("");
   const [newLastName, setNewLastName] = useState("");
   const [newSuffix, setNewSuffix] = useState("");
-  const [newJersey, setNewJersey] = useState("");
-  const [newPosition, setNewPosition] = useState("Outside Hitter");
   const [rosterError, setRosterError] = useState<string | null>(null);
 
   // Step 3: Registrant Info
@@ -250,8 +248,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
       middleName: newMiddleName.trim() || undefined,
       lastName: newLastName.trim(),
       suffix: newSuffix.trim() || undefined,
-      jerseyNumber: newJersey.trim() || undefined,
-      position: newPosition,
       isExisting: false,
     };
 
@@ -267,7 +263,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     setNewMiddleName("");
     setNewLastName("");
     setNewSuffix("");
-    setNewJersey("");
     setRosterError(null);
   };
 
@@ -639,8 +634,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               </p>
               {!submissionResult.is_complete && (
                 <p className="text-[#876a16] font-medium pt-1">
-                  Note: Your roster currently has {submissionResult.player_count} players. You may finalize
-                  additional players with the league secretariat before the final roster lock.
+                  Roster incomplete — {submissionResult.player_count}/{minRequiredPlayers} players. You can submit your registration now. Additional players can be added later.
                 </p>
               )}
             </div>
@@ -693,11 +687,11 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
             </div>
             {isRosterComplete ? (
               <Badge variant="green" size="sm" className="bg-white text-[#205823] font-bold">
-                Roster Complete
+                ✓ Roster complete — {currentRosterCount}/{minRequiredPlayers} players
               </Badge>
             ) : (
               <Badge variant="gold" size="sm" className="font-bold">
-                Roster Incomplete
+                ⚠️ Roster incomplete — {currentRosterCount}/{minRequiredPlayers} players
               </Badge>
             )}
           </div>
@@ -806,19 +800,17 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
             {!isRosterComplete ? (
               <div className="p-4 rounded-xl bg-[#fef9e8] border border-[#F5D025]/40 text-xs sm:text-sm text-[#876a16] leading-relaxed space-y-1">
                 <p className="font-bold flex items-center gap-1.5">
-                  <span>⚠️</span> Roster Status: Incomplete ({currentRosterCount}/{minRequiredPlayers} players)
+                  <span>⚠️</span> Roster incomplete — {currentRosterCount}/{minRequiredPlayers} players
                 </p>
                 <p>
-                  You can submit your registration even if your roster is not yet complete. Your team
-                  must meet the final roster requirement of {minRequiredPlayers} players before the
-                  applicable tournament deadline.
+                  You can submit your registration now. Additional players can be added later.
                 </p>
               </div>
             ) : (
               <div className="p-3.5 rounded-xl bg-[#eef5ef] border border-[#205823]/20 text-xs sm:text-sm text-[#205823] flex items-center gap-2">
                 <span>✓</span>
-                <span>
-                  <strong>Roster Status: Complete</strong> — Meets category minimum requirement ({currentRosterCount}/{minRequiredPlayers} players).
+                <span className="font-bold">
+                  Roster complete — {currentRosterCount}/{minRequiredPlayers} players
                 </span>
               </div>
             )}
@@ -1383,11 +1375,11 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               <div className="mt-1.5">
                 {isRosterComplete ? (
                   <Badge variant="green" size="md" className="font-bold">
-                    ✓ Complete — {currentRosterCount}/{minRequiredPlayers} players
+                    ✓ Roster complete — {currentRosterCount}/{minRequiredPlayers} players
                   </Badge>
                 ) : (
                   <Badge variant="gold" size="md" className="font-bold">
-                    ⚠️ Incomplete — {currentRosterCount}/{minRequiredPlayers} players
+                    ⚠️ Roster incomplete — {currentRosterCount}/{minRequiredPlayers} players
                   </Badge>
                 )}
               </div>
@@ -1419,8 +1411,8 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                   ✓
                 </span>
                 <div className="text-xs sm:text-sm text-[#205823] leading-relaxed">
-                  <span className="font-bold">Complete Roster:</span> Your team has{" "}
-                  {currentRosterCount} registered players, meeting the official division {minRequiredPlayers}-player minimum requirement.
+                  <span className="font-bold">Roster complete — {currentRosterCount}/{minRequiredPlayers} players:</span> Your
+                  team meets the minimum final roster requirement.
                 </div>
               </div>
             ) : (
@@ -1430,10 +1422,9 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                 </span>
                 <div className="text-xs sm:text-sm text-[#876a16] leading-relaxed">
                   <span className="font-bold">
-                    Incomplete ({currentRosterCount}/{minRequiredPlayers} players):
+                    Roster incomplete — {currentRosterCount}/{minRequiredPlayers} players:
                   </span>{" "}
-                  Registration is permitted with fewer than {minRequiredPlayers} players.
-                  Your team must meet the final roster requirement before the tournament roster lock.
+                  You can submit your registration now. Additional players can be added later.
                 </div>
               </div>
             )}
@@ -1455,7 +1446,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           </div>
 
           <form onSubmit={handleAddPlayer} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <Input
                 label="First Name"
                 placeholder="e.g. Juan"
@@ -1476,39 +1467,17 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                 onChange={(e) => setNewLastName(e.target.value)}
                 required
               />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Input
                 label="Suffix (Optional)"
                 placeholder="e.g. Jr., III"
                 value={newSuffix}
                 onChange={(e) => setNewSuffix(e.target.value)}
               />
-              <Input
-                label="Jersey Number"
-                placeholder="e.g. 7"
-                value={newJersey}
-                onChange={(e) => setNewJersey(e.target.value)}
-              />
-              <div>
-                <label className="block text-sm font-medium text-[#172019] mb-1.5">
-                  Position
-                </label>
-                <select
-                  value={newPosition}
-                  onChange={(e) => setNewPosition(e.target.value)}
-                  className="w-full rounded-lg border border-[#DDE3DE] bg-white px-3.5 py-2.5 text-sm text-[#172019] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
-                >
-                  <option value="Outside Hitter">Outside Hitter</option>
-                  <option value="Middle Blocker">Middle Blocker</option>
-                  <option value="Setter">Setter</option>
-                  <option value="Opposite">Opposite</option>
-                  <option value="Libero">Libero</option>
-                  <option value="Utility">Utility</option>
-                </select>
-              </div>
             </div>
+
+            <p className="text-xs text-[#5F6B61]">
+              Jersey numbers and playing positions are not required for initial registration and can be assigned later.
+            </p>
 
             {rosterError && (
               <p className="text-xs text-red-600 font-medium">{rosterError}</p>
