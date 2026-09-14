@@ -24,6 +24,9 @@ async function verifyPhase042() {
   console.log(`[PASS] Categories count: ${catsRes.data.length}`);
   for (const cat of catsRes.data) {
     console.log(`  - Category: "${cat.name}", Fee: ₱${cat.registration_fee}, Limits: ${cat.min_players}-${cat.max_players}`);
+    if (cat.registration_fee !== 300) {
+      throw new Error(`Expected registration fee 300, got ${cat.registration_fee}`);
+    }
   }
 
   // 3. Test valid selection validation
