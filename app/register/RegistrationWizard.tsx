@@ -407,10 +407,8 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   // Calculations for current category & roster
   const activeCategory = confirmedData ? confirmedData.category : categories.find((c) => c.id === selectedCategoryId);
   const feeRate = activeCategory ? activeCategory.registration_fee : 300;
-  const minRequiredPlayers = activeCategory ? activeCategory.min_players : 12;
 
   const currentRosterCount = roster.length;
-  const isRosterComplete = currentRosterCount >= minRequiredPlayers;
   const totalRegistrationFee = currentRosterCount * feeRate;
 
   const activeTeamName =
@@ -571,12 +569,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               <div className="p-3.5 sm:p-4 flex justify-between">
                 <span className="text-[#5F6B61]">Team Members</span>
                 <span className="font-bold text-[#172019]">
-                  {submissionResult.player_count} players{" "}
-                  {submissionResult.is_complete ? (
-                    <span className="text-[#205823] font-semibold">(Complete)</span>
-                  ) : (
-                    <span className="text-[#876a16] font-semibold">(Incomplete — Allowed)</span>
-                  )}
+                  {submissionResult.player_count} {submissionResult.player_count === 1 ? "player" : "players"}
                 </span>
               </div>
               <div className="p-3.5 sm:p-4 flex justify-between">
@@ -603,11 +596,9 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                 <strong>{submissionResult.registration_code}</strong> handy. Association officials
                 will verify team details and coordinate payment verification before competition brackets are drawn.
               </p>
-              {!submissionResult.is_complete && (
-                <p className="text-[#876a16] font-medium pt-1">
-                  Roster incomplete — {submissionResult.player_count}/{minRequiredPlayers} players. You can submit your registration now. Additional players can be added later.
-                </p>
-              )}
+              <p className="text-xs text-[#205823] font-medium pt-1">
+                Initial roster registered ({submissionResult.player_count} {submissionResult.player_count === 1 ? "player" : "players"}). Additional players can be added later.
+              </p>
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row gap-3">
@@ -656,15 +647,9 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               </span>
               <h2 className="font-bold text-base sm:text-lg">Review Your Registration</h2>
             </div>
-            {isRosterComplete ? (
-              <Badge variant="green" size="sm" className="bg-white text-[#205823] font-bold">
-                ✓ Roster complete — {currentRosterCount}/{minRequiredPlayers} players
-              </Badge>
-            ) : (
-              <Badge variant="gold" size="sm" className="font-bold">
-                ⚠️ Roster incomplete — {currentRosterCount}/{minRequiredPlayers} players
-              </Badge>
-            )}
+            <Badge variant="green" size="sm" className="bg-white text-[#205823] font-bold">
+              {currentRosterCount} {currentRosterCount === 1 ? "Player" : "Players"}
+            </Badge>
           </div>
 
           <CardContent className="p-6 sm:p-8 space-y-6">
@@ -764,23 +749,17 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
             </div>
 
             {/* Roster Status Alert */}
-            {!isRosterComplete ? (
-              <div className="p-4 rounded-xl bg-[#fef9e8] border border-[#F5D025]/40 text-xs sm:text-sm text-[#876a16] leading-relaxed space-y-1">
-                <p className="font-bold flex items-center gap-1.5">
-                  <span>⚠️</span> Roster incomplete — {currentRosterCount}/{minRequiredPlayers} players
-                </p>
-                <p>
-                  You can submit your registration now. Additional players can be added later.
-                </p>
-              </div>
-            ) : (
-              <div className="p-3.5 rounded-xl bg-[#eef5ef] border border-[#205823]/20 text-xs sm:text-sm text-[#205823] flex items-center gap-2">
+            <div className="p-3.5 rounded-xl bg-[#eef5ef] border border-[#205823]/20 text-xs sm:text-sm text-[#205823] flex items-center justify-between">
+              <div className="flex items-center gap-2">
                 <span>✓</span>
                 <span className="font-bold">
-                  Roster complete — {currentRosterCount}/{minRequiredPlayers} players
+                  Initial Roster: {currentRosterCount} {currentRosterCount === 1 ? "player" : "players"}
                 </span>
               </div>
-            )}
+              <span className="text-xs text-[#5F6B61]">
+                Additional players can be added later
+              </span>
+            </div>
 
             {/* Fee Assessment Summary */}
             <div className="p-4 rounded-xl bg-[#FAFAF8] border border-[#DDE3DE] flex items-center justify-between">
@@ -1106,7 +1085,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
             <p className="text-xs sm:text-sm text-[#5F6B61] mt-0.5">
               Registration rate is{" "}
               <strong className="text-[#205823]">{formatCurrency(feeRate)} per player</strong>.
-              Final minimum requirement: {minRequiredPlayers} players.
             </p>
           </div>
           <Button
@@ -1335,9 +1313,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                   {currentRosterCount === 1 ? "player" : "players"}
                 </span>
               </p>
-              <p className="text-xs text-[#5F6B61] mt-1">
-                Final roster requirement: <strong>{minRequiredPlayers} players</strong>
-              </p>
             </div>
 
             <div>
@@ -1345,20 +1320,20 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                 Roster Status
               </p>
               <div className="mt-1.5">
-                {isRosterComplete ? (
+                {currentRosterCount > 0 ? (
                   <Badge variant="green" size="md" className="font-bold">
-                    ✓ Requirement satisfied — {currentRosterCount} players
+                    ✓ Ready to Register
                   </Badge>
                 ) : (
-                  <Badge variant="gold" size="md" className="font-bold">
-                    ⚠️ Roster incomplete — {currentRosterCount}/{minRequiredPlayers} players
+                  <Badge variant="muted" size="md" className="font-medium">
+                    No players added
                   </Badge>
                 )}
               </div>
               <p className="text-xs text-[#5F6B61] mt-1.5">
-                {isRosterComplete
-                  ? "Meets final roster requirement"
-                  : "Registration allowed with fewer"}
+                {currentRosterCount > 0
+                  ? "Initial registration allowed"
+                  : "Add at least 1 player to continue"}
               </p>
             </div>
 
@@ -1377,26 +1352,25 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
 
           {/* Status Alert Note */}
           <div className="p-4 sm:p-5">
-            {isRosterComplete ? (
+            {currentRosterCount > 0 ? (
               <div className="p-3.5 rounded-lg bg-[#eef5ef] border border-[#205823]/20 flex items-start gap-2.5">
                 <span className="text-[#205823] text-lg mt-0.5" aria-hidden="true">
                   ✓
                 </span>
                 <div className="text-xs sm:text-sm text-[#205823] leading-relaxed">
-                  <span className="font-bold">Roster complete — {currentRosterCount}/{minRequiredPlayers} players:</span> Your
-                  team meets the minimum final roster requirement.
+                  <span className="font-bold">
+                    {currentRosterCount} {currentRosterCount === 1 ? "player" : "players"} added:
+                  </span>{" "}
+                  You can submit your initial team registration now. Additional players can be added later.
                 </div>
               </div>
             ) : (
-              <div className="p-3.5 rounded-lg bg-[#fef9e8] border border-[#F5D025]/40 flex items-start gap-2.5">
-                <span className="text-[#876a16] text-lg mt-0.5" aria-hidden="true">
-                  ⚠️
+              <div className="p-3.5 rounded-lg bg-[#FAFAF8] border border-[#DDE3DE] flex items-start gap-2.5">
+                <span className="text-[#5F6B61] text-lg mt-0.5" aria-hidden="true">
+                  ℹ️
                 </span>
-                <div className="text-xs sm:text-sm text-[#876a16] leading-relaxed">
-                  <span className="font-bold">
-                    Roster incomplete — {currentRosterCount}/{minRequiredPlayers} players:
-                  </span>{" "}
-                  You can submit your registration now. Additional players can be added later.
+                <div className="text-xs sm:text-sm text-[#5F6B61] leading-relaxed">
+                  Add at least 1 player to register your team. You can submit with any number of players and add more later.
                 </div>
               </div>
             )}
