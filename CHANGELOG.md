@@ -110,6 +110,8 @@ Git commits remain the authoritative technical history. This file records meanin
   * Supported initial team registrations with any player count ($\ge 1$, including 1, 5, 11, 12, 15+ players) with no maximum-player rejection.
   * Retained the ₱300/player fee assessment ($N \times \text{₱}300$) dynamically based on actual registered players.
   * Maintained 12 players as the target for final competition roster completeness rather than a submission minimum.
+  * Cleaned up Step 2 UI in `RegistrationWizard`: removed minimum requirement descriptions from the header and Current Roster section, and updated the Roster Status badge to "Ready to Register".
+
 
 ### Planned
 
