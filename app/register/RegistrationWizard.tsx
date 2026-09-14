@@ -36,6 +36,53 @@ export interface RosterMember {
   isExisting?: boolean;
 }
 
+function parsePlayerFullName(rawName: string): {
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  suffix?: string;
+} {
+  const trimmed = rawName.trim().replace(/\s+/g, " ");
+  if (!trimmed) {
+    return { firstName: "", lastName: "" };
+  }
+
+  const suffixes = ["jr.", "jr", "sr.", "sr", "ii", "iii", "iv", "v"];
+  const tokens = trimmed.split(" ");
+  let suffix: string | undefined = undefined;
+
+  if (tokens.length > 1 && suffixes.includes(tokens[tokens.length - 1].toLowerCase())) {
+    suffix = tokens.pop();
+  }
+
+  if (tokens.length === 1) {
+    return {
+      firstName: tokens[0],
+      lastName: tokens[0],
+      suffix,
+    };
+  }
+
+  if (tokens.length === 2) {
+    return {
+      firstName: tokens[0],
+      lastName: tokens[1],
+      suffix,
+    };
+  }
+
+  const firstName = tokens[0];
+  const lastName = tokens[tokens.length - 1];
+  const middleName = tokens.slice(1, -1).join(" ");
+
+  return {
+    firstName,
+    middleName: middleName || undefined,
+    lastName,
+    suffix,
+  };
+}
+
 type WizardStep = "division" | "team" | "registrant" | "captain" | "review" | "success";
 
 export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
@@ -74,10 +121,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
 
   // Roster
   const [roster, setRoster] = useState<RosterMember[]>([]);
-  const [newFirstName, setNewFirstName] = useState("");
-  const [newMiddleName, setNewMiddleName] = useState("");
-  const [newLastName, setNewLastName] = useState("");
-  const [newSuffix, setNewSuffix] = useState("");
+  const [newPlayerName, setNewPlayerName] = useState("");
   const [rosterError, setRosterError] = useState<string | null>(null);
 
   // Step 3: Registrant Info
@@ -203,18 +247,12 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           middleName: pm.middle_name ?? undefined,
           lastName: pm.last_name,
           suffix: pm.suffix ?? undefined,
-          jerseyNumber: pm.jersey_number ?? undefined,
-          position: pm.position ?? "Outside Hitter",
           isExisting: true,
         }));
 
         setRoster(mappedMembers);
         setPreviousMembersLoaded(true);
-
-        // Pre-select first player as default captain candidate if none selected
-        if (mappedMembers.length > 0 && !captainRosterId) {
-          setCaptainRosterId(mappedMembers[0].id);
-        }
+        // Do NOT auto-select captain; captain must be explicitly selected by user
       }
     } catch (err) {
       console.error("Failed to load previous members:", err);
@@ -227,8 +265,15 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   // Add player to current roster
   const handleAddPlayer = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFirstName.trim() || !newLastName.trim()) {
-      setRosterError("Player first name and last name are required.");
+    const trimmed = newPlayerName.trim().replace(/\s+/g, " ");
+    if (!trimmed) {
+      setRosterError("Please enter player's full name.");
+      return;
+    }
+
+    const tokens = trimmed.split(" ");
+    if (tokens.length < 2) {
+      setRosterError("Please enter player's full name (e.g. Juan Dela Cruz).");
       return;
     }
 
@@ -242,27 +287,19 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
       return;
     }
 
+    const parsed = parsePlayerFullName(trimmed);
+
     const newPlayer: RosterMember = {
       id: `player-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      firstName: newFirstName.trim(),
-      middleName: newMiddleName.trim() || undefined,
-      lastName: newLastName.trim(),
-      suffix: newSuffix.trim() || undefined,
+      firstName: parsed.firstName,
+      middleName: parsed.middleName,
+      lastName: parsed.lastName,
+      suffix: parsed.suffix,
       isExisting: false,
     };
 
-    setRoster((prev) => {
-      const next = [...prev, newPlayer];
-      if (!captainRosterId) {
-        setCaptainRosterId(newPlayer.id);
-      }
-      return next;
-    });
-
-    setNewFirstName("");
-    setNewMiddleName("");
-    setNewLastName("");
-    setNewSuffix("");
+    setRoster((prev) => [...prev, newPlayer]);
+    setNewPlayerName("");
     setRosterError(null);
   };
 
@@ -270,9 +307,9 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   const handleRemovePlayer = (id: string) => {
     setRoster((prev) => {
       const filtered = prev.filter((p) => p.id !== id);
-      // If removed player was designated captain, reassign or clear
+      // If removed player was designated captain, clear captain selection
       if (captainRosterId === id) {
-        setCaptainRosterId(filtered.length > 0 ? filtered[0].id : null);
+        setCaptainRosterId(null);
       }
       return filtered;
     });
@@ -320,11 +357,9 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
       return;
     }
 
-    // Default captain if not already set or invalid
-    if (!captainRosterId || !roster.some((p) => p.id === captainRosterId)) {
-      if (roster.length > 0) {
-        setCaptainRosterId(roster[0].id);
-      }
+    // Clear captain if previously selected captain is no longer in roster
+    if (captainRosterId && !roster.some((p) => p.id === captainRosterId)) {
+      setCaptainRosterId(null);
     }
 
     setCurrentStep("captain");
@@ -759,10 +794,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                           </Badge>
                         )}
                       </div>
-                      <span className="text-xs text-[#5F6B61]">
-                        {player.position ?? "Player"}{" "}
-                        {player.jerseyNumber ? `(#${player.jerseyNumber})` : ""}
-                      </span>
                     </div>
                   ))}
                 </div>
@@ -932,9 +963,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                         {player.firstName} {player.middleName ? `${player.middleName} ` : ""}
                         {player.lastName} {player.suffix ?? ""}
                       </p>
-                      <p className="text-xs text-[#5F6B61]">
-                        {player.position ?? "Player"} {player.jerseyNumber ? `• Jersey #${player.jerseyNumber}` : ""}
-                      </p>
                     </div>
                   </div>
 
@@ -949,7 +977,13 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           </div>
 
           {captainError && (
-            <p className="text-xs text-red-600 font-medium">{captainError}</p>
+            <div
+              role="alert"
+              className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-xs sm:text-sm text-red-800 font-medium flex items-center gap-2"
+            >
+              <span>⚠️</span>
+              <span>{captainError}</span>
+            </div>
           )}
 
           <div className="p-3.5 rounded-lg bg-[#FAFAF8] border border-[#DDE3DE] text-xs text-[#5F6B61]">
@@ -1431,13 +1465,13 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           </div>
         </Card>
 
-        {/* Player Entry Form */}
+        {/* Add Player Form */}
         <Card className="p-5 sm:p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#DDE3DE]">
             <div>
-              <h3 className="text-base font-bold text-[#172019]">Add Team Player</h3>
+              <h3 className="text-base font-bold text-[#172019]">Add Player</h3>
               <p className="text-xs text-[#5F6B61]">
-                Enter player details to add them to your tournament roster.
+                Enter player name to add them to your tournament roster.
               </p>
             </div>
             <span className="text-xs text-[#5F6B61]">
@@ -1446,38 +1480,15 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           </div>
 
           <form onSubmit={handleAddPlayer} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
               <Input
-                label="First Name"
-                placeholder="e.g. Juan"
-                value={newFirstName}
-                onChange={(e) => setNewFirstName(e.target.value)}
+                label="Player Name"
+                placeholder="Enter player's full name"
+                value={newPlayerName}
+                onChange={(e) => setNewPlayerName(e.target.value)}
                 required
-              />
-              <Input
-                label="Middle Name (Optional)"
-                placeholder="e.g. Ramos"
-                value={newMiddleName}
-                onChange={(e) => setNewMiddleName(e.target.value)}
-              />
-              <Input
-                label="Last Name"
-                placeholder="e.g. Dela Cruz"
-                value={newLastName}
-                onChange={(e) => setNewLastName(e.target.value)}
-                required
-              />
-              <Input
-                label="Suffix (Optional)"
-                placeholder="e.g. Jr., III"
-                value={newSuffix}
-                onChange={(e) => setNewSuffix(e.target.value)}
               />
             </div>
-
-            <p className="text-xs text-[#5F6B61]">
-              Jersey numbers and playing positions are not required for initial registration and can be assigned later.
-            </p>
 
             {rosterError && (
               <p className="text-xs text-red-600 font-medium">{rosterError}</p>
@@ -1485,7 +1496,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
 
             <div className="flex justify-end pt-1">
               <Button type="submit" variant="primary" size="md">
-                + Add Player to Roster
+                Add Player
               </Button>
             </div>
           </form>
@@ -1531,13 +1542,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-[#5F6B61] flex items-center gap-2 mt-0.5">
-                        {player.jerseyNumber && (
-                          <span>Jersey #{player.jerseyNumber}</span>
-                        )}
-                        {player.jerseyNumber && player.position && <span>•</span>}
-                        {player.position && <span>{player.position}</span>}
-                      </p>
                     </div>
                   </div>
 
