@@ -121,15 +121,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     }).format(amount);
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return null;
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
   const getCategoryDivisionInfo = (categoryName: string) => {
     const normalized = categoryName.trim().toLowerCase();
     if (
@@ -139,19 +130,19 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     ) {
       return {
         label: "Mixed / Co-ed Division",
-        note: "Mixed / co-ed division — male and female players may be on the same roster.",
+        note: "Male and female players may be on the same roster.",
       };
     }
     if (normalized.includes("women")) {
       return {
         label: "Women's Division",
-        note: "Women's division.",
+        note: null,
       };
     }
     if (normalized.includes("men")) {
       return {
         label: "Men's Division",
-        note: "Men's division.",
+        note: null,
       };
     }
     return null;
@@ -229,13 +220,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               {confirmedData.league.description && (
                 <p className="text-sm text-[#5F6B61] mt-1">
                   {confirmedData.league.description}
-                </p>
-              )}
-              {confirmedData.league.registration_close_at && (
-                <p className="text-xs text-[#205823] font-medium mt-2 flex items-center gap-1">
-                  <span className="inline-block w-2 h-2 rounded-full bg-[#205823]" />
-                  Registration closes{" "}
-                  {formatDate(confirmedData.league.registration_close_at)}
                 </p>
               )}
             </div>
@@ -430,11 +414,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                       <span className="text-base sm:text-lg font-bold text-[#172019] group-hover:text-[#205823] transition-colors">
                         {league.name}
                       </span>
-                      {league.year && (
-                        <Badge variant="outline" size="sm">
-                          {league.year}
-                        </Badge>
-                      )}
                       {isSelected && (
                         <Badge variant="green" size="sm">
                           Selected
@@ -447,20 +426,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                         {league.description}
                       </p>
                     )}
-
-                    <div className="pt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#5F6B61]">
-                      {league.registration_close_at && (
-                        <span className="flex items-center gap-1 font-medium text-[#205823]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#205823]" />
-                          Closes: {formatDate(league.registration_close_at)}
-                        </span>
-                      )}
-                      {league.start_date && (
-                        <span>
-                          Starts: {formatDate(league.start_date)}
-                        </span>
-                      )}
-                    </div>
                   </div>
 
                   {/* Radio Indicator */}
