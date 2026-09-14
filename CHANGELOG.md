@@ -89,6 +89,7 @@ Git commits remain the authoritative technical history. This file records meanin
 * Preserved strict separation between Registrant (team submitter/representative) and Team Captain (selected from current tournament roster).
 * Maintained database safety with zero schema modifications, full transactional integrity, and PostgreSQL trigger-generated user-facing registration codes.
 * Cleaned up public category selection cards by removing public-facing minimum-player descriptions pending formal announcement.
+* Established the 3 tournament categories for the active league: "Mahatao Only" (Mixed/Co-ed), "Open Conference — Men's Division", and "Open Conference — Women's Division", preserving ₱300/player fees, 6/12 roster values, and full foreign-key integrity for historical registrations.
 
 ### Planned
 

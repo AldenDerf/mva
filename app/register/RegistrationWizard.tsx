@@ -713,7 +713,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                   </h3>
                   <p className="text-xs text-[#5F6B61]">{confirmedData.league.name}</p>
                 </div>
-                {division && (
+                {division && !confirmedData.category.name.toLowerCase().includes(division.label.toLowerCase()) && (
                   <Badge variant="outline" size="sm" className="bg-white text-[#5F6B61]">
                     {division.label}
                   </Badge>
@@ -1124,7 +1124,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               <span className="text-xs font-bold text-[#172019]">
                 {confirmedData.category.name}
               </span>
-              {division && (
+              {division && !confirmedData.category.name.toLowerCase().includes(division.label.toLowerCase()) && (
                 <Badge variant="outline" size="sm">
                   {division.label}
                 </Badge>
@@ -1741,7 +1741,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           <div
             role="radiogroup"
             aria-label="Tournament Divisions"
-            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+            className="grid grid-cols-1 md:grid-cols-3 gap-4"
           >
             {categories.map((category) => {
               const isSelected = selectedCategoryId === category.id;
@@ -1773,7 +1773,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                           <h3 className="text-base sm:text-lg font-bold text-[#172019] group-hover:text-[#205823] transition-colors">
                             {category.name}
                           </h3>
-                          {division && (
+                          {division && !category.name.toLowerCase().includes(division.label.toLowerCase()) && (
                             <Badge
                               variant="outline"
                               size="sm"
