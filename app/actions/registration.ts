@@ -8,6 +8,7 @@ import {
   getExistingTeams,
   getTeamPreviousMembers,
   createRegistration,
+  getRegistrationByReference,
   type OpenLeague,
   type LeagueCategory,
   type RosterCalculationResult,
@@ -15,6 +16,7 @@ import {
   type PreviousTeamMember,
   type CreateRegistrationInput,
   type CreateRegistrationResult,
+  type RegistrationReferenceSummary,
 } from "@/lib/registration";
 
 export interface SerializedOpenLeague
@@ -34,6 +36,7 @@ export type {
   PreviousTeamMember,
   CreateRegistrationInput,
   CreateRegistrationResult,
+  RegistrationReferenceSummary,
 };
 
 export interface ActionResult<T> {
@@ -247,6 +250,47 @@ export async function submitTeamRegistrationAction(
         error instanceof Error
           ? error.message
           : "An unexpected error occurred while submitting your registration.",
+    };
+  }
+}
+
+export interface SerializedRegistrationSummary {
+  registration_id: string;
+  registration_code: string;
+  status: string;
+  team_name: string;
+  category_name: string;
+  league_name: string;
+  submitted_at: string | null;
+}
+
+/**
+ * Server Action: Retrieve public registration summary by reference code.
+ */
+export async function fetchRegistrationByReferenceAction(
+  ref: string
+): Promise<ActionResult<SerializedRegistrationSummary>> {
+  try {
+    const summary = await getRegistrationByReference(ref);
+    if (!summary) {
+      return {
+        success: false,
+        error: "Registration reference not found.",
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        ...summary,
+        submitted_at: summary.submitted_at?.toISOString() ?? null,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to fetch registration by reference:", error);
+    return {
+      success: false,
+      error: "Unable to retrieve registration reference at this time.",
     };
   }
 }

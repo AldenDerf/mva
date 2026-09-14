@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   fetchLeagueCategoriesAction,
   validateLeagueAndCategoryAction,
@@ -42,6 +43,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   initialLeagues,
   initialCategories = [],
 }) => {
+  const router = useRouter();
   const hasSingleLeague = initialLeagues.length === 1;
   const defaultLeagueId = hasSingleLeague ? initialLeagues[0].id : null;
 
@@ -368,6 +370,10 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
       const res = await submitTeamRegistrationAction(payload);
       if (res.success && res.data) {
         setSubmissionResult(res.data);
+        if (res.data.registration_code) {
+          router.push(`/register/success?ref=${encodeURIComponent(res.data.registration_code)}`);
+          return;
+        }
         setCurrentStep("success");
       } else {
         setSubmissionError(res.error ?? "Failed to submit registration. Please try again.");

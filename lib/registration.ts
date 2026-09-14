@@ -720,3 +720,78 @@ export async function createRegistration(
   return result;
 }
 
+export interface RegistrationReferenceSummary {
+  registration_id: string;
+  registration_code: string;
+  status: string;
+  team_name: string;
+  category_name: string;
+  league_name: string;
+  submitted_at: Date | null;
+}
+
+/**
+ * Retrieves a public reference summary for a registered team using the registration code.
+ * Strips all sensitive personal information (phone numbers, addresses, emails, player details).
+ * Returns null if the reference is invalid or not found.
+ */
+export async function getRegistrationByReference(
+  ref: string | null | undefined
+): Promise<RegistrationReferenceSummary | null> {
+  if (!ref || typeof ref !== "string") {
+    return null;
+  }
+
+  const cleanRef = ref.trim();
+  if (!cleanRef) {
+    return null;
+  }
+
+  try {
+    const registration = await prisma.registrations.findFirst({
+      where: {
+        registration_code: cleanRef,
+      },
+      select: {
+        id: true,
+        registration_code: true,
+        status: true,
+        submitted_at: true,
+        teams: {
+          select: {
+            team_name: true,
+          },
+        },
+        leagues: {
+          select: {
+            name: true,
+          },
+        },
+        league_categories_registrations_league_category_idToleague_categories: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!registration || !registration.registration_code) {
+      return null;
+    }
+
+    return {
+      registration_id: registration.id,
+      registration_code: registration.registration_code,
+      status: registration.status,
+      team_name: registration.teams.team_name,
+      category_name:
+        registration.league_categories_registrations_league_category_idToleague_categories.name,
+      league_name: registration.leagues.name,
+      submitted_at: registration.submitted_at,
+    };
+  } catch (error) {
+    console.error("Error retrieving registration by reference:", error);
+    return null;
+  }
+}
+

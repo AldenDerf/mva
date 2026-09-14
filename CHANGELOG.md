@@ -92,6 +92,21 @@ Git commits remain the authoritative technical history. This file records meanin
 * Established the 3 tournament categories for the active league: "Mahatao Only" (Mixed/Co-ed), "Open Conference — Men's Division", and "Open Conference — Women's Division", preserving ₱300/player fees, 6/12 roster values, and full foreign-key integrity for historical registrations.
 * Streamlined public player entry form to First Name, Middle Name (Optional), and Last Name fields, removed the "Max 12 players" header description, and enforced explicit team captain selection without auto-defaulting.
 
+### Public Team Registration (Phase 04 — Registration Success & Reference Page)
+
+* Added dedicated, mobile-first registration success route at `/register/success?ref=...` displaying official registration confirmation.
+* Updated `RegistrationWizard` to automatically redirect users upon successful team submission to `/register/success?ref=MVA-2026-XXXX` using the authoritative trigger-generated registration code.
+* Implemented secure database validation function `getRegistrationByReference` and Server Action `fetchRegistrationByReferenceAction`:
+  * Validates registration codes against the database source of truth.
+  * Sanitizes public output by stripping sensitive personal data (registrant contact numbers, emails, addresses, and player personal records).
+  * Returns friendly "Registration Reference Not Found" state with "Back to Registration" action for invalid or non-existent references.
+* Implemented client-side HTML5 Canvas PNG reference generator (`downloadReferenceImage.ts`):
+  * Produces high-resolution (1200×1420) reference images branded with the official MVA logo, deep athletic green (`#205823`) header, and gold (`#F5D025`) accents.
+  * Includes tournament title ("MVA 2026 Mahatao Volleyball League"), team name, division, registration reference code, status badge, and official record-keeping instruction.
+  * Mobile-friendly and optimized for saving directly to phone photo galleries or presenting to MVA tournament organizers.
+* Provided "Register Another Team" action returning users to `/register` with a clean, unpolluted registration flow.
+* Maintained complete architectural compatibility with future roster-management workflows without modifying the Prisma schema.
+
 ### Planned
 
 * Payment Verification Workflow & Management (Future Phases).
