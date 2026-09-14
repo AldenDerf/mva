@@ -324,9 +324,10 @@ export interface RegistrantInput {
 export interface CreateRegistrationInput {
   league_id: string;
   league_category_id: string;
-  team_mode: "existing" | "new";
+  team_mode?: "existing" | "new";
   team_id?: string | null;
   new_team_name?: string | null;
+  team_name?: string | null;
   registrant: RegistrantInput;
   players: RegistrationPlayerInput[];
 }
@@ -491,8 +492,8 @@ export async function createRegistration(
   let targetTeamId: string;
   let targetTeamName: string;
 
-  if (input.team_mode === "existing") {
-    if (!input.team_id || !isValidUuid(input.team_id)) {
+  if (input.team_mode === "existing" && input.team_id) {
+    if (!isValidUuid(input.team_id)) {
       throw new Error("Please select a valid existing team.");
     }
 
@@ -524,14 +525,15 @@ export async function createRegistration(
     targetTeamId = existingTeam.id;
     targetTeamName = existingTeam.team_name;
   } else {
-    // New Team Flow
-    const trimmedName = input.new_team_name?.trim();
+    // Team name resolution flow (public team registration)
+    const rawTeamName = input.team_name || input.new_team_name;
+    const trimmedName = rawTeamName?.trim();
     if (!trimmedName) {
-      throw new Error("Team name is required for creating a new team.");
+      throw new Error("Team name is required.");
     }
 
-    // Check if team name already exists
-    const duplicateTeam = await prisma.teams.findFirst({
+    // Check if team with this name already exists in teams table (case-insensitive)
+    const matchedTeam = await prisma.teams.findFirst({
       where: {
         team_name: {
           equals: trimmedName,
@@ -540,32 +542,50 @@ export async function createRegistration(
       },
     });
 
-    if (duplicateTeam) {
-      throw new Error(
-        `A team named "${trimmedName}" already exists. Please choose another name or select "I have an existing team".`
-      );
+    if (matchedTeam) {
+      // Server-side duplicate registration protection: check if already registered in this league & category
+      const duplicateCheck = await prisma.registrations.findUnique({
+        where: {
+          league_id_league_category_id_team_id: {
+            league_id: league.id,
+            league_category_id: category.id,
+            team_id: matchedTeam.id,
+          },
+        },
+      });
+
+      if (duplicateCheck) {
+        throw new Error(
+          `Team "${matchedTeam.team_name}" is already registered in this division.`
+        );
+      }
+
+      // Reuse existing team identity for the new tournament registration
+      targetTeamId = matchedTeam.id;
+      targetTeamName = matchedTeam.team_name;
+    } else {
+      // Create new team record
+      let slug = generateSlug(trimmedName);
+      if (!slug) slug = `team-${Date.now()}`;
+
+      // Verify slug uniqueness
+      const existingSlug = await prisma.teams.findUnique({
+        where: { slug },
+      });
+      if (existingSlug) {
+        slug = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+
+      const newTeam = await prisma.teams.create({
+        data: {
+          team_name: trimmedName,
+          slug,
+        },
+      });
+
+      targetTeamId = newTeam.id;
+      targetTeamName = newTeam.team_name;
     }
-
-    let slug = generateSlug(trimmedName);
-    if (!slug) slug = `team-${Date.now()}`;
-
-    // Verify slug uniqueness
-    const existingSlug = await prisma.teams.findUnique({
-      where: { slug },
-    });
-    if (existingSlug) {
-      slug = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
-    }
-
-    const newTeam = await prisma.teams.create({
-      data: {
-        team_name: trimmedName,
-        slug,
-      },
-    });
-
-    targetTeamId = newTeam.id;
-    targetTeamName = newTeam.team_name;
   }
 
   // 5. Database Transaction: Process Players and Create Registration
@@ -709,6 +729,9 @@ export async function createRegistration(
       captain_name: `${designatedCaptain.first_name} ${designatedCaptain.last_name}`.trim(),
       registrant_name: `${input.registrant.first_name} ${input.registrant.last_name}`.trim(),
     };
+  }, {
+    maxWait: 10000,
+    timeout: 30000,
   });
 
   return result;

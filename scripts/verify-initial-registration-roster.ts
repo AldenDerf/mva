@@ -139,6 +139,7 @@ async function verifyInitialRegistrationRoster() {
     where: {
       first_name: { startsWith: "Player" },
       last_name: { startsWith: "Test" },
+      registration_players: { none: {} },
     },
   });
 

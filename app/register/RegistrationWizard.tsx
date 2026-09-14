@@ -1,18 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   fetchLeagueCategoriesAction,
   validateLeagueAndCategoryAction,
-  fetchExistingTeamsAction,
-  fetchTeamPreviousMembersAction,
   submitTeamRegistrationAction,
   type SerializedOpenLeague,
   type SerializedLeagueCategory,
-  type ExistingTeamItem,
-  type PreviousTeamMember,
   type CreateRegistrationResult,
 } from "@/app/actions/registration";
 import { Button } from "@/components/ui/Button";
@@ -26,15 +22,11 @@ interface RegistrationWizardProps {
 }
 
 export interface RosterMember {
-  id: string; // Temporary or resolved player ID
-  playerId?: string;
+  id: string;
   firstName: string;
   middleName?: string;
   lastName: string;
   suffix?: string;
-  jerseyNumber?: string;
-  position?: string;
-  isExisting?: boolean;
 }
 
 type WizardStep = "division" | "team" | "registrant" | "captain" | "review" | "success";
@@ -63,16 +55,8 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     category: SerializedLeagueCategory;
   } | null>(null);
 
-  // Step 2: Team Choice & Roster
-  const [teamMode, setTeamMode] = useState<"existing" | "new">("new");
-  const [existingTeams, setExistingTeams] = useState<ExistingTeamItem[]>([]);
-  const [isLoadingExistingTeams, setIsLoadingExistingTeams] = useState(false);
-  const [teamSearchQuery, setTeamSearchQuery] = useState("");
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
-  const [selectedExistingTeam, setSelectedExistingTeam] = useState<ExistingTeamItem | null>(null);
-  const [isLoadingPreviousMembers, setIsLoadingPreviousMembers] = useState(false);
-  const [previousMembersLoaded, setPreviousMembersLoaded] = useState(false);
-  const [newTeamName, setNewTeamName] = useState("");
+  // Step 2: Team Name & Roster
+  const [teamName, setTeamName] = useState("");
 
   // Roster
   const [roster, setRoster] = useState<RosterMember[]>([]);
@@ -102,27 +86,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   // General Validation Error
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
-
-  // Load existing teams when confirmedData changes
-  useEffect(() => {
-    let isCancelled = false;
-    if (confirmedData?.league.id && confirmedData?.category.id) {
-      fetchExistingTeamsAction(confirmedData.league.id, confirmedData.category.id)
-        .then((res) => {
-          if (!isCancelled && res.success && res.data) {
-            setExistingTeams(res.data);
-          }
-        })
-        .finally(() => {
-          if (!isCancelled) {
-            setIsLoadingExistingTeams(false);
-          }
-        });
-    }
-    return () => {
-      isCancelled = true;
-    };
-  }, [confirmedData]);
 
   // Handle category fetch when league changes
   const handleSelectLeague = async (leagueId: string) => {
@@ -184,41 +147,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     }
   };
 
-  // Select an existing team
-  const handleSelectExistingTeam = async (team: ExistingTeamItem) => {
-    if (team.is_registered_in_category) return; // Prevent selection of already registered teams
-
-    setSelectedTeamId(team.id);
-    setSelectedExistingTeam(team);
-    setRosterError(null);
-    setIsLoadingPreviousMembers(true);
-    setPreviousMembersLoaded(false);
-
-    try {
-      const membersRes = await fetchTeamPreviousMembersAction(team.id);
-      if (membersRes.success && membersRes.data) {
-        const mappedMembers: RosterMember[] = membersRes.data.map((pm: PreviousTeamMember) => ({
-          id: `prev-${pm.player_id}`,
-          playerId: pm.player_id,
-          firstName: pm.first_name,
-          middleName: pm.middle_name ?? undefined,
-          lastName: pm.last_name,
-          suffix: pm.suffix ?? undefined,
-          isExisting: true,
-        }));
-
-        setRoster(mappedMembers);
-        setPreviousMembersLoaded(true);
-        // Do NOT auto-select captain; captain must be explicitly selected by user
-      }
-    } catch (err) {
-      console.error("Failed to load previous members:", err);
-      setRosterError("Unable to load previous team members. You can still add players manually.");
-    } finally {
-      setIsLoadingPreviousMembers(false);
-    }
-  };
-
   // Add player to current roster (No maximum limit for initial registration)
   const handleAddPlayer = (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,7 +160,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
       firstName: newFirstName.trim(),
       middleName: newMiddleName.trim() || undefined,
       lastName: newLastName.trim(),
-      isExisting: false,
     };
 
     setRoster((prev) => [...prev, newPlayer]);
@@ -258,16 +185,9 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   const handleProceedToRegistrant = () => {
     setRosterError(null);
 
-    if (teamMode === "existing") {
-      if (!selectedTeamId || !selectedExistingTeam) {
-        setRosterError("Please select your existing team to continue.");
-        return;
-      }
-    } else {
-      if (!newTeamName.trim()) {
-        setRosterError("Please enter your team name to continue.");
-        return;
-      }
+    if (!teamName.trim()) {
+      setRosterError("Please enter your team name to continue.");
+      return;
     }
 
     if (roster.length === 0) {
@@ -321,16 +241,12 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     setIsSubmitting(true);
     setSubmissionError(null);
 
-    const activeTeamName =
-      teamMode === "existing" ? selectedExistingTeam?.team_name ?? "" : newTeamName.trim();
-
     try {
       const payload = {
         league_id: confirmedData.league.id,
         league_category_id: confirmedData.category.id,
-        team_mode: teamMode,
-        team_id: teamMode === "existing" ? selectedTeamId : null,
-        new_team_name: teamMode === "new" ? activeTeamName : null,
+        team_name: teamName.trim(),
+        new_team_name: teamName.trim(),
         registrant: {
           first_name: regFirstName.trim(),
           middle_name: regMiddleName.trim() || null,
@@ -340,13 +256,10 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           email: regEmail.trim() || null,
         },
         players: roster.map((p) => ({
-          player_id: p.playerId ?? null,
           first_name: p.firstName,
           middle_name: p.middleName ?? null,
           last_name: p.lastName,
           suffix: p.suffix ?? null,
-          jersey_number: p.jerseyNumber ? parseInt(p.jerseyNumber, 10) : null,
-          position: p.position ?? null,
           is_captain: p.id === captainRosterId,
         })),
       };
@@ -411,10 +324,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   const currentRosterCount = roster.length;
   const totalRegistrationFee = currentRosterCount * feeRate;
 
-  const activeTeamName =
-    teamMode === "existing"
-      ? selectedExistingTeam?.team_name ?? "Selected Team"
-      : newTeamName.trim() || "New Team";
+  const activeTeamName = teamName.trim() || "Your Team";
 
   const selectedCaptainPlayer = roster.find((p) => p.id === captainRosterId);
 
@@ -612,10 +522,9 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                 size="lg"
                 onClick={() => {
                   setCurrentStep("division");
-                  setSelectedTeamId(null);
-                  setSelectedExistingTeam(null);
+                  setTeamName("");
                   setRoster([]);
-                  setNewTeamName("");
+                  setCaptainRosterId(null);
                   setSubmissionResult(null);
                 }}
                 className="w-full sm:w-1/2"
@@ -686,16 +595,12 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                   </span>
                   <h3 className="text-lg font-black text-[#172019]">{activeTeamName}</h3>
                 </div>
-                <Badge variant={teamMode === "existing" ? "outline" : "green"} size="sm">
-                  {teamMode === "existing" ? "Existing Team" : "New Team"}
-                </Badge>
               </div>
 
               {/* Members List */}
               <div className="pt-2 border-t border-[#DDE3DE] space-y-2">
-                <div className="flex items-center justify-between text-xs text-[#5F6B61] font-semibold uppercase tracking-wider">
-                  <span>Team Members ({currentRosterCount} players)</span>
-                  <span>Position / Jersey</span>
+                <div className="text-xs text-[#5F6B61] font-semibold uppercase tracking-wider">
+                  Team Members ({currentRosterCount} players)
                 </div>
                 <div className="divide-y divide-[#DDE3DE] max-h-48 overflow-y-auto pr-1">
                   {roster.map((player, idx) => (
@@ -1097,207 +1002,29 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           </Button>
         </div>
 
-        {/* Team Mode Question Card */}
+        {/* Team Details Card */}
         <Card className="p-5 sm:p-6 space-y-4">
           <div>
             <h3 className="text-base sm:text-lg font-bold text-[#172019]">
-              Do you already have a team?
+              Team Details
             </h3>
             <p className="text-xs sm:text-sm text-[#5F6B61] mt-0.5">
-              Choose whether to select an existing team or create a new team for this tournament.
+              Enter your official team name for this tournament.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {/* Option A: Existing Team */}
-            <div
-              role="radio"
-              aria-checked={teamMode === "existing"}
-              tabIndex={0}
-              onClick={() => {
-                setTeamMode("existing");
-                setRosterError(null);
+          <div>
+            <Input
+              label="Team Name"
+              placeholder="Enter your team name"
+              value={teamName}
+              onChange={(e) => {
+                setTeamName(e.target.value);
+                if (rosterError) setRosterError(null);
               }}
-              onKeyDown={(e) => {
-                if (e.key === " " || e.key === "Enter") {
-                  e.preventDefault();
-                  setTeamMode("existing");
-                  setRosterError(null);
-                }
-              }}
-              className={`p-4 sm:p-5 rounded-xl border cursor-pointer select-none transition-all outline-none focus-visible:ring-2 focus-visible:ring-[#205823] ${
-                teamMode === "existing"
-                  ? "bg-[#eef5ef]/60 border-[#205823] ring-1 ring-[#205823] shadow-xs"
-                  : "bg-white border-[#DDE3DE] hover:border-[#205823]/40"
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${
-                    teamMode === "existing"
-                      ? "border-[#205823] bg-[#205823] text-white"
-                      : "border-[#DDE3DE] bg-white"
-                  }`}
-                  aria-hidden="true"
-                >
-                  {teamMode === "existing" && <span className="w-2 h-2 rounded-full bg-white" />}
-                </div>
-                <div>
-                  <h4 className="text-sm sm:text-base font-bold text-[#172019]">
-                    I have an existing team
-                  </h4>
-                  <p className="text-xs text-[#5F6B61] mt-1 leading-relaxed">
-                    Select your team and review your previous team members.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Option B: New Team */}
-            <div
-              role="radio"
-              aria-checked={teamMode === "new"}
-              tabIndex={0}
-              onClick={() => {
-                setTeamMode("new");
-                setSelectedTeamId(null);
-                setSelectedExistingTeam(null);
-                setRosterError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === " " || e.key === "Enter") {
-                  e.preventDefault();
-                  setTeamMode("new");
-                  setSelectedTeamId(null);
-                  setSelectedExistingTeam(null);
-                  setRosterError(null);
-                }
-              }}
-              className={`p-4 sm:p-5 rounded-xl border cursor-pointer select-none transition-all outline-none focus-visible:ring-2 focus-visible:ring-[#205823] ${
-                teamMode === "new"
-                  ? "bg-[#eef5ef]/60 border-[#205823] ring-1 ring-[#205823] shadow-xs"
-                  : "bg-white border-[#DDE3DE] hover:border-[#205823]/40"
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${
-                    teamMode === "new"
-                      ? "border-[#205823] bg-[#205823] text-white"
-                      : "border-[#DDE3DE] bg-white"
-                  }`}
-                  aria-hidden="true"
-                >
-                  {teamMode === "new" && <span className="w-2 h-2 rounded-full bg-white" />}
-                </div>
-                <div>
-                  <h4 className="text-sm sm:text-base font-bold text-[#172019]">
-                    I&apos;m creating a new team
-                  </h4>
-                  <p className="text-xs text-[#5F6B61] mt-1 leading-relaxed">
-                    Enter your team name and add your players.
-                  </p>
-                </div>
-              </div>
-            </div>
+              required
+            />
           </div>
-
-          {/* Conditional Input based on Team Mode */}
-          {teamMode === "new" ? (
-            <div className="pt-3 border-t border-[#DDE3DE]">
-              <Input
-                label="What's your team name?"
-                placeholder="e.g. Mahatao Spikers"
-                value={newTeamName}
-                onChange={(e) => setNewTeamName(e.target.value)}
-                required
-              />
-            </div>
-          ) : (
-            <div className="pt-3 border-t border-[#DDE3DE] space-y-3">
-              <label className="block text-sm font-medium text-[#172019]">
-                Select your existing team
-              </label>
-
-              {/* Team Filter Search */}
-              <input
-                type="text"
-                placeholder="Search team name..."
-                value={teamSearchQuery}
-                onChange={(e) => setTeamSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-[#DDE3DE] bg-white px-3.5 py-2 text-xs sm:text-sm text-[#172019] placeholder:text-[#5F6B61] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
-              />
-
-              {isLoadingExistingTeams ? (
-                <div className="text-center py-4 text-xs text-[#5F6B61]">
-                  Loading existing teams...
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-52 overflow-y-auto pr-1">
-                  {existingTeams
-                    .filter((t) =>
-                      t.team_name.toLowerCase().includes(teamSearchQuery.toLowerCase().trim())
-                    )
-                    .map((team) => {
-                      const isSelected = selectedTeamId === team.id;
-                      const isRegistered = team.is_registered_in_category;
-
-                      return (
-                        <div
-                          key={team.id}
-                          onClick={() => !isRegistered && handleSelectExistingTeam(team)}
-                          className={`p-3 rounded-lg border text-left transition-all ${
-                            isRegistered
-                              ? "bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed"
-                              : isSelected
-                              ? "bg-[#eef5ef] border-[#205823] ring-1 ring-[#205823] cursor-pointer"
-                              : "bg-white border-[#DDE3DE] hover:border-[#205823]/50 cursor-pointer"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-sm text-[#172019]">
-                              {team.team_name}
-                            </span>
-                            {isRegistered ? (
-                              <Badge variant="muted" size="sm" className="text-[10px]">
-                                Already Registered
-                              </Badge>
-                            ) : isSelected ? (
-                              <Badge variant="green" size="sm" className="text-[10px]">
-                                Selected
-                              </Badge>
-                            ) : null}
-                          </div>
-                          {team.description && (
-                            <p className="text-xs text-[#5F6B61] mt-0.5 line-clamp-1">
-                              {team.description}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-
-              {selectedExistingTeam && (
-                <div className="p-3.5 rounded-lg bg-[#eef5ef]/70 border border-[#205823]/20 flex items-start gap-2.5 text-xs text-[#205823]">
-                  <span className="text-sm font-bold">✓</span>
-                  <div>
-                    Selected: <strong>{selectedExistingTeam.team_name}</strong>.
-                    {isLoadingPreviousMembers ? (
-                      <span className="block text-[#5F6B61] mt-0.5">
-                        Loading past team members...
-                      </span>
-                    ) : previousMembersLoaded ? (
-                      <span className="block mt-0.5">
-                        We found your previous team members. Review and update them below.
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </Card>
 
         {/* Dynamic Calculation & Roster Status Card */}
@@ -1451,17 +1178,10 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                       {index + 1}
                     </span>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-[#172019]">
-                          {player.firstName} {player.middleName ? `${player.middleName} ` : ""}
-                          {player.lastName} {player.suffix ?? ""}
-                        </p>
-                        {player.isExisting && (
-                          <Badge variant="outline" size="sm" className="text-[10px] px-1.5 py-0">
-                            Previous Member
-                          </Badge>
-                        )}
-                      </div>
+                      <p className="text-sm font-bold text-[#172019]">
+                        {player.firstName} {player.middleName ? `${player.middleName} ` : ""}
+                        {player.lastName} {player.suffix ?? ""}
+                      </p>
                     </div>
                   </div>
 
@@ -1508,7 +1228,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               variant="primary"
               size="lg"
               onClick={handleProceedToRegistrant}
-              disabled={roster.length === 0}
+              disabled={roster.length === 0 || !teamName.trim()}
               className="w-full sm:w-auto min-w-[180px]"
             >
               Continue to Registrant Info

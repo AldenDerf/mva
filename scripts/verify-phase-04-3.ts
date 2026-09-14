@@ -144,27 +144,30 @@ async function verifyPhase043() {
   }
   console.log(`[PASS] ${category.min_players} players (= min ${category.min_players}): Status = ${atMinCalc.status}`);
 
-  // 9. Test 12: Maximum roster limit enforcement
-  console.log("\n--- Test 12: Maximum roster limit enforcement ---");
-  const tooManyPlayers = Array.from({ length: category.max_players + 1 }, (_, i) => ({
+  // 9. Test 12: More than 12 players allowed (No maximum roster limit rejection)
+  console.log("\n--- Test 12: No maximum roster limit rejection ---");
+  const manyPlayers = Array.from({ length: 15 }, (_, i) => ({
     first_name: `Player${i + 1}`,
     last_name: `Test${i + 1}`,
-    jersey_number: i + 1,
-    position: "Utility",
     is_captain: i === 0,
   }));
-  const maxExceededRes = await submitTeamRegistrationAction({
+  const test15TeamName = `Test Many Players ${Date.now()}`;
+  const manyPlayersRes = await submitTeamRegistrationAction({
     league_id: league.id,
     league_category_id: category.id,
-    team_mode: "new",
-    new_team_name: "Test Exceeded Max",
+    team_name: test15TeamName,
     registrant: testRegistrant,
-    players: tooManyPlayers,
+    players: manyPlayers,
   });
-  if (maxExceededRes.success) {
-    throw new Error("Should have rejected roster exceeding max_players.");
+  if (!manyPlayersRes.success || !manyPlayersRes.data) {
+    throw new Error(`Should have accepted roster with 15 players: ${manyPlayersRes.error}`);
   }
-  console.log(`[PASS] Exceeding max_players correctly rejected: "${maxExceededRes.error}"`);
+  console.log(`[PASS] 15 players accepted without maximum rejection: ID=${manyPlayersRes.data.registration_id}`);
+  // Clean up
+  await prisma.payments.deleteMany({ where: { registration_id: manyPlayersRes.data.registration_id } });
+  await prisma.registration_players.deleteMany({ where: { registration_id: manyPlayersRes.data.registration_id } });
+  await prisma.registrations.delete({ where: { id: manyPlayersRes.data.registration_id } });
+  await prisma.teams.delete({ where: { id: manyPlayersRes.data.team_id } });
 
   // 10. Test 13: Fee calculation check
   console.log("\n--- Test 13: Fee remains player count × registration_fee ---");

@@ -109,8 +109,15 @@ Git commits remain the authoritative technical history. This file records meanin
 * Clarified initial registration vs final roster rules:
   * Supported initial team registrations with any player count ($\ge 1$, including 1, 5, 11, 12, 15+ players) with no maximum-player rejection.
   * Retained the ₱300/player fee assessment ($N \times \text{₱}300$) dynamically based on actual registered players.
-  * Maintained 12 players as the target for final competition roster completeness rather than a submission minimum.
   * Cleaned up Step 2 UI in `RegistrationWizard`: removed minimum requirement descriptions from the header and Current Roster section, and updated the Roster Status badge to "Ready to Register".
+* Simplified Public Team Registration Flow:
+  * Removed "I have an existing team" and "I'm creating a new team" options, existing-team searches, selectors, radio cards, and previous member loading from the public registration flow.
+  * Streamlined Step 2 to ask directly for the "Team Name" and user-added roster players starting with a clean, empty roster.
+  * Simplified player entry to only request the player's full name (First Name, Middle Name [Optional], Last Name), removing jersey number and position prompts from public registration.
+  * Preserved server-side duplicate registration protection ensuring a team cannot be registered more than once in the same league division.
+  * Reused existing team identity records seamlessly in the database backend when matching names are submitted across new tournaments.
+  * Retained backend team lookup and member historical query structures for future Admin portal use.
+
 
 
 ### Planned

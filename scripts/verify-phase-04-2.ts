@@ -104,13 +104,13 @@ async function verifyPhase042() {
   }
   console.log(`[PASS] At min (${atMinCount} players): Fee = ₱${atMinCalc.data.total_fee}, Status = ${atMinCalc.data.status}`);
 
-  // Test exceeding max_players:
-  const maxExceeded = chosenCategory.max_players + 1;
-  const maxExceededRes = await calculateRosterAction(league.id, chosenCategory.id, maxExceeded);
-  if (maxExceededRes.success) {
-    throw new Error(`Expected error when exceeding max_players (${chosenCategory.max_players}), but succeeded.`);
+  // Test more than 12 players: No maximum player rejection
+  const morePlayersCount = 15;
+  const morePlayersRes = await calculateRosterAction(league.id, chosenCategory.id, morePlayersCount);
+  if (!morePlayersRes.success || !morePlayersRes.data) {
+    throw new Error(`Expected success for ${morePlayersCount} players, but failed: ${morePlayersRes.error}`);
   }
-  console.log(`[PASS] Exceeding max_players (${maxExceeded} > ${chosenCategory.max_players}) correctly rejected: "${maxExceededRes.error}"`);
+  console.log(`[PASS] More than 12 players (${morePlayersCount} players) accepted without rejection: Fee = ₱${morePlayersRes.data.total_fee}`);
 
   // 5. Verify NO database records were written
   const registrationsCount = await prisma.registrations.count();
