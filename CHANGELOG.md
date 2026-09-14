@@ -106,6 +106,10 @@ Git commits remain the authoritative technical history. This file records meanin
   * Mobile-friendly and optimized for saving directly to phone photo galleries or presenting to MVA tournament organizers.
 * Provided "Register Another Team" action returning users to `/register` with a clean, unpolluted registration flow.
 * Maintained complete architectural compatibility with future roster-management workflows without modifying the Prisma schema.
+* Clarified initial registration vs final roster rules:
+  * Supported initial team registrations with any player count ($\ge 1$, including 1, 5, 11, 12, 15+ players) with no maximum-player rejection.
+  * Retained the ₱300/player fee assessment ($N \times \text{₱}300$) dynamically based on actual registered players.
+  * Maintained 12 players as the target for final competition roster completeness rather than a submission minimum.
 
 ### Planned
 

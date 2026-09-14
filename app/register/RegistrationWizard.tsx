@@ -219,21 +219,11 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     }
   };
 
-  // Add player to current roster
+  // Add player to current roster (No maximum limit for initial registration)
   const handleAddPlayer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFirstName.trim() || !newLastName.trim()) {
       setRosterError("Player first name and last name are required.");
-      return;
-    }
-
-    const activeCat = confirmedData?.category;
-    const maxLimit = activeCat ? activeCat.max_players : 12;
-
-    if (roster.length >= maxLimit) {
-      setRosterError(
-        `Roster limit reached. Maximum allowed players for this division is ${maxLimit}.`
-      );
       return;
     }
 
@@ -282,12 +272,6 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
 
     if (roster.length === 0) {
       setRosterError("Please add at least one player to your team roster.");
-      return;
-    }
-
-    const maxLimit = confirmedData?.category.max_players ?? 12;
-    if (roster.length > maxLimit) {
-      setRosterError(`Roster cannot exceed ${maxLimit} players.`);
       return;
     }
 
@@ -423,8 +407,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   // Calculations for current category & roster
   const activeCategory = confirmedData ? confirmedData.category : categories.find((c) => c.id === selectedCategoryId);
   const feeRate = activeCategory ? activeCategory.registration_fee : 300;
-  const minRequiredPlayers = activeCategory ? activeCategory.min_players : 6;
-  const maxAllowedPlayers = activeCategory ? activeCategory.max_players : 12;
+  const minRequiredPlayers = activeCategory ? activeCategory.min_players : 12;
 
   const currentRosterCount = roster.length;
   const isRosterComplete = currentRosterCount >= minRequiredPlayers;
@@ -1348,10 +1331,12 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               </p>
               <p className="text-2xl sm:text-3xl font-black text-[#172019] mt-0.5">
                 {currentRosterCount}{" "}
-                <span className="text-sm font-normal text-[#5F6B61]">/ {maxAllowedPlayers} max</span>
+                <span className="text-sm font-normal text-[#5F6B61]">
+                  {currentRosterCount === 1 ? "player" : "players"}
+                </span>
               </p>
               <p className="text-xs text-[#5F6B61] mt-1">
-                Final minimum: <strong>{minRequiredPlayers} players</strong>
+                Final roster requirement: <strong>{minRequiredPlayers} players</strong>
               </p>
             </div>
 
@@ -1362,7 +1347,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               <div className="mt-1.5">
                 {isRosterComplete ? (
                   <Badge variant="green" size="md" className="font-bold">
-                    ✓ Roster complete — {currentRosterCount}/{minRequiredPlayers} players
+                    ✓ Requirement satisfied — {currentRosterCount} players
                   </Badge>
                 ) : (
                   <Badge variant="gold" size="md" className="font-bold">
@@ -1372,7 +1357,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               </div>
               <p className="text-xs text-[#5F6B61] mt-1.5">
                 {isRosterComplete
-                  ? "Meets final roster minimum"
+                  ? "Meets final roster requirement"
                   : "Registration allowed with fewer"}
               </p>
             </div>

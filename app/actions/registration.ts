@@ -153,13 +153,6 @@ export async function calculateRosterAction(
       };
     }
 
-    if (playerCount > validation.category.max_players) {
-      return {
-        success: false,
-        error: `Player count (${playerCount}) exceeds maximum roster limit of ${validation.category.max_players} players for this category.`,
-      };
-    }
-
     const feePerPlayer = validation.category.registration_fee;
     const requiredPlayers = validation.category.min_players;
     const calculation = calculateRosterFeeAndStatus(

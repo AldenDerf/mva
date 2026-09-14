@@ -473,15 +473,9 @@ export async function createRegistration(
     throw new Error("Registrant contact number is required.");
   }
 
-  // 3. Validate Roster
+  // 3. Validate Roster: Initial registration requires at least 1 player (no maximum limit)
   if (!input.players || input.players.length === 0) {
     throw new Error("At least one player is required to register a team.");
-  }
-
-  if (input.players.length > category.max_players) {
-    throw new Error(
-      `Player count (${input.players.length}) exceeds the maximum limit of ${category.max_players} players.`
-    );
   }
 
   // Check captain assignment: exactly one player must be designated as captain
