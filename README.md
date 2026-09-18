@@ -201,14 +201,14 @@ All contributors and AI agents must read [GEMINI.md](file:///c:/nextjs-projects/
   * Supabase PostgreSQL schema, relational constraints, enums, triggers, test data.
 * **Phase 02 — Next.js + Prisma Connection** `[Complete]`
   * Prisma 7 configuration, driver adapters, introspection, live query verification.
-* **Phase 03 — Design System & UI/UX** `[Current Phase]`
+* **Phase 03 — Design System & UI/UX** `[Complete]`
   * Brand tokens, foundation components, application shell, responsive navigation, demo page.
-* **Phase 04 — Public Team Registration** `[Planned Next]`
-  * Multi-step registration flow (League & Category, Team Information, Roster, Review & Submit).
-* **Phase 05 — Admin Management** `[Planned]`
-* **Phase 06 — League Operations** `[Planned]`
+* **Phase 04 — Public Team Registration** `[Complete]`
+  * Multi-step public team registration wizard, dynamic category fee calculation (₱300/player), mobile-first roster entry, trigger-generated registration code, reference lookup, and downloadable PNG confirmation.
+* **Phase 05 — Admin Management** `[Next]`
+* **Phase 06 — League Management** `[Planned]`
 * **Phase 07 — Matches & Results** `[Planned]`
-* **Phase 08 — Statistics & Standings** `[Planned]`
+* **Phase 08 — Statistics** `[Planned]`
 
 ---
 

@@ -119,7 +119,22 @@ Git commits remain the authoritative technical history. This file records meanin
   * Retained backend team lookup and member historical query structures for future Admin portal use.
 
 
+### Public Team Registration (Phase 04 — Final Verification & Database Isolation)
+
+* Established complete production database safety and isolation by reproducing the live schema in the local development database `mva_dev` with 1:1 architectural fidelity.
+* Verified all PostgreSQL-native database behaviors in local development: `generate_registration_code()`, `generate_registration_code_trigger`, `update_updated_at_column()`, updated-at triggers, identity sequences, and check constraints (`chk_category_players`, `chk_payment_amount`, `chk_jersey_number`).
+* Switched local development environment to `localhost:5432/mva_dev` via `.env.local` while keeping production Supabase credentials safely isolated and strictly read-only.
+* Executed end-to-end automated verification suite (`scripts/verify-phase-04-final.ts`) covering all core Phase 04 scenarios:
+  * Minimal registration (1 player allowed, fee = ₱300, `PENDING_PAYMENT`, official code generated).
+  * 5 players and 11 players registration (variable roster size accepted without 12-player minimum block).
+  * Explicit team captain requirement and validation (must be in submitted roster, single captain only).
+  * Server-side duplicate registration prevention (same team in same league category rejected safely).
+  * Domain-compliant team identity reuse across distinct league divisions.
+  * Server-authoritative fee assessment strictly calculated from database category fee (₱300/player).
+  * Public registration reference lookup (`/register/success?ref=...`) with complete data privacy safeguards.
+* Passed all quality gates: `pnpm prisma validate`, `pnpm lint`, and `pnpm build` with zero errors.
+* Formally closed Phase 04 — Public Team Registration.
 
 ### Planned
 
-* Payment Verification Workflow & Management (Future Phases).
+* Phase 05 — Admin Management (Payment Verification, Registration & Roster Administration).
