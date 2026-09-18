@@ -55,9 +55,16 @@ async function assertLocalDevDatabase(): Promise<void> {
     addr === "::1" ||
     addr === "localhost";
 
-  if (!isLocal && row.inet_server_port !== 5432) {
+  if (!isLocal) {
     throw new Error(
-      `CRITICAL SAFETY VIOLATION: Database server is not localhost (detected ${addr})! Aborting.`
+      `CRITICAL SAFETY VIOLATION: Database server is not localhost (detected "${addr}")! Aborting.`
+    );
+  }
+
+  const port = row.inet_server_port ?? 5432;
+  if (port !== 5432) {
+    throw new Error(
+      `CRITICAL SAFETY VIOLATION: Database server port is not 5432 (detected ${port})! Aborting.`
     );
   }
 
@@ -263,8 +270,8 @@ async function runPhase04FinalVerification() {
   }
   console.log(`  [PASS] Verified payment assessment: ₱${paymentA.amount}, status=${paymentA.status}`);
 
-  // Scenario B: Five Players
-  console.log("\n[Scenario B] Five Players Registration:");
+  // Scenario B: Five Players (Below Category Minimum of 6)
+  console.log("\n[Scenario B] Five Players Registration (Below Category Minimum of 6):");
   const resB = await submitTeamRegistrationAction({
     league_id: syntheticLeague.id,
     league_category_id: catMens.id,
@@ -286,8 +293,16 @@ async function runPhase04FinalVerification() {
   if (resB.data.total_fee !== 1500) {
     throw new Error(`Expected ₱1,500 fee for 5 players, got ${resB.data.total_fee}`);
   }
+  if (resB.data.is_complete !== false) {
+    throw new Error(`Expected is_complete=false for 5 players below category min (6), got ${resB.data.is_complete}`);
+  }
+  console.log(`  [PASS] Verified roster completion flag for 5 players (< min 6): is_complete=${resB.data.is_complete} (INCOMPLETE allowed to register)`);
 
-  // Scenario C: Below 12 Players (11 Players, not rejected)
+  // Scenario C: Below Final 12-Player Competition Target (11 Players)
+  // Domain distinction:
+  // - Category min_players (6): Database threshold for is_complete flag.
+  // - Competition Target (12 players): Official tournament roster target.
+  // Crucial requirement: Registration with 11 players (< 12 target) must NOT be rejected by the public form.
   console.log("\n[Scenario C] Below Final 12-Player Target (11 players):");
   const players11 = Array.from({ length: 11 }, (_, i) => ({
     first_name: `Player${i + 1}`,
@@ -309,6 +324,10 @@ async function runPhase04FinalVerification() {
   if (resC.data.total_fee !== 3300) {
     throw new Error(`Expected ₱3,300 fee for 11 players, got ${resC.data.total_fee}`);
   }
+  if (resC.data.is_complete !== true) {
+    throw new Error(`Expected is_complete=true for 11 players (>= category min 6), got ${resC.data.is_complete}`);
+  }
+  console.log(`  [PASS] Verified 11 players registered without rejection: fee=₱${resC.data.total_fee}, is_complete=${resC.data.is_complete} (meets db min 6, allowed < 12 target)`);
 
   // Scenario D: Captain Validation
   console.log("\n[Scenario D] Captain Validation (No captain & Multiple captains):");
@@ -498,24 +517,52 @@ async function runPhase04FinalVerification() {
     throw new Error(`Trigger did not format registration code correctly: ${lastReg.registration_code}`);
   }
 
-  // 7. Summary of synthetic data in mva_dev
-  const totalLeagues = await prisma.leagues.count();
-  const totalCats = await prisma.league_categories.count();
-  const totalTeams = await prisma.teams.count();
-  const totalRegs = await prisma.registrations.count();
-  const totalPlayers = await prisma.players.count();
-  const totalPayments = await prisma.payments.count();
+  // 7. Cleanup synthetic data from mva_dev
+  console.log("\n--- Step 7: Cleaning up Synthetic Test Data from mva_dev ---");
+  await prisma.payments.deleteMany({});
+  await prisma.registration_players.deleteMany({});
+  await prisma.registrations.deleteMany({});
+  await prisma.teams.deleteMany({});
+  await prisma.players.deleteMany({});
+  await prisma.league_categories.deleteMany({});
+  await prisma.leagues.deleteMany({});
+  console.log("[PASS] Deleted all synthetic records from mva_dev tables.");
+
+  // Verify all tables are back to 0 rows in mva_dev
+  const postLeagues = await prisma.leagues.count();
+  const postCategories = await prisma.league_categories.count();
+  const postTeams = await prisma.teams.count();
+  const postRegistrations = await prisma.registrations.count();
+  const postRegistrationPlayers = await prisma.registration_players.count();
+  const postPlayers = await prisma.players.count();
+  const postPayments = await prisma.payments.count();
+
+  const remainingTotal =
+    postLeagues +
+    postCategories +
+    postTeams +
+    postRegistrations +
+    postRegistrationPlayers +
+    postPlayers +
+    postPayments;
+
+  if (remainingTotal !== 0) {
+    throw new Error(
+      `Cleanup failed! ${remainingTotal} rows still remain in mva_dev after cleanup.`
+    );
+  }
 
   console.log("\n================================================================");
   console.log("   PHASE 04 FINAL VERIFICATION SUMMARY (mva_dev ONLY)");
   console.log("================================================================");
-  console.log(`  - Synthetic Leagues in mva_dev: ${totalLeagues}`);
-  console.log(`  - Synthetic Categories in mva_dev: ${totalCats}`);
-  console.log(`  - Synthetic Teams in mva_dev: ${totalTeams}`);
-  console.log(`  - Synthetic Registrations in mva_dev: ${totalRegs}`);
-  console.log(`  - Synthetic Players in mva_dev: ${totalPlayers}`);
-  console.log(`  - Synthetic Payments in mva_dev: ${totalPayments}`);
-  console.log("\n[ALL TESTS PASSED] Phase 04 Public Registration flow is 100% verified against mva_dev!");
+  console.log(`  - Synthetic Leagues in mva_dev: ${postLeagues}`);
+  console.log(`  - Synthetic Categories in mva_dev: ${postCategories}`);
+  console.log(`  - Synthetic Teams in mva_dev: ${postTeams}`);
+  console.log(`  - Synthetic Registrations in mva_dev: ${postRegistrations}`);
+  console.log(`  - Synthetic Registration Players in mva_dev: ${postRegistrationPlayers}`);
+  console.log(`  - Synthetic Players in mva_dev: ${postPlayers}`);
+  console.log(`  - Synthetic Payments in mva_dev: ${postPayments}`);
+  console.log("\n[ALL TESTS PASSED & CLEANED UP] Phase 04 Public Registration flow is 100% verified and local mva_dev is clean (0 rows)!");
 }
 
 runPhase04FinalVerification()
