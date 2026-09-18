@@ -14,14 +14,17 @@ This platform is being developed to modernize MVA's operations, provide accessib
 
 ## 2. Current Project Status
 
-**Current Phase: Phase 03 — Design System & UI/UX**
+**Current Phase: Phase 05 — Admin Management (IN PROGRESS)**
+* **Current Checkpoint**: Phase 05.2 — Admin Authentication & Authorization
+* **Phase 04 — Public Team Registration**: `[COMPLETE]`
 
 Key milestones achieved in the current state:
 * **Database Foundation Established**: The core PostgreSQL database has been designed, deployed, and tested in Supabase with integrity constraints, enums, triggers, and relationship structures.
 * **Prisma ORM Integrated**: Prisma has been configured with driver adapters (`@prisma/adapter-pg`) and successfully introspected (`prisma db pull`) against all core tables in the Supabase database.
 * **Design System & Application Shell Implemented**: Reusable UI foundation components (`Button`, `Badge`, `Card`, `Container`, `Section`, `Input`), the official brand logo lockup, desktop navigation, accessible mobile navigation drawer, and footer shell are established.
-* **Demonstration Homepage**: A demonstration page showcases the brand tokens, typography scale, and foundation components without fabricated tournament statistics.
-* **Upcoming**: The public team registration workflow is planned for **Phase 04** and is **NOT yet implemented**.
+* **Public Team Registration Completed**: Multi-step registration wizard, dynamic fee calculation, trigger-generated registration reference codes, and PNG confirmation card download.
+* **Admin Database Foundation (Phase 05.1C)**: `profiles`, `admin_access`, and `admin_audit_logs` tables with RLS enabled.
+* **Admin Authentication & Authorization (Phase 05.2)**: Supabase Auth integration via `@supabase/ssr`, Next.js 16 proxy session refresh, server-side `requireAdmin()` and `verifyAdminAuthorization()`, `/admin/login` portal, and minimal `/admin` landing.
 
 ---
 
@@ -205,7 +208,10 @@ All contributors and AI agents must read [GEMINI.md](file:///c:/nextjs-projects/
   * Brand tokens, foundation components, application shell, responsive navigation, demo page.
 * **Phase 04 — Public Team Registration** `[Complete]`
   * Multi-step public team registration wizard, dynamic category fee calculation (₱300/player), mobile-first roster entry, trigger-generated registration code, reference lookup, and downloadable PNG confirmation.
-* **Phase 05 — Admin Management** `[Next]`
+* **Phase 05 — Admin Management** `[In Progress]`
+  * **05.1C**: Database foundation (`profiles`, `admin_access`, `admin_audit_logs`) `[Complete]`
+  * **05.2**: Admin authentication & authorization engine (`/admin/login`, `requireAdmin`, safe provisioning) `[Complete]`
+  * **05.3**: Admin dashboard `[Planned]`
 * **Phase 06 — League Management** `[Planned]`
 * **Phase 07 — Matches & Results** `[Planned]`
 * **Phase 08 — Statistics** `[Planned]`

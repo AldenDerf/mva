@@ -135,6 +135,30 @@ Git commits remain the authoritative technical history. This file records meanin
 * Passed all quality gates: `pnpm prisma validate`, `pnpm lint`, and `pnpm build` with zero errors.
 * Formally closed Phase 04 — Public Team Registration.
 
+### Admin Management (Phase 05.1C — Database Foundation)
+
+* Added administrative schema models in `prisma/schema.prisma` and applied to PostgreSQL:
+  * `profiles`: Links Supabase Auth `auth_user_id` (UUID) to application identity (`display_name`, `email`).
+  * `admin_access`: Explicit administrator authorization mapping (`role = 'ADMIN'`, `is_active = true`).
+  * `admin_audit_logs`: Audit trail storage linking administrative actions to `profiles.id` (`action`, `entity_type`, `entity_id`, `metadata`).
+* Enabled PostgreSQL Row-Level Security (RLS) on all three administrative tables with a default-deny posture against direct browser PostgREST queries.
+
+### Admin Management (Phase 05.2 — Authentication & Authorization)
+
+* Installed and integrated `@supabase/supabase-js` (`v2.116.0`) and `@supabase/ssr` (`v0.12.7`).
+* Implemented clean separation between browser Supabase client (`lib/supabase/client.ts`), server client (`lib/supabase/server.ts`), and session refresh proxy (`lib/supabase/proxy.ts`, `proxy.ts`).
+* Configured Next.js 16 `proxy.ts` for proactive session refresh across protected route boundaries.
+* Built server-side administrator authorization engine in `lib/auth/admin.ts`:
+  * `verifyAdminAuthorization(authUserId)`: Validates active `ADMIN` role from `profiles` and `admin_access` in PostgreSQL via Prisma.
+  * `getAdminContext()`: Resolves authenticated Supabase user and returns safe `AdminContext` or `null`.
+  * `requireAdmin()`: Enforces server-side guard on administrative Server Components and Actions; safely redirects unauthenticated users to `/admin/login` and unauthorized users to `/admin/login?error=access_denied`.
+* Created administrator login portal at `/admin/login` (`app/admin/login/page.tsx`, `LoginForm.tsx`) adhering to the MVA design system, with accessible inputs, loading states, generic error handling, and no public admin signup.
+* Created Server Actions in `app/admin/actions.ts` (`adminLoginAction`, `adminLogoutAction`) with session revocation on unauthorized authentication attempts.
+* Built minimal authenticated admin landing page at `/admin` (`app/admin/page.tsx`) displaying verified administrator identity and logout capability.
+* Created safe, idempotent local developer provisioning script (`scripts/provision-admin.ts`) with strict safety probes.
+* Implemented automated authorization test suite (`scripts/verify-phase-05-2.ts`) verifying all 5 security boundaries (unauthenticated, authenticated without profile, authenticated with inactive admin, and authenticated with active admin).
+
 ### Planned
 
-* Phase 05 — Admin Management (Payment Verification, Registration & Roster Administration).
+* Phase 05.3 — Admin Dashboard & Operations (Payment Verification, Registration & Roster Administration).
+
