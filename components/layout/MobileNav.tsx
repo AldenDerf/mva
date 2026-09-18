@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { BrandLogo } from "./BrandLogo";
 import { Button } from "../ui/Button";
@@ -11,12 +12,19 @@ interface MobileNavProps {
   navLinks: Array<{ label: string; href: string }>;
 }
 
+const emptySubscribe = () => () => {};
+
 export const MobileNav: React.FC<MobileNavProps> = ({
   isOpen,
   onClose,
   navLinks,
 }) => {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
 
   // Close on Escape key press
   useEffect(() => {
@@ -40,9 +48,9 @@ export const MobileNav: React.FC<MobileNavProps> = ({
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 lg:hidden"
       role="dialog"
@@ -51,13 +59,13 @@ export const MobileNav: React.FC<MobileNavProps> = ({
     >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Drawer */}
-      <div className="fixed inset-y-0 right-0 w-full max-w-xs bg-white shadow-xl flex flex-col justify-between p-6 z-10 animate-in slide-in-from-right duration-200">
+      <div className="fixed inset-y-0 right-0 w-full max-w-xs bg-white bg-[#FFFFFF] shadow-2xl flex flex-col justify-between p-6 z-10 overflow-y-auto h-full min-h-screen">
         <div>
           {/* Header in Drawer */}
           <div className="flex items-center justify-between pb-6 border-b border-[#DDE3DE]">
@@ -117,6 +125,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

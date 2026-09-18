@@ -9,13 +9,17 @@ import { verifyAdminAuthorization } from "../lib/auth/admin";
  * 
  * Verifies strict server-side authorization boundaries against local database (mva_dev).
  * 
- * Matrix of Test Cases:
- * 1. Unauthenticated (null / empty UUID)                 -> DENIED (null)
- * 2. Authenticated user without profile/admin_access     -> DENIED (null)
- * 3. Authenticated user with profile, but no admin_access -> DENIED (null)
- * 4. Authenticated user with inactive admin_access       -> DENIED (null)
- * 5. Authenticated user with non-ADMIN role              -> DENIED (null)
- * 6. Authenticated user with active ADMIN authorization   -> ALLOWED (AdminContext)
+ * Matrix of Executed Tests:
+ * 1. Unauthenticated / Invalid Input (null, empty, or malformed UUID) -> DENIED (null)
+ * 2. Authenticated user without profile record in MVA                 -> DENIED (null)
+ * 3. Authenticated user with profile, but no admin_access record       -> DENIED (null)
+ * 4. Authenticated user with inactive admin_access (is_active=false)   -> DENIED (null)
+ * 5. Authenticated user with active ADMIN authorization (role='ADMIN') -> ALLOWED (AdminContext)
+ * 
+ * Note on Roles:
+ * Database constraint `chk_admin_access_role` enforces `CHECK (role IN ('ADMIN'))`.
+ * The application layer in `lib/auth/admin.ts` independently enforces `role === "ADMIN"`
+ * for defense in depth.
  */
 
 async function verifySafetyProbe(connectionString: string) {
