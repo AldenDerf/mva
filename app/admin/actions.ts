@@ -47,10 +47,15 @@ export async function adminLoginAction(
   });
 
   if (error || !data.user) {
-    // Generic error to prevent user enumeration
+    if (process.env.NODE_ENV === "development") {
+      console.error("[DEV AUTH ERROR]:", error?.message, "Status:", error?.status);
+    }
     return {
       success: false,
-      error: "Invalid email or password.",
+      error:
+        process.env.NODE_ENV === "development" && error?.message
+          ? `Supabase Auth Error: ${error.message}`
+          : "Invalid email or password.",
     };
   }
 
