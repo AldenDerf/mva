@@ -158,7 +158,32 @@ Git commits remain the authoritative technical history. This file records meanin
 * Created safe, idempotent local developer provisioning script (`scripts/provision-admin.ts`) with strict safety probes.
 * Implemented automated authorization test suite (`scripts/verify-phase-05-2.ts`) verifying all 5 security boundaries (unauthenticated, authenticated without profile, authenticated with inactive admin, and authenticated with active admin).
 
+### Admin Management (Phase 05.3 — Admin Shell & Dashboard)
+
+* Built the reusable authenticated Admin Shell (`components/admin/AdminShell.tsx`) adhering to the MVA brand identity:
+  * Desktop sidebar with official MVA logo branding, navigation items (Dashboard active, Registrations/Payments/Teams marked as future phase placeholders), administrator profile card, and sign-out capability.
+  * Desktop header with contextual section title, live authorization badge, and responsive layout.
+  * Mobile navigation drawer rendered through a React portal to `document.body` (`createPortal`), preventing backdrop-filter containing block and clipping issues on mobile devices.
+* Established server-side authorization layout guard in `app/admin/(portal)/layout.tsx`:
+  * Enforces `requireAdmin()` once for all nested protected admin routes without duplicating database checks across individual child pages.
+  * Leaves public `/admin/login` unaffected outside the portal route group to avoid redirect loops.
+* Conditionally isolated public application shell from admin portal:
+  * Updated `Header.tsx` to automatically omit public navigation on `/admin/*` routes.
+  * Created `ConditionalFooter.tsx` client wrapper to omit public footer on `/admin/*` routes.
+* Implemented server-side read-only dashboard data layer in `lib/admin/dashboard.ts`:
+  * `getDashboardSummaryCounts`: Fetches database-level counts for Pending Registrations (`status = 'PENDING_PAYMENT'`), Verified Registrations (`status = 'VERIFIED'`), Pending Payments (`status = 'PENDING'`), and Total Registrations.
+  * `getRecentRegistrations`: Retrieves the latest 5 tournament registrations with joined team names, categories, primary payments, and player counts.
+* Built read-only Admin Dashboard at `/admin` (`app/admin/(portal)/page.tsx`):
+  * Page header with "Read-Only" indicator and development database connection status.
+  * 4 summary metric cards (Pending Registrations, Verified Registrations, Pending Payments, Total Registrations) with distinctive status color accents.
+  * Responsive recent registrations view: full data table on desktop and compact card view on mobile.
+  * Accessible empty state with explanatory guidance when no team submissions exist yet.
+* Created automated verification suite in `scripts/verify-phase-05-3.ts` verifying summary queries, recent registrations relation joins, and clean post-test fixture removal.
+* Passed all automated checks: `pnpm build`, `pnpm lint`, and 100% pass on Phase 05.2 and Phase 05.3 verification test suites.
+
 ### Planned
 
-* Phase 05.3 — Admin Dashboard & Operations (Payment Verification, Registration & Roster Administration).
+* Phase 05.4 — Registration Management (Review, Verify, Reject, and Roster Administration).
+* Phase 05.5 — Payment Verification & Tracking.
+* Phase 05.6 — Team & Player Management.
 

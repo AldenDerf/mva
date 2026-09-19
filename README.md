@@ -15,7 +15,7 @@ This platform is being developed to modernize MVA's operations, provide accessib
 ## 2. Current Project Status
 
 **Current Phase: Phase 05 — Admin Management (IN PROGRESS)**
-* **Current Checkpoint**: Phase 05.2 — Admin Authentication & Authorization
+* **Current Checkpoint**: Phase 05.3 — Admin Shell & Dashboard (implemented / awaiting final review)
 * **Phase 04 — Public Team Registration**: `[COMPLETE]`
 
 Key milestones achieved in the current state:
@@ -25,6 +25,7 @@ Key milestones achieved in the current state:
 * **Public Team Registration Completed**: Multi-step registration wizard, dynamic fee calculation, trigger-generated registration reference codes, and PNG confirmation card download.
 * **Admin Database Foundation (Phase 05.1C)**: `profiles`, `admin_access`, and `admin_audit_logs` tables with RLS enabled.
 * **Admin Authentication & Authorization (Phase 05.2)**: Supabase Auth integration via `@supabase/ssr`, Next.js 16 proxy session refresh, server-side `requireAdmin()` and `verifyAdminAuthorization()`, `/admin/login` portal, and minimal `/admin` landing.
+* **Admin Shell & Read-Only Dashboard (Phase 05.3)**: Dedicated responsive Admin Shell with desktop sidebar, topbar, portal mobile drawer, server-side `requireAdmin()` layout guard, and read-only Admin Dashboard displaying real-time summary cards and latest registrations with empty states.
 
 ---
 
