@@ -15,7 +15,7 @@ This platform is being developed to modernize MVA's operations, provide accessib
 ## 2. Current Project Status
 
 **Current Phase: Phase 05 — Admin Management (IN PROGRESS)**
-* **Current Checkpoint**: Phase 05.3 — Admin Shell & Dashboard (implemented / awaiting final review)
+* **Current Checkpoint**: Phase 05.4 — Admin Registration Management (Phase 05.4A Registration List & Phase 05.4B Registration Detail: IMPLEMENTED / AWAITING REVIEW; Phase 05.4C Status Mutations: NOT STARTED)
 * **Phase 04 — Public Team Registration**: `[COMPLETE]`
 
 Key milestones achieved in the current state:
@@ -212,7 +212,8 @@ All contributors and AI agents must read [GEMINI.md](file:///c:/nextjs-projects/
 * **Phase 05 — Admin Management** `[In Progress]`
   * **05.1C**: Database foundation (`profiles`, `admin_access`, `admin_audit_logs`) `[Complete]`
   * **05.2**: Admin authentication & authorization engine (`/admin/login`, `requireAdmin`, safe provisioning) `[Complete]`
-  * **05.3**: Admin dashboard `[Planned]`
+  * **05.3**: Admin shell & dashboard `[Complete]`
+  * **05.4**: Registration management (Phase 05.4A Registration List & Phase 05.4B Registration Detail: IMPLEMENTED / AWAITING REVIEW; Phase 05.4C Status Mutations: NOT STARTED)
 * **Phase 06 — League Management** `[Planned]`
 * **Phase 07 — Matches & Results** `[Planned]`
 * **Phase 08 — Statistics** `[Planned]`

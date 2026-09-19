@@ -181,9 +181,32 @@ Git commits remain the authoritative technical history. This file records meanin
 * Created automated verification suite in `scripts/verify-phase-05-3.ts` verifying summary queries, recent registrations relation joins, and clean post-test fixture removal.
 * Passed all automated checks: `pnpm build`, `pnpm lint`, and 100% pass on Phase 05.2 and Phase 05.3 verification test suites.
 
+### In Progress / Awaiting Review
+
+#### Phase 05.4A — Admin Registration List & Phase 05.4B — Admin Registration Detail
+* **Phase 05.4A: Admin Registration List** (`/admin/registrations`):
+  * Built read-only registration list view powered by Server Components and Prisma queries (`getAdminRegistrations`).
+  * Database-level sorting (`created_at DESC`, newest registrations first) and server-side pagination with sanitized bounds.
+  * Server-side search across registration code, team name, and registrant name.
+  * Server-side filtering by registration status, payment status, and dynamic category division options (`getFilterCategories`).
+  * Responsive dual-layout presentation: full data table for desktop view and structured card presentation for mobile view.
+  * Informative empty states differentiating between general absence of records and zero-result filter matches.
+  * Connected AdminShell navigation link (`/admin/registrations`) with active path indicators for desktop sidebar and mobile drawer.
+* **Phase 05.4B: Admin Registration Detail** (`/admin/registrations/[id]`):
+  * Built read-only registration detail view (`app/admin/(portal)/registrations/[id]/page.tsx`) powered by `getAdminRegistrationById`.
+  * Comprehensive two-column layout showing registration overview, tournament league, division limits, team info, and registrant contact details.
+  * Complete tournament roster table displaying player name, captain badges, optional jersey numbers, and flexible positions.
+  * Payment information card showing fee calculations, payment method, reference number, verification timestamps, and graceful handling of registrations without payment records.
+  * Dedicated 404 handler (`not-found.tsx`) for invalid UUIDs or non-existent registration records.
+* **Verification & Testing**:
+  * Added automated end-to-end verification suite in `scripts/verify-phase-05-4ab.ts` with strict database safety probe (`mva_dev` on local host).
+  * 23/23 tests passed covering read invariants, search, filters, pagination, relation joins, and clean post-test fixture removal.
+  * Zero regression on Phase 05.2 (9/9 pass) and Phase 05.3 (17/17 pass).
+  * Clean TypeScript (`tsc --noEmit`), ESLint (`pnpm lint`), and Next.js production build (`pnpm build`).
+
 ### Planned
 
-* Phase 05.4 — Registration Management (Review, Verify, Reject, and Roster Administration).
+* Phase 05.4C — Registration Status Mutations (Verify, Reject, Cancel, Roster Edits) [NOT STARTED].
 * Phase 05.5 — Payment Verification & Tracking.
 * Phase 05.6 — Team & Player Management.
 
