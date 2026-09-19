@@ -751,8 +751,219 @@ async function runVerification() {
       "Test 12B: Transaction rollback preserved original PENDING_PAYMENT status upon audit failure"
     );
 
+    console.log("\n--- 13. REAL CONCURRENT MUTATIONS & ISOLATION TESTS ---");
+
+    // Concurrency Fixture A: Double VERIFY
+    const teamConcA = await prisma.teams.create({
+      data: {
+        team_name: `Test Conc Alpha ${Date.now()}`,
+        slug: `test-conc-alpha-${Date.now()}`,
+      },
+    });
+    createdTeamIds.push(teamConcA.id);
+
+    const regConcA = await prisma.registrations.create({
+      data: {
+        league_id: league.id,
+        league_category_id: category.id,
+        team_id: teamConcA.id,
+        registrant_first_name: "ConcUserA",
+        registrant_last_name: "TesterA",
+        registrant_contact: "09181112233",
+        status: "PENDING_PAYMENT",
+        payments: {
+          create: {
+            payment_method: "CASH",
+            amount: 600.0,
+            status: "PENDING",
+          },
+        },
+      },
+    });
+    createdRegistrationIds.push(regConcA.id);
+
+    const prePayA = await prisma.payments.findFirst({
+      where: { registration_id: regConcA.id },
+    });
+
+    // TEST 1 — DOUBLE VERIFY (concurrent overlapping executions)
+    const [resDouble1, resDouble2] = await Promise.all([
+      mutateRegistrationStatus(validAdminContext, {
+        registrationId: regConcA.id,
+        action: "VERIFY",
+        expectedStatus: "PENDING_PAYMENT",
+      }),
+      mutateRegistrationStatus(validAdminContext, {
+        registrationId: regConcA.id,
+        action: "VERIFY",
+        expectedStatus: "PENDING_PAYMENT",
+      }),
+    ]);
+
+    const doubleSuccesses = [resDouble1, resDouble2].filter((r) => r.success);
+    const doubleFailures = [resDouble1, resDouble2].filter((r) => !r.success);
+
+    assert(
+      doubleSuccesses.length === 1,
+      "Test 13A: Double VERIFY -> exactly one mutation succeeds",
+      `Successes: ${doubleSuccesses.length}, Failures: ${doubleFailures.length}`
+    );
+
+    assert(
+      doubleFailures.length === 1 && doubleFailures[0].error === "STALE_STATE",
+      "Test 13B: Competing VERIFY safely reports STALE_STATE conflict error",
+      `Error: ${doubleFailures[0]?.error}, Message: ${doubleFailures[0]?.message}`
+    );
+
+    const dbRegConcA = await prisma.registrations.findUnique({
+      where: { id: regConcA.id },
+    });
+
+    assert(
+      dbRegConcA?.status === "VERIFIED" && dbRegConcA?.verified_at !== null,
+      "Test 13C: Registration final database status is VERIFIED with verified_at populated"
+    );
+
+    const auditLogsConcA = await prisma.admin_audit_logs.findMany({
+      where: { entity_type: "REGISTRATION", entity_id: regConcA.id },
+    });
+
+    assert(
+      auditLogsConcA.length === 1 && auditLogsConcA[0].action === "REGISTRATION_VERIFIED",
+      "Test 13D: Exactly ONE REGISTRATION_VERIFIED audit log was created for Double VERIFY"
+    );
+
+    // Concurrency Fixture B: Competing VERIFY vs REJECT
+    const teamConcB = await prisma.teams.create({
+      data: {
+        team_name: `Test Conc Beta ${Date.now()}`,
+        slug: `test-conc-beta-${Date.now()}`,
+      },
+    });
+    createdTeamIds.push(teamConcB.id);
+
+    const regConcB = await prisma.registrations.create({
+      data: {
+        league_id: league.id,
+        league_category_id: category.id,
+        team_id: teamConcB.id,
+        registrant_first_name: "ConcUserB",
+        registrant_last_name: "TesterB",
+        registrant_contact: "09189998877",
+        status: "PENDING_PAYMENT",
+        payments: {
+          create: {
+            payment_method: "GCASH",
+            amount: 600.0,
+            status: "PENDING",
+          },
+        },
+      },
+    });
+    createdRegistrationIds.push(regConcB.id);
+
+    const prePayB = await prisma.payments.findFirst({
+      where: { registration_id: regConcB.id },
+    });
+
+    // TEST 2 — COMPETING VERIFY VS REJECT (concurrent overlapping executions)
+    const [resCompVerify, resCompReject] = await Promise.all([
+      mutateRegistrationStatus(validAdminContext, {
+        registrationId: regConcB.id,
+        action: "VERIFY",
+        expectedStatus: "PENDING_PAYMENT",
+      }),
+      mutateRegistrationStatus(validAdminContext, {
+        registrationId: regConcB.id,
+        action: "REJECT",
+        expectedStatus: "PENDING_PAYMENT",
+        reason: "Duplicate submission detected by concurrent review",
+      }),
+    ]);
+
+    const compSuccesses = [resCompVerify, resCompReject].filter((r) => r.success);
+    const compFailures = [resCompVerify, resCompReject].filter((r) => !r.success);
+
+    assert(
+      compSuccesses.length === 1,
+      "Test 13E: Competing VERIFY vs REJECT -> exactly one mutation succeeds",
+      `Successes: ${compSuccesses.length}, Failures: ${compFailures.length}`
+    );
+
+    assert(
+      compFailures.length === 1 && compFailures[0].error === "STALE_STATE",
+      "Test 13F: Losing competing request safely reports STALE_STATE conflict error",
+      `Error: ${compFailures[0]?.error}`
+    );
+
+    const dbRegConcB = await prisma.registrations.findUnique({
+      where: { id: regConcB.id },
+    });
+
+    const winningMutation = compSuccesses[0];
+    assert(
+      dbRegConcB?.status === winningMutation.newStatus,
+      "Test 13G: Final registration status matches winning mutation result",
+      `DB: ${dbRegConcB?.status}, Winner: ${winningMutation.newStatus}`
+    );
+
+    const auditLogsConcB = await prisma.admin_audit_logs.findMany({
+      where: { entity_type: "REGISTRATION", entity_id: regConcB.id },
+    });
+
+    assert(
+      auditLogsConcB.length === 1,
+      "Test 13H: Exactly ONE audit record exists for competing VERIFY vs REJECT"
+    );
+
+    const winningAudit = auditLogsConcB[0];
+    const expectedWinningAction =
+      winningMutation.newStatus === "VERIFIED"
+        ? "REGISTRATION_VERIFIED"
+        : "REGISTRATION_REJECTED";
+
+    assert(
+      winningAudit?.action === expectedWinningAction &&
+        (winningAudit?.metadata as Record<string, unknown>)?.new_status === winningMutation.newStatus,
+      "Test 13I: Audit action and metadata new_status correspond to the winning operation",
+      `Action: ${winningAudit?.action}, Expected: ${expectedWinningAction}`
+    );
+
+    // TEST 3 — PAYMENT ISOLATION UNDER CONCURRENCY
+    const postPayA = await prisma.payments.findMany({
+      where: { registration_id: regConcA.id },
+    });
+    const postPayB = await prisma.payments.findMany({
+      where: { registration_id: regConcB.id },
+    });
+
+    assert(
+      postPayA.length === 1 &&
+        postPayA[0].status === prePayA?.status &&
+        postPayA[0].verified_at === null,
+      "Test 13J: Payment for Reg A remains untouched (status: PENDING, verified_at: null, count: 1)"
+    );
+
+    assert(
+      postPayB.length === 1 &&
+        postPayB[0].status === prePayB?.status &&
+        postPayB[0].verified_at === null,
+      "Test 13K: Payment for Reg B remains untouched (status: PENDING, verified_at: null, count: 1)"
+    );
+
+    // TEST 4 — AUDIT UNIQUENESS & INTEGRITY
+    assert(
+      auditLogsConcA.length === 1 &&
+        auditLogsConcB.length === 1 &&
+        !auditLogsConcA.some((a) => a.action === "REGISTRATION_REJECTED") &&
+        (winningMutation.newStatus === "VERIFIED"
+          ? !auditLogsConcB.some((a) => a.action === "REGISTRATION_REJECTED")
+          : !auditLogsConcB.some((a) => a.action === "REGISTRATION_VERIFIED")),
+      "Test 13L: No duplicate or contradictory audit logs created across concurrent operations"
+    );
+
   } finally {
-    console.log("\n--- 13. EPHEMERAL FIXTURE CLEANUP & RESTORATION ---");
+    console.log("\n--- 14. EPHEMERAL FIXTURE CLEANUP & RESTORATION ---");
 
     try {
       // 1. Delete audit logs

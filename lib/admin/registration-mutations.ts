@@ -248,7 +248,7 @@ export async function mutateRegistrationStatus(
         };
       },
       {
-        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       }
     );
 
@@ -265,6 +265,32 @@ export async function mutateRegistrationStatus(
         error: "STALE_STATE",
         message: err.message,
         currentStatus: err.currentStatus,
+      };
+    }
+
+    // Translate PostgreSQL / Prisma serialization failures and write conflicts into safe STALE_STATE
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2034") {
+      return {
+        success: false,
+        error: "STALE_STATE",
+        message:
+          "Concurrent modification detected. Another administrator may have updated this registration.",
+      };
+    }
+
+    const errCode = (err as { code?: string })?.code;
+    const errMsg = (err as { message?: string })?.message || "";
+    if (
+      errCode === "P2034" ||
+      errCode === "40001" ||
+      errMsg.includes("could not serialize") ||
+      errMsg.includes("write conflict")
+    ) {
+      return {
+        success: false,
+        error: "STALE_STATE",
+        message:
+          "Concurrent modification detected. Another administrator may have updated this registration.",
       };
     }
 
