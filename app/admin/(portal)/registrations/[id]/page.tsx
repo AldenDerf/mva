@@ -7,6 +7,7 @@ import {
   RegistrationStatusBadge,
   PaymentStatusBadge,
 } from "@/components/admin/StatusBadges";
+import { RegistrationActionControls } from "@/components/admin/RegistrationActionControls";
 
 interface PageProps {
   params: Promise<{
@@ -59,6 +60,8 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
     notFound();
   }
 
+  const latestPayment = reg.payments[0];
+
   return (
     <div className="space-y-6 pb-16">
       {/* Back to Registrations link */}
@@ -83,16 +86,13 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
       {/* ============================================================ */}
       {/* PAGE HEADER */}
       {/* ============================================================ */}
-      <div className="bg-white rounded-2xl border border-[#DDE3DE] p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-[#DDE3DE] p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="font-mono font-extrabold text-sm sm:text-base px-2.5 py-0.5 rounded-lg bg-[#205823]/10 text-[#205823] border border-[#205823]/20">
               {reg.registrationCode}
             </span>
             <RegistrationStatusBadge status={reg.status} />
-            <span className="text-xs font-semibold text-[#5F6B61] bg-[#FAFAF8] px-2.5 py-0.5 rounded-md border border-[#DDE3DE]">
-              Read-Only View
-            </span>
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#172019]">
@@ -104,13 +104,29 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
           </p>
         </div>
 
-        <div className="text-left md:text-right text-xs text-[#5F6B61] pt-3 md:pt-0 border-t md:border-t-0 border-[#DDE3DE]">
-          <span className="block font-medium text-[#172019]">
-            Submitted on {formatDate(reg.submittedAt)}
-          </span>
-          <span className="text-[11px] text-[#5F6B61] mt-0.5 block">
-            System Record ID: {reg.id.slice(0, 8)}...
-          </span>
+        <div className="flex flex-col md:items-end gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-[#DDE3DE]">
+          <div className="text-left md:text-right text-xs text-[#5F6B61]">
+            <span className="block font-medium text-[#172019]">
+              Submitted on {formatDate(reg.submittedAt)}
+            </span>
+            <span className="text-[11px] text-[#5F6B61] mt-0.5 block">
+              System Record ID: {reg.id.slice(0, 8)}...
+            </span>
+          </div>
+
+          {/* Registration Status Action Controls */}
+          <RegistrationActionControls
+            registrationId={reg.id}
+            registrationCode={reg.registrationCode}
+            teamName={reg.team.name}
+            categoryName={reg.category.name}
+            leagueName={reg.league.name}
+            currentStatus={reg.status}
+            playerCount={reg.playerCount}
+            minPlayers={reg.category.minPlayers}
+            paymentStatus={latestPayment?.status || "NO_PAYMENT"}
+            paymentAmount={latestPayment ? latestPayment.amount : 0}
+          />
         </div>
       </div>
 
@@ -315,6 +331,75 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                     {p.notes && (
                       <div className="pt-2 text-xs text-[#5F6B61] border-t border-[#DDE3DE]/60">
                         <span className="font-bold text-[#172019]">Payment Notes:</span> {p.notes}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* SECTION F: ACTIVITY & AUDIT HISTORY */}
+          <section
+            aria-labelledby="audit-heading"
+            className="bg-white rounded-2xl border border-[#DDE3DE] shadow-xs overflow-hidden"
+          >
+            <div className="p-5 sm:p-6 border-b border-[#DDE3DE] flex items-center justify-between gap-2">
+              <div>
+                <h2 id="audit-heading" className="text-base font-bold text-[#172019]">
+                  Administrative Audit Trail
+                </h2>
+                <p className="text-xs text-[#5F6B61] mt-0.5">
+                  Chronological record of status changes and administrative actions.
+                </p>
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#FAFAF8] text-[#172019] border border-[#DDE3DE]">
+                {reg.auditHistory.length} {reg.auditHistory.length === 1 ? "Event" : "Events"}
+              </span>
+            </div>
+
+            {reg.auditHistory.length === 0 ? (
+              <div className="py-8 px-6 text-center text-[#5F6B61] text-xs">
+                No administrative actions have been logged for this registration yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-[#DDE3DE]">
+                {reg.auditHistory.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-4 sm:p-5 text-xs space-y-1.5 hover:bg-[#FAFAF8]/50 transition-colors"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold px-2 py-0.5 bg-[#FAFAF8] border border-[#DDE3DE] rounded-md text-[11px] text-[#172019]">
+                          {item.action}
+                        </span>
+                        {item.previousStatus && item.newStatus && (
+                          <span className="text-[#5F6B61]">
+                            {item.previousStatus} →{" "}
+                            <strong className="text-[#172019]">{item.newStatus}</strong>
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-[#5F6B61]">
+                        {formatDate(item.createdAt)}
+                      </span>
+                    </div>
+
+                    <div className="text-[#5F6B61] flex items-center gap-1.5 pt-0.5">
+                      <span>Performed by</span>
+                      <strong className="text-[#172019]">{item.adminName}</strong>
+                      {item.adminEmail && (
+                        <span className="text-[#5F6B61]">({item.adminEmail})</span>
+                      )}
+                    </div>
+
+                    {item.reason && (
+                      <div className="mt-1.5 p-2.5 bg-[#FAFAF8] border border-[#DDE3DE] rounded-lg text-[#172019]">
+                        <span className="font-semibold text-[#5F6B61] block text-[10px] uppercase">
+                          Reason / Notes:
+                        </span>
+                        <p className="mt-0.5 leading-relaxed">{item.reason}</p>
                       </div>
                     )}
                   </div>

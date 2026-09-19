@@ -204,9 +204,19 @@ Git commits remain the authoritative technical history. This file records meanin
   * Zero regression on Phase 05.2 (9/9 pass) and Phase 05.3 (17/17 pass).
   * Clean TypeScript (`tsc --noEmit`), ESLint (`pnpm lint`), and Next.js production build (`pnpm build`).
 
+* **Phase 05.4C: Registration Status Mutations & Audit Logging** `[IMPLEMENTED / AWAITING REVIEW]`:
+  * Implemented domain service `lib/admin/registration-mutations.ts` with strict state machine validation (`PENDING_PAYMENT` → `VERIFIED`, `REJECTED`, `CANCELLED`; `VERIFIED` → `CANCELLED`; terminal states for `REJECTED` and `CANCELLED`).
+  * Enforced atomic transactions (`prisma.$transaction`) binding registration status updates with immutable audit log inserts into `admin_audit_logs`.
+  * Preserved `verified_at` timestamp history when cancelling verified registrations, populated `verified_at` upon verification, and retained null when rejected.
+  * Preserved absolute separation of payment records (`payments.status` and `payments.verified_at` untouched) and registration notes (`registrations.notes` untouched).
+  * Built Server Action `app/admin/(portal)/registrations/[id]/actions.ts` with strict `requireAdmin()` boundary, input validation, and Next.js cache revalidation (`revalidatePath`).
+  * Created interactive Client Component `components/admin/RegistrationActionControls.tsx` supporting status-driven actions, under-minimum roster dispensation warnings, payment status notices, and mandatory reason dialogs.
+  * Added Section F (Administrative Audit Trail) to the registration detail page displaying chronological status transitions, actors, and reasons.
+  * Created automated end-to-end verification suite in `scripts/verify-phase-05-4c.ts` (42/42 tests passing) with strict local `mva_dev` database safety guard and fixture cleanup.
+  * Confirmed zero regressions on Phase 05.2 (9/9 pass), Phase 05.3 (17/17 pass), and Phase 05.4A/B (23/23 pass).
+
 ### Planned
 
-* Phase 05.4C — Registration Status Mutations (Verify, Reject, Cancel, Roster Edits) [NOT STARTED].
 * Phase 05.5 — Payment Verification & Tracking.
 * Phase 05.6 — Team & Player Management.
 

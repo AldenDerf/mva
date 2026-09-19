@@ -69,6 +69,17 @@ export interface AdminRegistrationDetailPayment {
   createdAt: Date;
 }
 
+export interface AdminRegistrationAuditEntry {
+  id: string;
+  action: string;
+  adminName: string;
+  adminEmail: string;
+  reason: string | null;
+  previousStatus: string | null;
+  newStatus: string | null;
+  createdAt: Date;
+}
+
 export interface AdminRegistrationDetail {
   id: string;
   registrationCode: string;
@@ -109,6 +120,7 @@ export interface AdminRegistrationDetail {
   };
   roster: AdminRegistrationDetailPlayer[];
   payments: AdminRegistrationDetailPayment[];
+  auditHistory: AdminRegistrationAuditEntry[];
   playerCount: number;
 }
 
@@ -299,83 +311,100 @@ export async function getAdminRegistrationById(
     return null;
   }
 
-  const record = await prisma.registrations.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      registration_code: true,
-      registration_number: true,
-      status: true,
-      notes: true,
-      submitted_at: true,
-      verified_at: true,
-      created_at: true,
-      updated_at: true,
-      registrant_first_name: true,
-      registrant_middle_name: true,
-      registrant_last_name: true,
-      registrant_suffix: true,
-      registrant_contact: true,
-      registrant_email: true,
-      leagues: {
-        select: {
-          id: true,
-          name: true,
-          year: true,
-          status: true,
+  const [record, auditLogs] = await Promise.all([
+    prisma.registrations.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        registration_code: true,
+        registration_number: true,
+        status: true,
+        notes: true,
+        submitted_at: true,
+        verified_at: true,
+        created_at: true,
+        updated_at: true,
+        registrant_first_name: true,
+        registrant_middle_name: true,
+        registrant_last_name: true,
+        registrant_suffix: true,
+        registrant_contact: true,
+        registrant_email: true,
+        leagues: {
+          select: {
+            id: true,
+            name: true,
+            year: true,
+            status: true,
+          },
         },
-      },
-      league_categories_registrations_league_category_idToleague_categories: {
-        select: {
-          id: true,
-          name: true,
-          registration_fee: true,
-          min_players: true,
-          max_players: true,
+        league_categories_registrations_league_category_idToleague_categories: {
+          select: {
+            id: true,
+            name: true,
+            registration_fee: true,
+            min_players: true,
+            max_players: true,
+          },
         },
-      },
-      teams: {
-        select: {
-          id: true,
-          team_name: true,
-          slug: true,
-          logo_url: true,
+        teams: {
+          select: {
+            id: true,
+            team_name: true,
+            slug: true,
+            logo_url: true,
+          },
         },
-      },
-      registration_players: {
-        orderBy: [{ is_captain: "desc" }, { created_at: "asc" }],
-        select: {
-          id: true,
-          jersey_number: true,
-          position: true,
-          is_captain: true,
-          players: {
-            select: {
-              id: true,
-              first_name: true,
-              middle_name: true,
-              last_name: true,
-              suffix: true,
+        registration_players: {
+          orderBy: [{ is_captain: "desc" }, { created_at: "asc" }],
+          select: {
+            id: true,
+            jersey_number: true,
+            position: true,
+            is_captain: true,
+            players: {
+              select: {
+                id: true,
+                first_name: true,
+                middle_name: true,
+                last_name: true,
+                suffix: true,
+              },
             },
           },
         },
-      },
-      payments: {
-        orderBy: { created_at: "desc" },
-        select: {
-          id: true,
-          payment_method: true,
-          amount: true,
-          reference_number: true,
-          receipt_url: true,
-          status: true,
-          verified_at: true,
-          notes: true,
-          created_at: true,
+        payments: {
+          orderBy: { created_at: "desc" },
+          select: {
+            id: true,
+            payment_method: true,
+            amount: true,
+            reference_number: true,
+            receipt_url: true,
+            status: true,
+            verified_at: true,
+            notes: true,
+            created_at: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.admin_audit_logs.findMany({
+      where: {
+        entity_type: "REGISTRATION",
+        entity_id: id,
+      },
+      orderBy: { created_at: "desc" },
+      include: {
+        profiles: {
+          select: {
+            display_name: true,
+            email: true,
+          },
+        },
+      },
+    }),
+  ]);
 
   if (!record) {
     return null;
@@ -421,6 +450,28 @@ export async function getAdminRegistrationById(
     })
   );
 
+  const auditHistory: AdminRegistrationAuditEntry[] = auditLogs.map((log) => {
+    const meta =
+      log.metadata && typeof log.metadata === "object"
+        ? (log.metadata as Record<string, unknown>)
+        : {};
+
+    return {
+      id: log.id,
+      action: log.action,
+      adminName:
+        (meta.actor_name as string) ||
+        log.profiles.display_name ||
+        log.profiles.email ||
+        "Administrator",
+      adminEmail: (meta.actor_email as string) || log.profiles.email || "",
+      reason: (meta.reason as string) || null,
+      previousStatus: (meta.previous_status as string) || null,
+      newStatus: (meta.new_status as string) || null,
+      createdAt: log.created_at,
+    };
+  });
+
   const category =
     record.league_categories_registrations_league_category_idToleague_categories;
 
@@ -465,6 +516,7 @@ export async function getAdminRegistrationById(
     },
     roster,
     payments,
+    auditHistory,
     playerCount: roster.length,
   };
 }
