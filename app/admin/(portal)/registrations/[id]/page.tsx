@@ -9,6 +9,7 @@ import {
 } from "@/components/admin/StatusBadges";
 import { RegistrationActionControls } from "@/components/admin/RegistrationActionControls";
 import { PlayerPaymentActionControls } from "@/components/admin/PlayerPaymentActionControls";
+import { AddPlayerModal } from "@/components/admin/AddPlayerModal";
 
 interface PageProps {
   params: Promise<{
@@ -141,7 +142,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
             aria-labelledby="roster-heading"
             className="bg-white rounded-2xl border border-[#DDE3DE] shadow-xs overflow-hidden"
           >
-            <div className="p-5 sm:p-6 border-b border-[#DDE3DE] flex items-center justify-between gap-2">
+            <div className="p-5 sm:p-6 border-b border-[#DDE3DE] flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 id="roster-heading" className="text-base font-bold text-[#172019]">
                   Tournament Roster
@@ -150,9 +151,18 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                   Official player list submitted for this registration entry.
                 </p>
               </div>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#FAFAF8] text-[#172019] border border-[#DDE3DE]">
-                {reg.playerCount} {reg.playerCount === 1 ? "Player" : "Players"}
-              </span>
+              <div className="flex items-center gap-2.5">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#FAFAF8] text-[#172019] border border-[#DDE3DE]">
+                  {reg.playerCount} {reg.playerCount === 1 ? "Player" : "Players"}
+                </span>
+                {reg.status === "VERIFIED" && (
+                  <AddPlayerModal
+                    registrationId={reg.id}
+                    registrationCode={reg.registrationCode}
+                    teamName={reg.team.name}
+                  />
+                )}
+              </div>
             </div>
 
             {reg.roster.length === 0 ? (

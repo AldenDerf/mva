@@ -218,7 +218,7 @@ export async function mutatePlayerPaymentStatus(
         );
 
         // B. Identify target payment record
-        let targetPayment = paymentId
+        const targetPayment = paymentId
           ? rp.payments.find((p) => p.id === paymentId)
           : rp.payments[0];
 

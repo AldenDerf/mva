@@ -229,9 +229,20 @@ Git commits remain the authoritative technical history. This file records meanin
   * Built automated verification suite in `scripts/verify-per-player-payments.ts` (43/43 tests passing) confirming DB safety probe, historical payment preservation, per-player payment verification, duplicate prevention, and clean fixture teardown.
   * Confirmed 100% zero regressions across Phase 05.2 (9/9 pass), Phase 05.3 (17/17 pass), Phase 05.4A/B (23/23 pass), Phase 05.4C (54/54 pass), and Next.js production build (`pnpm build`).
 
+* **Phase 05.6A: Admin Add Player to Verified Team** `[IMPLEMENTED / VERIFIED]`:
+  * Implemented domain mutation service `lib/admin/roster-mutations.ts` enabling authenticated administrators to directly add individual players to the official roster of an existing `VERIFIED` team registration.
+  * Eligibility invariant: Enforced server-side that players can only be added to registrations with `status === "VERIFIED"`; attempts on other statuses (`PENDING_PAYMENT`, `REJECTED`, `CANCELLED`) are rejected.
+  * Player identity & roster fields: Supports `first_name` (required), `last_name` (required), `middle_name` (optional), `suffix` (optional), `jersey_number` (optional, 0-99), `position` (optional, max 50 chars), and `is_captain` (default `false`).
+  * Roster limit business rule: Enforced official MVA business rule of **NO MAXIMUM ROSTER LIMIT**; rosters can expand to 13, 14, or more players, isolating new additions from obsolete database category limits (`max_players = 12`).
+  * Duplicate protection & concurrency: Normalized whitespace and case for names; safely rejects duplicate submissions on the same roster while avoiding harmful global name uniqueness constraints; serializable transaction isolation prevents race conditions.
+  * Atomic transaction & initial payment: Binds player identity resolution/creation, `registration_players` roster linkage, initial ₱300.00 `PENDING` payment assessment (`payments.registration_player_id`), and immutable administrative audit log (`PLAYER_ADDED_TO_ROSTER`) in a single rollback-safe interactive transaction.
+  * Admin Server Action: Created `addPlayerToRosterAction` in `app/admin/(portal)/registrations/[id]/roster-actions.ts` with strict `requireAdmin()` authorization boundary, input validation, and Next.js cache revalidation.
+  * Admin UI: Added accessible `AddPlayerModal` (`components/admin/AddPlayerModal.tsx`) integrated directly into the Tournament Roster section header on `/admin/registrations/[id]`, displaying only when registration status is `VERIFIED`.
+  * Audit history query: Extended `getAdminRegistrationById` in `lib/admin/registrations.ts` to include `REGISTRATION_PLAYER` audit records in the administrative audit trail.
+  * Automated testing: Created comprehensive verification suite in `scripts/verify-phase-05-6a.ts` (38/38 tests passing) with local `mva_dev` safety probe, eligibility checks, duplicate rejection, concurrency protection, roster expansion beyond 12 members, atomic rollback verification, and complete fixture cleanup.
+  * Regression testing: Confirmed 100% pass across all existing suites: Phase 05.2 (9/9), Phase 05.3 (17/17), Phase 05.4A/B (23/23), Phase 05.4C (54/54), Per-Player Payments (43/43), and clean Next.js production build (`pnpm build`).
+
 ### Planned
 
-* Phase 05.5 — Bulk Payment Upload & Receipt Management.
-* Phase 05.6 — Team & Player Management.
-
-
+* Phase 05.6B — Admin Edit Roster Member (Jersey Number, Position, Captaincy).
+* Phase 05.7 — Public Individual Player Registration & Join Requests.

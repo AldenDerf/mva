@@ -426,6 +426,7 @@ export async function getAdminRegistrationById(
         OR: [
           { entity_type: "REGISTRATION", entity_id: id },
           { entity_type: "PAYMENT", metadata: { path: ["registration_id"], equals: id } },
+          { entity_type: "REGISTRATION_PLAYER", metadata: { path: ["registration_id"], equals: id } },
         ],
       },
       orderBy: { created_at: "desc" },

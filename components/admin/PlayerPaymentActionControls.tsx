@@ -27,7 +27,6 @@ export function PlayerPaymentActionControls({
   amount = 300,
   paymentMethod = "CASH",
   referenceNumber,
-  verifiedAt,
 }: PlayerPaymentActionControlsProps) {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [selectedMethod, setSelectedMethod] = useState<payment_method>(
