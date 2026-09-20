@@ -44,6 +44,18 @@ export interface FilterCategoryOption {
   leagueName: string;
 }
 
+export interface AdminPlayerPaymentInfo {
+  id: string;
+  amount: number;
+  paymentMethod: payment_method;
+  referenceNumber: string | null;
+  status: payment_status;
+  verifiedAt: Date | null;
+  verifiedByProfileId: string | null;
+  notes: string | null;
+  createdAt: Date;
+}
+
 export interface AdminRegistrationDetailPlayer {
   id: string;
   playerId: string;
@@ -55,16 +67,19 @@ export interface AdminRegistrationDetailPlayer {
   jerseyNumber: number | null;
   position: string | null;
   isCaptain: boolean;
+  payment: AdminPlayerPaymentInfo | null;
 }
 
 export interface AdminRegistrationDetailPayment {
   id: string;
+  registrationPlayerId: string | null;
   paymentMethod: payment_method;
   amount: number;
   referenceNumber: string | null;
   receiptUrl: string | null;
   status: payment_status;
   verifiedAt: Date | null;
+  verifiedByProfileId: string | null;
   notes: string | null;
   createdAt: Date;
 }
@@ -371,18 +386,35 @@ export async function getAdminRegistrationById(
                 suffix: true,
               },
             },
+            payments: {
+              orderBy: { created_at: "desc" },
+              take: 1,
+              select: {
+                id: true,
+                amount: true,
+                payment_method: true,
+                reference_number: true,
+                status: true,
+                verified_at: true,
+                verified_by_profile_id: true,
+                notes: true,
+                created_at: true,
+              },
+            },
           },
         },
         payments: {
           orderBy: { created_at: "desc" },
           select: {
             id: true,
+            registration_player_id: true,
             payment_method: true,
             amount: true,
             reference_number: true,
             receipt_url: true,
             status: true,
             verified_at: true,
+            verified_by_profile_id: true,
             notes: true,
             created_at: true,
           },
@@ -391,8 +423,10 @@ export async function getAdminRegistrationById(
     }),
     prisma.admin_audit_logs.findMany({
       where: {
-        entity_type: "REGISTRATION",
-        entity_id: id,
+        OR: [
+          { entity_type: "REGISTRATION", entity_id: id },
+          { entity_type: "PAYMENT", metadata: { path: ["registration_id"], equals: id } },
+        ],
       },
       orderBy: { created_at: "desc" },
       include: {
@@ -418,33 +452,51 @@ export async function getAdminRegistrationById(
   );
 
   const roster: AdminRegistrationDetailPlayer[] =
-    record.registration_players.map((rp) => ({
-      id: rp.id,
-      playerId: rp.players.id,
-      fullName: formatFullName(
-        rp.players.first_name,
-        rp.players.middle_name,
-        rp.players.last_name,
-        rp.players.suffix
-      ),
-      firstName: rp.players.first_name,
-      middleName: rp.players.middle_name,
-      lastName: rp.players.last_name,
-      suffix: rp.players.suffix,
-      jerseyNumber: rp.jersey_number,
-      position: rp.position,
-      isCaptain: rp.is_captain,
-    }));
+    record.registration_players.map((rp) => {
+      const playerPay = rp.payments[0];
+      return {
+        id: rp.id,
+        playerId: rp.players.id,
+        fullName: formatFullName(
+          rp.players.first_name,
+          rp.players.middle_name,
+          rp.players.last_name,
+          rp.players.suffix
+        ),
+        firstName: rp.players.first_name,
+        middleName: rp.players.middle_name,
+        lastName: rp.players.last_name,
+        suffix: rp.players.suffix,
+        jerseyNumber: rp.jersey_number,
+        position: rp.position,
+        isCaptain: rp.is_captain,
+        payment: playerPay
+          ? {
+              id: playerPay.id,
+              amount: Number(playerPay.amount),
+              paymentMethod: playerPay.payment_method,
+              referenceNumber: playerPay.reference_number,
+              status: playerPay.status,
+              verifiedAt: playerPay.verified_at,
+              verifiedByProfileId: playerPay.verified_by_profile_id,
+              notes: playerPay.notes,
+              createdAt: playerPay.created_at,
+            }
+          : null,
+      };
+    });
 
   const payments: AdminRegistrationDetailPayment[] = record.payments.map(
     (p) => ({
       id: p.id,
+      registrationPlayerId: p.registration_player_id,
       paymentMethod: p.payment_method,
       amount: Number(p.amount),
       referenceNumber: p.reference_number,
       receiptUrl: p.receipt_url,
       status: p.status,
       verifiedAt: p.verified_at,
+      verifiedByProfileId: p.verified_by_profile_id,
       notes: p.notes,
       createdAt: p.created_at,
     })

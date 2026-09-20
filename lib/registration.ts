@@ -682,9 +682,9 @@ export async function createRegistration(
       },
     });
 
-    // C. Create registration_players records
+    // C. Create registration_players records and individual player payment assessments
     for (const rp of resolvedPlayers) {
-      await tx.registration_players.create({
+      const createdRp = await tx.registration_players.create({
         data: {
           registration_id: registration.id,
           player_id: rp.playerId,
@@ -693,9 +693,21 @@ export async function createRegistration(
           is_captain: rp.isCaptain,
         },
       });
+
+      // Create individual player payment assessment (₱300 per player)
+      await tx.payments.create({
+        data: {
+          registration_id: registration.id,
+          registration_player_id: createdRp.id,
+          payment_method: "OTHER",
+          amount: feePerPlayer,
+          status: "PENDING",
+          notes: `Player registration fee assessment`,
+        },
+      });
     }
 
-    // D. Create pending payment record to retain calculated total fee
+    // D. Create pending registration-level assessment record to retain calculated total fee
     await tx.payments.create({
       data: {
         registration_id: registration.id,

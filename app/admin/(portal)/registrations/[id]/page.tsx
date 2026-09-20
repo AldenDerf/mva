@@ -8,6 +8,7 @@ import {
   PaymentStatusBadge,
 } from "@/components/admin/StatusBadges";
 import { RegistrationActionControls } from "@/components/admin/RegistrationActionControls";
+import { PlayerPaymentActionControls } from "@/components/admin/PlayerPaymentActionControls";
 
 interface PageProps {
   params: Promise<{
@@ -178,6 +179,9 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                       <th scope="col" className="py-3 px-6">
                         Position
                       </th>
+                      <th scope="col" className="py-3 px-6">
+                        Payment Status
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#DDE3DE] text-[#172019]">
@@ -230,6 +234,19 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                             <span className="text-[#5F6B61]/50 text-xs">—</span>
                           )}
                         </td>
+                        <td className="py-3.5 px-6">
+                          <PlayerPaymentActionControls
+                            registrationId={reg.id}
+                            registrationPlayerId={player.id}
+                            paymentId={player.payment?.id}
+                            playerName={player.fullName}
+                            paymentStatus={player.payment ? player.payment.status : "UNPAID"}
+                            amount={player.payment ? player.payment.amount : reg.category.registrationFee}
+                            paymentMethod={player.payment?.paymentMethod}
+                            referenceNumber={player.payment?.referenceNumber}
+                            verifiedAt={player.payment?.verifiedAt}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -243,19 +260,43 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
             aria-labelledby="payment-heading"
             className="bg-white rounded-2xl border border-[#DDE3DE] shadow-xs overflow-hidden"
           >
-            <div className="p-5 sm:p-6 border-b border-[#DDE3DE] flex items-center justify-between gap-2">
+            <div className="p-5 sm:p-6 border-b border-[#DDE3DE] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 id="payment-heading" className="text-base font-bold text-[#172019]">
                   Payment Information
                 </h2>
                 <p className="text-xs text-[#5F6B61] mt-0.5">
-                  Fee assessment and transaction records for this registration.
+                  Fee assessments and verified transaction records for this team and roster.
                 </p>
               </div>
-              <span className="text-xs font-bold text-[#205823] bg-[#eef5ef] px-3 py-1 rounded-full border border-[#205823]/20">
-                Rate: {formatCurrency(reg.category.registrationFee)} / player
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-[#205823] bg-[#eef5ef] px-3 py-1 rounded-full border border-[#205823]/20">
+                  Rate: {formatCurrency(reg.category.registrationFee)} / player
+                </span>
+              </div>
             </div>
+
+            {/* Per-Player Payment Summary Banner */}
+            {reg.roster.length > 0 && (
+              <div className="p-4 sm:p-5 bg-[#FAFAF8] border-b border-[#DDE3DE] flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="space-y-0.5">
+                  <span className="font-bold text-[#172019] block">
+                    Roster Payment Status:{" "}
+                    <span className="text-[#205823]">
+                      {reg.roster.filter((p) => p.payment?.status === "VERIFIED").length} of {reg.roster.length} Players Verified
+                    </span>
+                  </span>
+                  <span className="text-[#5F6B61]">
+                    Collected: {formatCurrency(reg.roster.filter((p) => p.payment?.status === "VERIFIED").reduce((acc, p) => acc + (p.payment?.amount || 0), 0))} of {formatCurrency(reg.roster.length * reg.category.registrationFee)} required
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-[#5F6B61] bg-white border border-[#DDE3DE] px-2.5 py-1 rounded-lg">
+                    Individual Player Payments: ₱{reg.category.registrationFee.toFixed(0)}/member
+                  </span>
+                </div>
+              </div>
+            )}
 
             {reg.payments.length === 0 ? (
               <div className="py-10 px-6 text-center text-[#5F6B61] text-xs">
@@ -469,8 +510,9 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
 
               <div className="flex items-center justify-between">
                 <dt className="text-[#5F6B61]">Category Roster Limits</dt>
-                <dd className="text-[#172019]">
-                  {reg.category.minPlayers} min – {reg.category.maxPlayers} max
+                <dd className="text-[#172019] text-right">
+                  <span>{reg.category.minPlayers} min – {reg.category.maxPlayers} max</span>
+                  <span className="block text-[10px] text-[#5F6B61] italic">(Official rule: min 12, no max)</span>
                 </dd>
               </div>
             </dl>

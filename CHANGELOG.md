@@ -215,8 +215,23 @@ Git commits remain the authoritative technical history. This file records meanin
   * Created automated end-to-end verification suite in `scripts/verify-phase-05-4c.ts` (42/42 tests passing) with strict local `mva_dev` database safety guard and fixture cleanup.
   * Confirmed zero regressions on Phase 05.2 (9/9 pass), Phase 05.3 (17/17 pass), and Phase 05.4A/B (23/23 pass).
 
+* **Phase 05: Per-Player Payment Architecture & Admin Verification** `[IMPLEMENTED / VERIFIED]`:
+  * Designed and implemented non-destructive per-player payment architecture (₱300 per member) preserving 100% of historical registration-level payments.
+  * Added nullable `registration_player_id` and `verified_by_profile_id` foreign keys to `payments` table on local `mva_dev` database.
+  * Added PostgreSQL partial unique index `uq_payments_active_verified_player` (`WHERE status = 'VERIFIED'`) physically preventing duplicate verified payments per roster player.
+  * Implemented pure state machine and domain mutation service in `lib/admin/player-payment-mutations.ts` (`PENDING` → `VERIFIED`, `REJECTED`; `VERIFIED` → `REFUNDED`; terminal state for `REFUNDED`).
+  * Enforced domain independence: Team Registration Status ≠ Player Roster Membership ≠ Player Payment Status.
+  * Created Server Action `updatePlayerPaymentAction` in `app/admin/(portal)/registrations/[id]/payment-actions.ts` with strict authorization check (`requireAdmin()`) and cache revalidation.
+  * Created interactive Client Component `components/admin/PlayerPaymentActionControls.tsx` displaying individual payment badges and modal controls for payment verification and refunds.
+  * Enhanced Admin Registration Detail View (`app/admin/(portal)/registrations/[id]/page.tsx`): added Payment Status column to Tournament Roster table and real-time roster payment summary counter.
+  * Updated public registration submission (`lib/registration.ts`) to automatically generate individual ₱300 payment assessments for each registered roster member.
+  * Flagged roster limits discrepancy (schema default: min 6, max 12 vs official MVA business rule: min 12, no maximum).
+  * Built automated verification suite in `scripts/verify-per-player-payments.ts` (43/43 tests passing) confirming DB safety probe, historical payment preservation, per-player payment verification, duplicate prevention, and clean fixture teardown.
+  * Confirmed 100% zero regressions across Phase 05.2 (9/9 pass), Phase 05.3 (17/17 pass), Phase 05.4A/B (23/23 pass), Phase 05.4C (54/54 pass), and Next.js production build (`pnpm build`).
+
 ### Planned
 
-* Phase 05.5 — Payment Verification & Tracking.
+* Phase 05.5 — Bulk Payment Upload & Receipt Management.
 * Phase 05.6 — Team & Player Management.
+
 
