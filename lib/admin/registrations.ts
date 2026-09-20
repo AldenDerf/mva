@@ -5,6 +5,11 @@ import {
   payment_method,
   Prisma,
 } from "@prisma/client";
+import {
+  CanonicalRegistrationAccounting,
+  PaymentCompletionStatus,
+  calculateRegistrationAccounting,
+} from "@/lib/admin/accounting";
 
 export interface AdminRegistrationListItem {
   id: string;
@@ -15,6 +20,19 @@ export interface AdminRegistrationListItem {
   registrantName: string;
   playerCount: number;
   status: registration_status;
+
+  // Canonical Accounting Fields
+  expectedAmount: number;
+  verifiedPaidAmount: number;
+  balance: number;
+  paidPlayerCount: number;
+  unpaidPlayerCount: number;
+  paymentComplete: boolean;
+  paymentCompletionStatus: PaymentCompletionStatus;
+  hasLegacyPayments: boolean;
+  unallocatedVerifiedAmount: number;
+
+  // Historical/compatibility fields
   paymentStatus: payment_status | "NO_PAYMENT";
   paymentAmount: number;
   submittedAt: Date;
@@ -35,6 +53,7 @@ export interface RegistrationListFilterParams {
   q?: string;
   status?: registration_status;
   paymentStatus?: payment_status;
+  paymentCompleteness?: PaymentCompletionStatus;
   categoryId?: string;
 }
 
@@ -137,6 +156,7 @@ export interface AdminRegistrationDetail {
   payments: AdminRegistrationDetailPayment[];
   auditHistory: AdminRegistrationAuditEntry[];
   playerCount: number;
+  accounting: CanonicalRegistrationAccounting;
 }
 
 const UUID_REGEX =
@@ -245,31 +265,69 @@ export async function getAdminRegistrations(
         registrant_suffix: true,
         teams: {
           select: {
+            id: true,
             team_name: true,
+            slug: true,
           },
         },
         leagues: {
           select: {
+            id: true,
             name: true,
+            status: true,
           },
         },
         league_categories_registrations_league_category_idToleague_categories: {
           select: {
+            id: true,
             name: true,
+            registration_fee: true,
+            min_players: true,
+            max_players: true,
+          },
+        },
+        registration_players: {
+          select: {
+            id: true,
+            jersey_number: true,
+            position: true,
+            is_captain: true,
+            players: {
+              select: {
+                id: true,
+                first_name: true,
+                middle_name: true,
+                last_name: true,
+                suffix: true,
+              },
+            },
+            payments: {
+              select: {
+                id: true,
+                amount: true,
+                status: true,
+                payment_method: true,
+                reference_number: true,
+                verified_at: true,
+                created_at: true,
+              },
+            },
           },
         },
         payments: {
-          take: 1,
-          orderBy: { created_at: "desc" },
+          where: {
+            registration_player_id: null,
+          },
           select: {
             id: true,
-            status: true,
+            registration_player_id: true,
             amount: true,
-          },
-        },
-        _count: {
-          select: {
-            registration_players: true,
+            status: true,
+            payment_method: true,
+            reference_number: true,
+            verified_at: true,
+            created_at: true,
+            notes: true,
           },
         },
       },
@@ -277,7 +335,7 @@ export async function getAdminRegistrations(
   ]);
 
   const items: AdminRegistrationListItem[] = records.map((reg) => {
-    const payment = reg.payments[0];
+    const acct = calculateRegistrationAccounting(reg);
     const registrantName = formatFullName(
       reg.registrant_first_name,
       reg.registrant_middle_name,
@@ -285,20 +343,42 @@ export async function getAdminRegistrations(
       reg.registrant_suffix
     );
 
+    const legacyPayment = reg.payments[0];
+
     return {
       id: reg.id,
-      registrationCode:
-        reg.registration_code || `REG-${reg.id.slice(0, 8).toUpperCase()}`,
+      registrationCode: acct.registrationCode,
       teamName: reg.teams.team_name,
       leagueName: reg.leagues.name,
       categoryName:
         reg.league_categories_registrations_league_category_idToleague_categories
           ?.name || "Unassigned",
       registrantName,
-      playerCount: reg._count.registration_players,
+      playerCount: acct.rosterCount,
       status: reg.status,
-      paymentStatus: payment?.status || "NO_PAYMENT",
-      paymentAmount: payment ? Number(payment.amount) : 0,
+
+      // Canonical accounting metrics
+      expectedAmount: acct.expectedAmount,
+      verifiedPaidAmount: acct.verifiedPaidAmount,
+      balance: acct.balance,
+      paidPlayerCount: acct.paidPlayerCount,
+      unpaidPlayerCount: acct.unpaidPlayerCount,
+      paymentComplete: acct.paymentComplete,
+      paymentCompletionStatus: acct.paymentCompletionStatus,
+      hasLegacyPayments: acct.hasLegacyPayments,
+      unallocatedVerifiedAmount: acct.unallocatedVerifiedAmount,
+
+      // Historical compatibility
+      paymentStatus:
+        acct.paidPlayerCount === acct.rosterCount && acct.rosterCount > 0
+          ? "VERIFIED"
+          : legacyPayment?.status || (acct.paidPlayerCount > 0 ? "PENDING" : "NO_PAYMENT"),
+      paymentAmount:
+        acct.verifiedPaidAmount > 0
+          ? acct.verifiedPaidAmount
+          : legacyPayment
+          ? Number(legacyPayment.amount)
+          : 0,
       submittedAt: reg.submitted_at,
       createdAt: reg.created_at,
     };
@@ -571,5 +651,6 @@ export async function getAdminRegistrationById(
     payments,
     auditHistory,
     playerCount: roster.length,
+    accounting: calculateRegistrationAccounting(record),
   };
 }

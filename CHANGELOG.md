@@ -8,6 +8,31 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Admin Accounting Foundation & Team Payment Summary (Phase 05.7A)
+
+* **Canonical Server-Side Accounting Domain (`lib/admin/accounting.ts`)**:
+  * Established single source of truth for fee calculations, eliminating ad-hoc single-payment queries across admin screens.
+  * Official rate: ₱300.00 per roster member; calculates expected fees from ACTUAL official roster count (`registration_players`), eliminating any assumption of a 12-player maximum cap.
+  * Pure calculation engine (`calculateRegistrationAccounting`) returning expected amount, verified paid amount, balance, paid/unpaid player counts, and explicit payment completion status (`COMPLETE` / `INCOMPLETE`).
+  * Strict distinction between registration status (`VERIFIED`/`PENDING_PAYMENT`/etc.) and payment completeness (`COMPLETE`/`INCOMPLETE`).
+  * Roster member payment definition: paid if and only if linked to an active `VERIFIED` per-player payment record (`registration_player_id = rp.id`).
+  * Handled legacy / unallocated payments (`registration_player_id = null`): surfaced separately as `unallocatedVerifiedAmount` and audited via anomaly flags; does not falsely mark individual players as paid or team payment as complete.
+  * Concurrency and history protection: respects DB partial unique constraint (`uq_payments_active_verified_player`) preventing double-counting of multiple payment rows.
+  * Added tournament-wide summary aggregator (`getTournamentAccountingSummary`) scoped to the active league context (`getActivePublicLeague`).
+  * Added classification utility (`classifyVerifiedTeams`) for listing all verified, verified complete, and verified incomplete teams.
+* **Admin Registrations List Refactoring (`app/admin/(portal)/registrations/page.tsx` & `lib/admin/registrations.ts`)**:
+  * Replaced obsolete `latestPayment` snapshot with full canonical accounting breakdown (Expected, Paid, Balance, Roster, Paid Players, and Payment Completeness).
+  * High-performance single batch query selecting `registration_players` and legacy payments without N+1 query overhead.
+  * Mobile-first responsive card layout for 360px, 390px, and 430px viewports displaying a 3-column accounting grid, payment completeness, and comfortable touch targets.
+* **Admin Dashboard Financial Overview (`app/admin/(portal)/page.tsx` & `lib/admin/dashboard.ts`)**:
+  * Added Tournament Accounting Overview section displaying Total Expected Fees, Total Verified Paid, Total Outstanding Balance, and Verified Teams breakdown (Payment Complete vs Incomplete).
+  * Updated Recent Registrations table and mobile cards to reflect canonical accounting figures.
+* **UI & Accessibility Components (`components/admin/StatusBadges.tsx`)**:
+  * Added `PaymentCompletionBadge` rendering explicit, accessible badges for `"Payment Complete"` and `"Payment Incomplete"` with semantic icons and high-contrast typography, never relying on color alone.
+* **Automated Verification Suite (`scripts/verify-phase-05-7a.ts`)**:
+  * Built comprehensive 16-test suite covering all 11 required scenarios: 12-player complete, partial pending payments, 8-player roster, 15-player roster (no cap), refunded payment deduction, rejected/pending payment exclusion, legacy payment separation, zero-player abnormal stability, and historical row deduplication.
+  * Enforced strict local PostgreSQL safety probe (`current_database() === "mva_dev"`, user, local IP) and complete fixture teardown.
+
 ### Public Teams & Official Rosters (Phase 05.6B)
 
 * **Public Teams Directory (`/teams`)**:

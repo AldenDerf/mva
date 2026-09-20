@@ -9,7 +9,7 @@ import {
 import { RegistrationFilters } from "@/components/admin/RegistrationFilters";
 import {
   RegistrationStatusBadge,
-  PaymentStatusBadge,
+  PaymentCompletionBadge,
 } from "@/components/admin/StatusBadges";
 import { registration_status, payment_status } from "@prisma/client";
 
@@ -128,7 +128,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
             </span>
           </div>
           <p className="text-sm text-[#5F6B61] mt-1">
-            Browse, search, and inspect association tournament registration entries.
+            Browse, search, and inspect association tournament registration entries and canonical accounting balances.
           </p>
         </div>
 
@@ -197,36 +197,36 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
           </div>
         ) : (
           <div>
-            {/* DESKTOP TABLE VIEW */}
+            {/* DESKTOP TABLE VIEW (lg:block, hidden on mobile) */}
             <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-[#FAFAF8] text-[#5F6B61] text-xs uppercase font-bold tracking-wider border-b border-[#DDE3DE]">
                   <tr>
-                    <th scope="col" className="py-3.5 px-6">
+                    <th scope="col" className="py-3.5 px-5">
                       Reference Code
                     </th>
-                    <th scope="col" className="py-3.5 px-6">
-                      Team Name
+                    <th scope="col" className="py-3.5 px-5">
+                      Team & Division
                     </th>
-                    <th scope="col" className="py-3.5 px-6">
-                      Division
-                    </th>
-                    <th scope="col" className="py-3.5 px-6">
-                      Registrant
-                    </th>
-                    <th scope="col" className="py-3.5 px-4 text-center">
+                    <th scope="col" className="py-3.5 px-3 text-center">
                       Roster
                     </th>
-                    <th scope="col" className="py-3.5 px-6">
+                    <th scope="col" className="py-3.5 px-4 text-right">
+                      Expected
+                    </th>
+                    <th scope="col" className="py-3.5 px-4 text-right">
+                      Paid
+                    </th>
+                    <th scope="col" className="py-3.5 px-4 text-right">
+                      Balance
+                    </th>
+                    <th scope="col" className="py-3.5 px-5 text-center">
+                      Payment Completeness
+                    </th>
+                    <th scope="col" className="py-3.5 px-5 text-center">
                       Registration Status
                     </th>
-                    <th scope="col" className="py-3.5 px-6">
-                      Payment
-                    </th>
-                    <th scope="col" className="py-3.5 px-6">
-                      Submitted
-                    </th>
-                    <th scope="col" className="py-3.5 px-6 text-right">
+                    <th scope="col" className="py-3.5 px-5 text-right">
                       Action
                     </th>
                   </tr>
@@ -237,50 +237,81 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                       key={item.id}
                       className="hover:bg-[#FAFAF8]/80 transition-colors group"
                     >
-                      <td className="py-4 px-6 font-mono font-bold text-xs text-[#205823] whitespace-nowrap">
+                      {/* Reference Code */}
+                      <td className="py-4 px-5 font-mono font-bold text-xs text-[#205823] whitespace-nowrap">
                         {item.registrationCode}
                       </td>
-                      <td className="py-4 px-6 font-bold text-[#172019]">
+
+                      {/* Team & Division */}
+                      <td className="py-4 px-5">
                         <Link
                           href={`/admin/registrations/${item.id}`}
-                          className="hover:text-[#205823] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] rounded-xs"
+                          className="font-bold text-[#172019] hover:text-[#205823] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] rounded-xs block"
                         >
                           {item.teamName}
                         </Link>
-                      </td>
-                      <td className="py-4 px-6 text-[#5F6B61] text-xs">
-                        <span className="block font-medium text-[#172019]">
-                          {item.categoryName}
-                        </span>
-                        <span className="text-[11px] text-[#5F6B61]">
-                          {item.leagueName}
+                        <span className="text-xs text-[#5F6B61] block mt-0.5">
+                          {item.categoryName} • {item.leagueName}
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-xs text-[#172019]">
-                        {item.registrantName}
-                      </td>
-                      <td className="py-4 px-4 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-[#FAFAF8] text-[#172019] border border-[#DDE3DE]">
+
+                      {/* Roster Count */}
+                      <td className="py-4 px-3 text-center whitespace-nowrap">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-[#FAFAF8] text-[#172019] border border-[#DDE3DE]">
                           {item.playerCount} {item.playerCount === 1 ? "player" : "players"}
                         </span>
                       </td>
-                      <td className="py-4 px-6">
-                        <RegistrationStatusBadge status={item.status} />
+
+                      {/* Expected */}
+                      <td className="py-4 px-4 text-right font-mono text-xs font-semibold text-[#172019] whitespace-nowrap">
+                        {formatCurrency(item.expectedAmount)}
                       </td>
-                      <td className="py-4 px-6">
-                        <div className="flex flex-col gap-0.5">
-                          <PaymentStatusBadge status={item.paymentStatus} />
-                          {item.paymentAmount > 0 && (
-                            <span className="text-[11px] text-[#5F6B61]">
-                              {formatCurrency(item.paymentAmount)}
+
+                      {/* Verified Paid */}
+                      <td className="py-4 px-4 text-right font-mono text-xs font-bold text-[#205823] whitespace-nowrap">
+                        {formatCurrency(item.verifiedPaidAmount)}
+                      </td>
+
+                      {/* Balance */}
+                      <td className="py-4 px-4 text-right font-mono text-xs whitespace-nowrap">
+                        <span
+                          className={`font-bold ${
+                            item.balance > 0
+                              ? "text-amber-700"
+                              : item.balance < 0
+                              ? "text-blue-700"
+                              : "text-[#5F6B61]"
+                          }`}
+                        >
+                          {formatCurrency(item.balance)}
+                        </span>
+                      </td>
+
+                      {/* Payment Completeness */}
+                      <td className="py-4 px-5 text-center whitespace-nowrap">
+                        <div className="flex flex-col items-center gap-1">
+                          <PaymentCompletionBadge
+                            status={item.paymentCompletionStatus}
+                            size="xs"
+                          />
+                          <span className="text-[11px] text-[#5F6B61]">
+                            {item.paidPlayerCount} of {item.playerCount} Paid
+                          </span>
+                          {item.hasLegacyPayments && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                              Legacy Unallocated
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="py-4 px-6 text-xs text-[#5F6B61] whitespace-nowrap">
-                        {formatDate(item.submittedAt)}
+
+                      {/* Registration Status */}
+                      <td className="py-4 px-5 text-center whitespace-nowrap">
+                        <RegistrationStatusBadge status={item.status} />
                       </td>
-                      <td className="py-4 px-6 text-right whitespace-nowrap">
+
+                      {/* Action */}
+                      <td className="py-4 px-5 text-right whitespace-nowrap">
                         <Link
                           href={`/admin/registrations/${item.id}`}
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#205823] bg-[#eef5ef] hover:bg-[#205823] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
@@ -295,10 +326,11 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
               </table>
             </div>
 
-            {/* MOBILE & TABLET CARD VIEW */}
+            {/* MOBILE & TABLET CARD VIEW (Visible below lg: 360px, 390px, 430px) */}
             <div className="lg:hidden divide-y divide-[#DDE3DE]">
               {data.items.map((item: AdminRegistrationListItem) => (
                 <div key={item.id} className="p-4 sm:p-5 space-y-3.5">
+                  {/* Card Header: Code and Date */}
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono font-bold text-xs text-[#205823]">
                       {item.registrationCode}
@@ -308,6 +340,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                     </span>
                   </div>
 
+                  {/* Team & Division */}
                   <div>
                     <h2 className="font-bold text-base text-[#172019]">
                       <Link
@@ -322,46 +355,85 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-[#5F6B61] py-1">
+                  {/* Registrant & Roster Size */}
+                  <div className="flex items-center justify-between text-xs text-[#5F6B61] pt-1">
                     <span>
                       Registrant: <strong className="text-[#172019]">{item.registrantName}</strong>
                     </span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-[#FAFAF8] text-[#172019] border border-[#DDE3DE]">
-                      {item.playerCount} {item.playerCount === 1 ? "player" : "players"}
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-[#FAFAF8] text-[#172019] border border-[#DDE3DE]">
+                      {item.playerCount} {item.playerCount === 1 ? "Player" : "Players"}
                     </span>
                   </div>
 
-                  <div className="pt-2.5 flex items-center justify-between border-t border-[#DDE3DE]/60 text-xs gap-2">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[10px] text-[#5F6B61] uppercase font-bold tracking-wider">
-                        Registration
+                  {/* Accounting Summary Grid (3-column mobile-friendly) */}
+                  <div className="bg-[#FAFAF8] rounded-xl p-3 border border-[#DDE3DE] grid grid-cols-3 gap-2 text-center text-xs">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
+                        Expected
                       </span>
+                      <span className="font-mono font-bold text-[#172019] text-xs sm:text-sm mt-0.5 block">
+                        {formatCurrency(item.expectedAmount)}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
+                        Paid
+                      </span>
+                      <span className="font-mono font-bold text-[#205823] text-xs sm:text-sm mt-0.5 block">
+                        {formatCurrency(item.verifiedPaidAmount)}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
+                        Balance
+                      </span>
+                      <span
+                        className={`font-mono font-bold text-xs sm:text-sm mt-0.5 block ${
+                          item.balance > 0
+                            ? "text-amber-700"
+                            : item.balance < 0
+                            ? "text-blue-700"
+                            : "text-[#5F6B61]"
+                        }`}
+                      >
+                        {formatCurrency(item.balance)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Payment Completeness & Registration Status */}
+                  <div className="space-y-2 pt-1 border-t border-[#DDE3DE]/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <PaymentCompletionBadge
+                          status={item.paymentCompletionStatus}
+                          size="xs"
+                        />
+                        <span className="text-xs text-[#5F6B61]">
+                          ({item.paidPlayerCount} of {item.playerCount} Players Paid)
+                        </span>
+                      </div>
                       <RegistrationStatusBadge status={item.status} />
                     </div>
 
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[10px] text-[#5F6B61] uppercase font-bold tracking-wider">
-                        Payment
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <PaymentStatusBadge status={item.paymentStatus} />
-                        {item.paymentAmount > 0 && (
-                          <span className="text-[11px] text-[#5F6B61]">
-                            {formatCurrency(item.paymentAmount)}
-                          </span>
-                        )}
+                    {item.hasLegacyPayments && (
+                      <div className="text-[11px] text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                        Contains unallocated legacy payment records
                       </div>
-                    </div>
+                    )}
+                  </div>
 
-                    <div className="self-end">
-                      <Link
-                        href={`/admin/registrations/${item.id}`}
-                        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold text-[#205823] bg-[#eef5ef] hover:bg-[#205823] hover:text-white transition-colors"
-                      >
-                        <span>View</span>
-                        <span>→</span>
-                      </Link>
-                    </div>
+                  {/* Card Action Button */}
+                  <div className="pt-2">
+                    <Link
+                      href={`/admin/registrations/${item.id}`}
+                      className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-[#205823] bg-[#eef5ef] hover:bg-[#205823] hover:text-white transition-colors"
+                    >
+                      <span>View Registration Details</span>
+                      <span aria-hidden="true">→</span>
+                    </Link>
                   </div>
                 </div>
               ))}

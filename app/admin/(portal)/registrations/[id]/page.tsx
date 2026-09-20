@@ -6,6 +6,7 @@ import { getAdminRegistrationById } from "@/lib/admin/registrations";
 import {
   RegistrationStatusBadge,
   PaymentStatusBadge,
+  PaymentCompletionBadge,
 } from "@/components/admin/StatusBadges";
 import { RegistrationActionControls } from "@/components/admin/RegistrationActionControls";
 import { PlayerPaymentActionControls } from "@/components/admin/PlayerPaymentActionControls";
@@ -95,6 +96,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
               {reg.registrationCode}
             </span>
             <RegistrationStatusBadge status={reg.status} />
+            <PaymentCompletionBadge status={reg.accounting.paymentCompletionStatus} />
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#172019]">
@@ -126,8 +128,20 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
             currentStatus={reg.status}
             playerCount={reg.playerCount}
             minPlayers={reg.category.minPlayers}
-            paymentStatus={latestPayment?.status || "NO_PAYMENT"}
-            paymentAmount={latestPayment ? latestPayment.amount : 0}
+            paymentStatus={
+              reg.accounting.paymentComplete
+                ? "VERIFIED"
+                : reg.accounting.paidPlayerCount > 0
+                ? "PENDING"
+                : latestPayment?.status || "NO_PAYMENT"
+            }
+            paymentAmount={
+              reg.accounting.verifiedPaidAmount > 0
+                ? reg.accounting.verifiedPaidAmount
+                : latestPayment
+                ? latestPayment.amount
+                : 0
+            }
           />
         </div>
       </div>
@@ -286,27 +300,79 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
               </div>
             </div>
 
-            {/* Per-Player Payment Summary Banner */}
-            {reg.roster.length > 0 && (
-              <div className="p-4 sm:p-5 bg-[#FAFAF8] border-b border-[#DDE3DE] flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="space-y-0.5">
-                  <span className="font-bold text-[#172019] block">
-                    Roster Payment Status:{" "}
-                    <span className="text-[#205823]">
-                      {reg.roster.filter((p) => p.payment?.status === "VERIFIED").length} of {reg.roster.length} Players Verified
-                    </span>
+            {/* Canonical Per-Player Payment Accounting Summary Banner */}
+            <div className="p-4 sm:p-5 bg-[#FAFAF8] border-b border-[#DDE3DE] space-y-3 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="p-2.5 rounded-xl bg-white border border-[#DDE3DE]">
+                  <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
+                    Expected Fees
                   </span>
-                  <span className="text-[#5F6B61]">
-                    Collected: {formatCurrency(reg.roster.filter((p) => p.payment?.status === "VERIFIED").reduce((acc, p) => acc + (p.payment?.amount || 0), 0))} of {formatCurrency(reg.roster.length * reg.category.registrationFee)} required
+                  <span className="font-mono font-bold text-[#172019] text-sm mt-0.5 block">
+                    {formatCurrency(reg.accounting.expectedAmount)}
+                  </span>
+                  <span className="text-[10px] text-[#5F6B61] block mt-0.5">
+                    {reg.accounting.rosterCount} × ₱{reg.accounting.feePerPlayer.toFixed(0)}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-[#5F6B61] bg-white border border-[#DDE3DE] px-2.5 py-1 rounded-lg">
-                    Individual Player Payments: ₱{reg.category.registrationFee.toFixed(0)}/member
+
+                <div className="p-2.5 rounded-xl bg-white border border-[#DDE3DE]">
+                  <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
+                    Verified Paid
                   </span>
+                  <span className="font-mono font-bold text-[#205823] text-sm mt-0.5 block">
+                    {formatCurrency(reg.accounting.verifiedPaidAmount)}
+                  </span>
+                  <span className="text-[10px] text-[#5F6B61] block mt-0.5">
+                    {reg.accounting.paidPlayerCount} players verified
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white border border-[#DDE3DE]">
+                  <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
+                    Balance
+                  </span>
+                  <span
+                    className={`font-mono font-bold text-sm mt-0.5 block ${
+                      reg.accounting.balance > 0
+                        ? "text-amber-700"
+                        : reg.accounting.balance < 0
+                        ? "text-blue-700"
+                        : "text-[#5F6B61]"
+                    }`}
+                  >
+                    {formatCurrency(reg.accounting.balance)}
+                  </span>
+                  <span className="text-[10px] text-[#5F6B61] block mt-0.5">
+                    {reg.accounting.unpaidPlayerCount} unpaid players
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white border border-[#DDE3DE] flex flex-col justify-center items-center">
+                  <span className="text-[10px] uppercase font-bold text-[#5F6B61] block mb-1">
+                    Completion
+                  </span>
+                  <PaymentCompletionBadge
+                    status={reg.accounting.paymentCompletionStatus}
+                    size="xs"
+                  />
                 </div>
               </div>
-            )}
+
+              {/* Anomaly Alerts */}
+              {reg.accounting.hasFinancialAnomaly && (
+                <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                    <span>⚠️</span>
+                    <span>Financial Reconciliation Notice</span>
+                  </div>
+                  {reg.accounting.anomalyNotes.map((note, nIdx) => (
+                    <p key={nIdx} className="text-[11px] leading-relaxed">
+                      • {note}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {reg.payments.length === 0 ? (
               <div className="py-10 px-6 text-center text-[#5F6B61] text-xs">
@@ -503,6 +569,32 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                   </dd>
                 </div>
               )}
+
+              <div className="flex items-center justify-between">
+                <dt className="text-[#5F6B61]">Payment Status</dt>
+                <dd>
+                  <PaymentCompletionBadge status={reg.accounting.paymentCompletionStatus} size="xs" />
+                </dd>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <dt className="text-[#5F6B61]">Roster Accounting</dt>
+                <dd className="font-mono text-[#172019] text-right">
+                  <span className="font-bold text-[#205823]">{formatCurrency(reg.accounting.verifiedPaidAmount)}</span> / {formatCurrency(reg.accounting.expectedAmount)}
+                  <span className="block text-[10px] text-[#5F6B61]">
+                    ({reg.accounting.paidPlayerCount} of {reg.accounting.rosterCount} paid)
+                  </span>
+                </dd>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <dt className="text-[#5F6B61]">Remaining Balance</dt>
+                <dd className="font-mono font-bold text-[#172019]">
+                  <span className={reg.accounting.balance > 0 ? "text-amber-700" : "text-[#5F6B61]"}>
+                    {formatCurrency(reg.accounting.balance)}
+                  </span>
+                </dd>
+              </div>
 
               <div className="flex items-center justify-between">
                 <dt className="text-[#5F6B61]">Tournament League</dt>
