@@ -16,6 +16,10 @@ import {
   sortRosterPlayers,
   PublicRosterPlayer,
 } from "../lib/public/teams";
+import {
+  getPlayerInitials,
+  formatPlayerFullName,
+} from "../components/public/PlayerPhoto";
 
 /**
  * PHASE 05.6B: PUBLIC TEAMS & OFFICIAL ROSTER VERIFICATION SUITE
@@ -197,6 +201,7 @@ async function runSuite() {
         last_name: "Dela Cruz",
         contact_number: "0918-000-0001",
         date_of_birth: new Date("1996-03-15"),
+        photo_url: "https://example.com/photos/juan-dela-cruz.jpg",
       },
     });
     cleanupPlayerIds.push(player1.id);
@@ -750,7 +755,50 @@ async function runSuite() {
       "sortRosterPlayers pure helper satisfies numeric jerseys then alphabetical unnumbered"
     );
 
-    console.log("\n--- TEST GROUP F: ROSTER PRIVACY BY QUERY DESIGN ---");
+    console.log("\n--- TEST GROUP F: PLAYER PROFILE PHOTOS & FALLBACK AVATAR HELPERS ---");
+    const juan = roster.find((p) => p.first_name === "Juan" && p.last_name === "Dela Cruz");
+    assert(
+      juan !== undefined && juan.photo_url === "https://example.com/photos/juan-dela-cruz.jpg",
+      "Public roster player with photo_url returns expected photo URL"
+    );
+
+    const pedro = roster.find((p) => p.first_name === "Pedro" && p.last_name === "Penduko");
+    assert(
+      pedro !== undefined && pedro.photo_url === null,
+      "Public roster player without photo returns photo_url === null"
+    );
+
+    assert(
+      getPlayerInitials("Juan", "Dela Cruz") === "JD",
+      "Initials generator: 'Juan' + 'Dela Cruz' -> 'JD'"
+    );
+    assert(
+      getPlayerInitials("Pedro", "Penduko") === "PP",
+      "Initials generator: 'Pedro' + 'Penduko' -> 'PP'"
+    );
+    assert(
+      getPlayerInitials("Carlos", "") === "C",
+      "Initials generator: single name produces first initial"
+    );
+    assert(
+      getPlayerInitials("", "") === "MV",
+      "Initials generator: empty names safely fallback to 'MV'"
+    );
+
+    assert(
+      formatPlayerFullName({ firstName: "Juan", middleName: "Santos", lastName: "Dela Cruz", suffix: null }) === "Juan S. Dela Cruz",
+      "Full name formatter: formats with middle initial"
+    );
+    assert(
+      formatPlayerFullName({ firstName: "Pedro", middleName: null, lastName: "Penduko", suffix: "Jr." }) === "Pedro Penduko Jr.",
+      "Full name formatter: formats with suffix"
+    );
+    assert(
+      formatPlayerFullName({ firstName: "Carlos", middleName: null, lastName: "Yulo", suffix: null }) === "Carlos Yulo",
+      "Full name formatter: formats standard first + last name"
+    );
+
+    console.log("\n--- TEST GROUP G: ROSTER PRIVACY BY QUERY DESIGN ---");
     for (const player of roster) {
       const pAny = player as unknown as Record<string, unknown>;
       assert(pAny["contact_number"] === undefined, "Roster player: contact_number is strictly absent");
@@ -764,7 +812,7 @@ async function runSuite() {
     assert(profileAny["notes"] === undefined, "Profile: registration notes are absent");
     assert(profileAny["payments"] === undefined, "Profile: payments are absent");
 
-    console.log("\n--- TEST GROUP G: SEARCH & FILTERING LOGIC BEHAVIOR ---");
+    console.log("\n--- TEST GROUP H: SEARCH & FILTERING LOGIC BEHAVIOR ---");
     const searchLower = "verified spikers";
     const matchLower = publicTeams.filter((t) =>
       t.team_name.toLowerCase().includes(searchLower.toLowerCase())
@@ -795,7 +843,7 @@ async function runSuite() {
       "Category filter: accurately filters teams by selected category"
     );
 
-    console.log("\n--- TEST GROUP H: READ-ONLY QUERY VERIFICATION ---");
+    console.log("\n--- TEST GROUP I: READ-ONLY QUERY VERIFICATION ---");
     const logCount = await prisma.admin_audit_logs.count({
       where: {
         entity_id: team1.id,
@@ -804,7 +852,7 @@ async function runSuite() {
     assert(logCount === 0, "Public queries performed zero writes / zero audit logs");
 
   } finally {
-    console.log("\n--- TEST GROUP I: CLEAN TEARDOWN ---");
+    console.log("\n--- TEST GROUP J: CLEAN TEARDOWN ---");
     if (cleanupTeamIds.length > 0) {
       await prisma.payments.deleteMany({
         where: {

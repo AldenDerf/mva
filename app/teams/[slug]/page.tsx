@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicTeamBySlug } from "@/lib/public/teams";
 import { TeamLogoFallback } from "@/components/public/TeamLogoFallback";
+import { PlayerPhoto } from "@/components/public/PlayerPhoto";
 import { Container } from "@/components/ui/Container";
 import { Section } from "@/components/ui/Section";
 import { Badge } from "@/components/ui/Badge";
@@ -168,12 +169,12 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
                   return (
                     <div
                       key={player.id}
-                      className="bg-white border border-[#DDE3DE] rounded-xl p-3.5 sm:p-4 flex items-center justify-between gap-3 shadow-2xs hover:border-[#205823]/40 transition-colors"
+                      className="bg-white border border-[#DDE3DE] rounded-xl p-3 sm:p-4 flex items-center justify-between gap-2.5 sm:gap-3 shadow-2xs hover:border-[#205823]/40 transition-colors"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                         {/* Jersey Number Emblem */}
                         <div
-                          className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 font-black text-sm tracking-tight ${
+                          className={`w-10 h-10 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center shrink-0 font-black text-xs sm:text-sm tracking-tight ${
                             hasJersey
                               ? "bg-[#eef5ef] text-[#205823] border border-[#205823]/20"
                               : "bg-[#FAFAF8] text-[#5F6B61] border border-[#DDE3DE]"
@@ -188,6 +189,18 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
                             <span className="text-xs text-[#5F6B61]">—</span>
                           )}
                         </div>
+
+                        {/* Player Profile Photo / Fallback Avatar */}
+                        <PlayerPhoto
+                          firstName={player.first_name}
+                          middleName={player.middle_name}
+                          lastName={player.last_name}
+                          suffix={player.suffix}
+                          photoUrl={player.photo_url}
+                          jerseyNumber={player.jersey_number}
+                          position={player.position}
+                          isCaptain={player.is_captain}
+                        />
 
                         {/* Player Details: Name & Position */}
                         <div className="min-w-0 flex-1">

@@ -21,6 +21,13 @@ Git commits remain the authoritative technical history. This file records meanin
   * Enforced official business rule: NO maximum 12-player cap (all verified players >= 12 rendered completely).
   * Roster ordering: jersey-numbered players sorted numerically ascending, followed by unnumbered players sorted alphabetically by name.
   * Strict security: unverified, pending, rejected, cancelled, or unknown slugs strictly return 404 (`notFound()`).
+* **Player Profile Photos & Accessible Image Lightbox (`components/public/PlayerPhoto.tsx`)**:
+  * Added player profile photo support on official public rosters, ready for future Admin photo uploads.
+  * Mobile-first avatar presentation: responsive dimensions (`w-10 h-10 sm:w-11 sm:h-11 rounded-full`) with `object-cover` to prevent card distortion or horizontal overflow.
+  * Polished fallback avatar: generates initials from player's first and last name (e.g. Juan Dela Cruz → JD) styled with athletic green/gold gradient (`#205823` / `#F5D025`); non-clickable to prevent opening empty viewers.
+  * Client-side image error resilience: automatically falls back to initials avatar if a remote photo URL fails to load.
+  * Mobile-native photo viewer / lightbox: tapping on mobile or clicking on desktop opens a focused, centered lightbox over the page without page navigation or URL leaks.
+  * Full accessibility & dialog semantics: `role="dialog"`, `aria-modal="true"`, visible 44x44px touch-target close button, Escape key dismissal, backdrop tap/click dismiss, background body scroll lock (`overflow: hidden`) with clean restoration, and return of focus to trigger element.
 * **Privacy by Query Design (`lib/public/teams.ts`)**:
   * Strict Prisma `select` projections ensuring sensitive fields never leave the query layer: player contact numbers, dates of birth, registrant contact/email, registration notes, payment records, and admin access/audit logs are completely excluded.
   * Visibility decoupled from payment status: verified teams remain visible regardless of payment status.
@@ -274,5 +281,5 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ### Planned
 
-* Phase 05.6B — Admin Edit Roster Member (Jersey Number, Position, Captaincy).
+* Future Planned — Admin Edit Roster Member (Jersey Number, Position, Captaincy; pending roadmap numbering).
 * Phase 05.7 — Public Individual Player Registration & Join Requests.
