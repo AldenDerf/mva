@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { Container } from "@/components/ui/Container";
 import { Section } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
@@ -214,7 +215,7 @@ export default function Home() {
                     Muted Text (text-sm, text-[#5F6B61])
                   </span>
                   <p className="text-sm text-[#5F6B61]">
-                    Roster minimum: 6 players • Maximum: 12 players per team entry.
+                    Official tournament roster • Minimum 12 players per team entry.
                   </p>
                 </div>
               </div>
@@ -344,7 +345,7 @@ export default function Home() {
                       <Badge variant="green" size="sm">
                         Division
                       </Badge>
-                      <span className="text-xs text-[#5F6B61]">6 - 12 Players</span>
+                      <span className="text-xs text-[#5F6B61]">Official Roster</span>
                     </div>
                     <CardTitle className="mt-2">Men&apos;s Open Division</CardTitle>
                     <CardDescription>
@@ -373,7 +374,7 @@ export default function Home() {
                       <Badge variant="gold" size="sm">
                         Local Division
                       </Badge>
-                      <span className="text-xs text-[#5F6B61]">6 - 12 Players</span>
+                      <span className="text-xs text-[#5F6B61]">Official Roster</span>
                     </div>
                     <CardTitle className="mt-2">Mahatao Residency League</CardTitle>
                     <CardDescription>
@@ -401,25 +402,26 @@ export default function Home() {
         </Container>
       </Section>
 
-      {/* Next Phase Notice Banner */}
+      {/* Active Tournament Registration Banner */}
       <Section spacing="sm" className="bg-[#FAFAF8]">
         <Container size="md">
           <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#205823]/20 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
             <div>
               <Badge variant="green" size="sm" className="mb-2">
-                Next Development Phase
+                Official Tournament
               </Badge>
               <h3 className="text-lg sm:text-xl font-bold text-[#172019]">
-                Public Team Registration Flow
+                Team Registration is Open
               </h3>
               <p className="text-sm text-[#5F6B61] mt-1 max-w-md">
-                The multi-step team registration system with roster assignment and
-                payment reference submission will be built in the next phase.
+                Register your team for upcoming MVA tournaments with official roster submission.
               </p>
             </div>
-            <Button variant="primary" disabled aria-disabled="true">
-              Registration Opening Soon
-            </Button>
+            <Link href="/register">
+              <Button variant="primary" size="lg">
+                Register Team
+              </Button>
+            </Link>
           </div>
         </Container>
       </Section>

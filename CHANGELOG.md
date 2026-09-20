@@ -8,6 +8,30 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Public Teams & Official Rosters (Phase 05.6B)
+
+* **Public Teams Directory (`/teams`)**:
+  * Implemented mobile-first directory showcasing official participating teams with active `VERIFIED` registrations.
+  * Added responsive division filtering dynamically derived from live verified league categories.
+  * Added instant case-insensitive, whitespace-trimmed team name search with clear button and accessible no-results empty states.
+  * Built responsive team cards displaying team name, division badge, official roster player count, and graceful logo fallback (athletic initials emblem and volleyball icon).
+* **Public Team Profile & Official Roster (`/teams/[slug]`)**:
+  * Built mobile-native team profile view resolving verified teams by slug without exposing internal IDs.
+  * Implemented mobile-native roster cards displaying athletic jersey badges, full player names (with natural wrapping), positions, and gold `CAPTAIN` badges.
+  * Enforced official business rule: NO maximum 12-player cap (all verified players >= 12 rendered completely).
+  * Roster ordering: jersey-numbered players sorted numerically ascending, followed by unnumbered players sorted alphabetically by name.
+  * Strict security: unverified, pending, rejected, cancelled, or unknown slugs strictly return 404 (`notFound()`).
+* **Privacy by Query Design (`lib/public/teams.ts`)**:
+  * Strict Prisma `select` projections ensuring sensitive fields never leave the query layer: player contact numbers, dates of birth, registrant contact/email, registration notes, payment records, and admin access/audit logs are completely excluded.
+  * Visibility decoupled from payment status: verified teams remain visible regardless of payment status.
+* **Navigation & Platform Cleanup**:
+  * Updated desktop and mobile drawer navigation to point directly to `/teams` (preserving the `MobileNav` portal architecture).
+  * Cleaned up stale public-facing statements on the homepage (`app/page.tsx`), updating the minimum 12-player target notice and linking the banner directly to live registration.
+* **Verification**:
+  * Created 81-point automated verification suite in `scripts/verify-phase-05-6b-public-teams.ts` with local database safety probe (`mva_dev` on localhost).
+  * Verified 100% pass across all regression suites (Phase 05.6A, per-player payments, Phase 05.4C, 05.4AB, 05.3, 05.2).
+  * Verified zero horizontal overflow across all required mobile and desktop viewports (360px, 390px, 430px, 768px, 1280px).
+
 ### Project Setup
 
 * Created the initial Next.js application.

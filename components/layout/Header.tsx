@@ -10,7 +10,7 @@ import { MobileNav } from "./MobileNav";
 const navLinks = [
   { label: "Home", href: "/" },
   { label: "Leagues", href: "#leagues" },
-  { label: "Teams", href: "#teams" },
+  { label: "Teams", href: "/teams" },
   { label: "Players", href: "#players" },
   { label: "About", href: "#about" },
 ];
