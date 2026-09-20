@@ -12,52 +12,14 @@ import { prisma } from "../lib/prisma";
 import {
   getPublicTeams,
   getPublicTeamBySlug,
+  getActivePublicLeague,
   sortRosterPlayers,
   PublicRosterPlayer,
 } from "../lib/public/teams";
 
 /**
  * PHASE 05.6B: PUBLIC TEAMS & OFFICIAL ROSTER VERIFICATION SUITE
- *
- * Verifies all 33+ criteria specified in the phase requirements:
- * 1. Local database safety probe confirms mva_dev on localhost.
- * 2. VERIFIED registration team is visible in public listing.
- * 3. PENDING_PAYMENT registration team is excluded from public listing.
- * 4. REJECTED registration team is excluded from public listing.
- * 5. CANCELLED registration team is excluded from public listing.
- * 6. Payment status decoupling: verified team is public regardless of payment row status.
- * 7. Team slug resolves successfully to public team profile.
- * 8. Unknown slug returns null (triggers 404).
- * 9. Unverified team's valid slug returns null (triggers 404).
- * 10. REJECTED team's valid slug returns null (triggers 404).
- * 11. CANCELLED team's valid slug returns null (triggers 404).
- * 12. Team without registration returns null (triggers 404).
- * 13. Division / category is accurately resolved on team profile.
- * 14. League name is accurately resolved on team profile.
- * 15. Roster association is correct.
- * 16. Official roster count is correct.
- * 17. Jersey numbers returned accurately.
- * 18. Position returned accurately.
- * 19. Team captain flag returned accurately.
- * 20. Null jersey numbers handled safely.
- * 21. Null positions handled safely.
- * 22. Roster with >12 players is fully returned (e.g. 14 players).
- * 23. No obsolete max_players = 12 enforcement occurs.
- * 24. Roster sorting: numbered players ascending first, then unnumbered alphabetically by name.
- * 25. Privacy: player contact_number is absent from public query result.
- * 26. Privacy: player date_of_birth is absent from public query result.
- * 27. Privacy: registrant contact is absent.
- * 28. Privacy: registrant email is absent.
- * 29. Privacy: registration notes are absent.
- * 30. Privacy: payment information is absent.
- * 31. Privacy: admin/profile information is absent.
- * 32. Search is case-insensitive.
- * 33. Search handles leading/trailing whitespace.
- * 34. Category filtering filters correctly.
- * 35. No-results search returns empty array.
- * 36. Team with empty roster is handled safely.
- * 37. Public queries perform zero write operations.
- * 38. All ephemeral test fixtures cleanly cleaned up, existing dev data intact.
+ * (Including Pre-Merge Hardening & Multi-League Scope Tests)
  */
 
 async function verifySafetyProbe(connectionString: string) {
@@ -132,12 +94,12 @@ async function runSuite() {
   const cleanupLeagueIds: string[] = [];
 
   try {
-    // 1. Setup Ephemeral League & Category
+    // 1. Setup Active Tournament League (ONGOING status to establish deterministically as primary active)
     const testLeague = await prisma.leagues.create({
       data: {
-        name: `Test League ${runTag}`,
+        name: `Active League ${runTag}`,
         year: 2026,
-        status: "OPEN_FOR_REGISTRATION",
+        status: "ONGOING",
       },
     });
     cleanupLeagueIds.push(testLeague.id);
@@ -148,7 +110,7 @@ async function runSuite() {
         name: `Open Division ${runTag}`,
         registration_fee: 3600,
         min_players: 6,
-        max_players: 12, // Technical debt in schema, but business rule is no max!
+        max_players: 12,
       },
     });
     cleanupCategoryIds.push(testCategoryA.id);
@@ -164,7 +126,43 @@ async function runSuite() {
     });
     cleanupCategoryIds.push(testCategoryB.id);
 
-    // 2. Setup Team 1 (VERIFIED, 14 players, decoupled payments, private data populated)
+    // 1B. Setup Historical League (COMPLETED) & Archived League (ARCHIVED) & Draft League (DRAFT)
+    const historicalLeague = await prisma.leagues.create({
+      data: {
+        name: `Historical League 2024 ${runTag}`,
+        year: 2024,
+        status: "COMPLETED",
+      },
+    });
+    cleanupLeagueIds.push(historicalLeague.id);
+
+    const historicalCategory = await prisma.league_categories.create({
+      data: {
+        league_id: historicalLeague.id,
+        name: `Past Division ${runTag}`,
+        registration_fee: 3000,
+      },
+    });
+    cleanupCategoryIds.push(historicalCategory.id);
+
+    const draftLeague = await prisma.leagues.create({
+      data: {
+        name: `Draft League ${runTag}`,
+        year: 2027,
+        status: "DRAFT",
+      },
+    });
+    cleanupLeagueIds.push(draftLeague.id);
+
+    const draftCategory = await prisma.league_categories.create({
+      data: {
+        league_id: draftLeague.id,
+        name: `Draft Division ${runTag}`,
+      },
+    });
+    cleanupCategoryIds.push(draftCategory.id);
+
+    // 2. Setup Team 1 (VERIFIED in active league, 14 players, decoupled payments, private data populated)
     const team1 = await prisma.teams.create({
       data: {
         team_name: `Verified Spikers ${runTag}`,
@@ -192,7 +190,6 @@ async function runSuite() {
     });
 
     // Create 14 players for team1 to test >12 players business rule
-    // Player 1: Jersey 7, Captain, Position: Setter
     const player1 = await prisma.players.create({
       data: {
         first_name: "Juan",
@@ -213,7 +210,6 @@ async function runSuite() {
       },
     });
 
-    // Player 2: Jersey 10, Position: Outside Hitter
     const player2 = await prisma.players.create({
       data: {
         first_name: "Pedro",
@@ -233,7 +229,6 @@ async function runSuite() {
       },
     });
 
-    // Player 3: Jersey 2 (numbered lower than 7 to test numerical sorting)
     const player3 = await prisma.players.create({
       data: {
         first_name: "Carlos",
@@ -247,12 +242,11 @@ async function runSuite() {
         registration_id: reg1.id,
         player_id: player3.id,
         jersey_number: 2,
-        position: null, // null position test
+        position: null,
         is_captain: false,
       },
     });
 
-    // Player 4: Null jersey, Alvarez Ben (should sort first among unnumbered)
     const player4 = await prisma.players.create({
       data: {
         first_name: "Ben",
@@ -265,13 +259,12 @@ async function runSuite() {
       data: {
         registration_id: reg1.id,
         player_id: player4.id,
-        jersey_number: null, // null jersey test
+        jersey_number: null,
         position: "Libero",
         is_captain: false,
       },
     });
 
-    // Player 5: Null jersey, Zubiri Aaron (should sort second among unnumbered)
     const player5 = await prisma.players.create({
       data: {
         first_name: "Aaron",
@@ -310,7 +303,7 @@ async function runSuite() {
       });
     }
 
-    // Attach an independent PENDING / REJECTED payment record to test payment status decoupling
+    // Attach independent PENDING payment record to test payment status decoupling
     await prisma.payments.create({
       data: {
         registration_id: reg1.id,
@@ -322,7 +315,7 @@ async function runSuite() {
       },
     });
 
-    // 3. Setup Team 2 (PENDING_PAYMENT registration)
+    // 3. Setup Team 2 (PENDING_PAYMENT in active league)
     const team2 = await prisma.teams.create({
       data: {
         team_name: `Pending Spikers ${runTag}`,
@@ -342,7 +335,7 @@ async function runSuite() {
       },
     });
 
-    // 4. Setup Team 3 (REJECTED registration)
+    // 4. Setup Team 3 (REJECTED in active league)
     const team3 = await prisma.teams.create({
       data: {
         team_name: `Rejected Spikers ${runTag}`,
@@ -362,7 +355,7 @@ async function runSuite() {
       },
     });
 
-    // 5. Setup Team 4 (CANCELLED registration)
+    // 5. Setup Team 4 (CANCELLED in active league)
     const team4 = await prisma.teams.create({
       data: {
         team_name: `Cancelled Spikers ${runTag}`,
@@ -391,7 +384,7 @@ async function runSuite() {
     });
     cleanupTeamIds.push(team5.id);
 
-    // 7. Setup Team 6 (VERIFIED, but 0 roster members - empty roster edge case)
+    // 7. Setup Team 6 (VERIFIED in active league, 0 roster members)
     const team6 = await prisma.teams.create({
       data: {
         team_name: `Empty Roster Spikers ${runTag}`,
@@ -411,30 +404,203 @@ async function runSuite() {
       },
     });
 
-    console.log("\n--- TEST GROUP A: PUBLIC TEAMS DIRECTORY LISTING & ELIGIBILITY ---");
+    // --- HARDENING FIXTURES: HISTORICAL & MULTI-LEAGUE EDGE CASES ---
+    // 8. Team Historical-Only (VERIFIED in historical league, NOT in active league)
+    const teamHistoricalOnly = await prisma.teams.create({
+      data: {
+        team_name: `Historical Only Spikers ${runTag}`,
+        slug: `historical-only-${runTag}`,
+      },
+    });
+    cleanupTeamIds.push(teamHistoricalOnly.id);
+    const regHistoricalOnly = await prisma.registrations.create({
+      data: {
+        league_id: historicalLeague.id,
+        league_category_id: historicalCategory.id,
+        team_id: teamHistoricalOnly.id,
+        registrant_first_name: "OldRegistrant",
+        registrant_last_name: "Past",
+        registrant_contact: "0917-000-1111",
+        status: "VERIFIED", // Verified historically!
+      },
+    });
+    const playerHistoricalOnly = await prisma.players.create({
+      data: {
+        first_name: "OldJuan",
+        last_name: "OldDelaCruz",
+      },
+    });
+    cleanupPlayerIds.push(playerHistoricalOnly.id);
+    await prisma.registration_players.create({
+      data: {
+        registration_id: regHistoricalOnly.id,
+        player_id: playerHistoricalOnly.id,
+        jersey_number: 1,
+      },
+    });
 
+    // 9. Team Multi-Season (VERIFIED in historical league AND VERIFIED in active league)
+    const teamMultiSeason = await prisma.teams.create({
+      data: {
+        team_name: `Multi Season Legends ${runTag}`,
+        slug: `multi-season-legends-${runTag}`,
+      },
+    });
+    cleanupTeamIds.push(teamMultiSeason.id);
+
+    // 9A. Historical registration for teamMultiSeason
+    const regMultiHistorical = await prisma.registrations.create({
+      data: {
+        league_id: historicalLeague.id,
+        league_category_id: historicalCategory.id,
+        team_id: teamMultiSeason.id,
+        registrant_first_name: "OldRegistrant",
+        registrant_last_name: "Legend",
+        registrant_contact: "0917-000-2222",
+        status: "VERIFIED",
+        submitted_at: new Date("2024-01-01"),
+      },
+    });
+    const playerOld = await prisma.players.create({
+      data: {
+        first_name: "HistoricalRosterPlayer",
+        last_name: "ShouldNotLeak",
+      },
+    });
+    cleanupPlayerIds.push(playerOld.id);
+    await prisma.registration_players.create({
+      data: {
+        registration_id: regMultiHistorical.id,
+        player_id: playerOld.id,
+        jersey_number: 99,
+      },
+    });
+
+    // 9B. Current active registration for teamMultiSeason
+    const regMultiActive = await prisma.registrations.create({
+      data: {
+        league_id: testLeague.id,
+        league_category_id: testCategoryA.id,
+        team_id: teamMultiSeason.id,
+        registrant_first_name: "CurrentRegistrant",
+        registrant_last_name: "Legend",
+        registrant_contact: "0917-000-3333",
+        status: "VERIFIED",
+        submitted_at: new Date("2026-06-01"),
+      },
+    });
+    const playerNew = await prisma.players.create({
+      data: {
+        first_name: "CurrentRosterPlayer",
+        last_name: "Active2026",
+      },
+    });
+    cleanupPlayerIds.push(playerNew.id);
+    await prisma.registration_players.create({
+      data: {
+        registration_id: regMultiActive.id,
+        player_id: playerNew.id,
+        jersey_number: 8,
+      },
+    });
+
+    // 10. Team Draft League Only (VERIFIED in DRAFT league - should NOT be public)
+    const teamDraftOnly = await prisma.teams.create({
+      data: {
+        team_name: `Draft Only Spikers ${runTag}`,
+        slug: `draft-only-${runTag}`,
+      },
+    });
+    cleanupTeamIds.push(teamDraftOnly.id);
+    await prisma.registrations.create({
+      data: {
+        league_id: draftLeague.id,
+        league_category_id: draftCategory.id,
+        team_id: teamDraftOnly.id,
+        registrant_first_name: "Draft",
+        registrant_last_name: "User",
+        registrant_contact: "0917-000-4444",
+        status: "VERIFIED",
+      },
+    });
+
+    // 11. Team Double Category (same team registered in Category A and Category B in active league)
+    const teamDoubleCat = await prisma.teams.create({
+      data: {
+        team_name: `Double Category Club ${runTag}`,
+        slug: `double-cat-${runTag}`,
+      },
+    });
+    cleanupTeamIds.push(teamDoubleCat.id);
+    await prisma.registrations.create({
+      data: {
+        league_id: testLeague.id,
+        league_category_id: testCategoryA.id,
+        team_id: teamDoubleCat.id,
+        registrant_first_name: "Double",
+        registrant_last_name: "Cat1",
+        registrant_contact: "0917-000-5555",
+        status: "VERIFIED",
+      },
+    });
+    await prisma.registrations.create({
+      data: {
+        league_id: testLeague.id,
+        league_category_id: testCategoryB.id,
+        team_id: teamDoubleCat.id,
+        registrant_first_name: "Double",
+        registrant_last_name: "Cat2",
+        registrant_contact: "0917-000-6666",
+        status: "VERIFIED",
+      },
+    });
+
+    console.log("\n--- TEST GROUP A: ACTIVE TOURNAMENT CONTEXT RESOLUTION ---");
+    const resolvedActiveLeague = await getActivePublicLeague();
+    assert(resolvedActiveLeague !== null, "Active tournament context resolves successfully");
+    assert(resolvedActiveLeague?.id === testLeague.id, "Active league matches the current ongoing/open tournament");
+    assert(resolvedActiveLeague?.status === "ONGOING", "Active league status priority prefers ONGOING");
+
+    console.log("\n--- TEST GROUP B: PUBLIC TEAMS DIRECTORY LISTING & ELIGIBILITY ---");
     const directoryData = await getPublicTeams();
     const publicTeams = directoryData.teams;
 
-    // Check VERIFIED teams are included
+    // Check VERIFIED active teams are included
     const foundTeam1 = publicTeams.find((t) => t.id === team1.id);
-    assert(!!foundTeam1, "VERIFIED registration team (team1) is visible in public listing");
+    assert(!!foundTeam1, "VERIFIED registration team in active league (team1) is visible");
 
     const foundTeam6 = publicTeams.find((t) => t.id === team6.id);
-    assert(!!foundTeam6, "VERIFIED registration team with 0 players (team6) is visible in public listing");
+    assert(!!foundTeam6, "VERIFIED team with 0 players in active league (team6) is visible");
 
-    // Check excluded registrations
+    const foundMultiSeason = publicTeams.find((t) => t.id === teamMultiSeason.id);
+    assert(!!foundMultiSeason, "Multi-season team with current active registration is visible");
+
+    // Check historical-only and draft-only teams are EXCLUDED
+    const foundHistoricalOnly = publicTeams.find((t) => t.id === teamHistoricalOnly.id);
+    assert(!foundHistoricalOnly, "Historical-only team (COMPLETED league) is strictly excluded from active directory");
+
+    const foundDraftOnly = publicTeams.find((t) => t.id === teamDraftOnly.id);
+    assert(!foundDraftOnly, "Draft league team (DRAFT league) is strictly excluded from active directory");
+
+    // Check non-VERIFIED active teams are EXCLUDED
     const foundTeam2 = publicTeams.find((t) => t.id === team2.id);
-    assert(!foundTeam2, "PENDING_PAYMENT team (team2) is excluded from public listing");
+    assert(!foundTeam2, "PENDING_PAYMENT team (team2) is excluded");
 
     const foundTeam3 = publicTeams.find((t) => t.id === team3.id);
-    assert(!foundTeam3, "REJECTED registration team (team3) is excluded from public listing");
+    assert(!foundTeam3, "REJECTED team (team3) is excluded");
 
     const foundTeam4 = publicTeams.find((t) => t.id === team4.id);
-    assert(!foundTeam4, "CANCELLED registration team (team4) is excluded from public listing");
+    assert(!foundTeam4, "CANCELLED team (team4) is excluded");
 
     const foundTeam5 = publicTeams.find((t) => t.id === team5.id);
-    assert(!foundTeam5, "Unregistered team (team5) is excluded from public listing");
+    assert(!foundTeam5, "Unregistered team (team5) is excluded");
+
+    // Check team deduplication: a team NEVER appears more than once
+    const multiSeasonOccurrences = publicTeams.filter((t) => t.id === teamMultiSeason.id);
+    assert(multiSeasonOccurrences.length === 1, "Team with historical and current registrations appears EXACTLY ONCE");
+
+    const doubleCatOccurrences = publicTeams.filter((t) => t.id === teamDoubleCat.id);
+    assert(doubleCatOccurrences.length === 1, "Team registered in two categories appears EXACTLY ONCE (deduplication)");
 
     // Payment decoupling test
     assert(
@@ -448,7 +614,7 @@ async function runSuite() {
       "Division/category name is accurately resolved on listing"
     );
     assert(
-      foundTeam1?.league_name === `Test League ${runTag}`,
+      foundTeam1?.league_name === `Active League ${runTag}`,
       "League name is accurately resolved on listing"
     );
     assert(
@@ -460,8 +626,7 @@ async function runSuite() {
       "Official roster count for team6 is exactly 0 on listing"
     );
 
-    console.log("\n--- TEST GROUP B: PRIVACY BY QUERY DESIGN ON LISTING ---");
-    // Explicitly check that forbidden private fields are undefined on the returned objects
+    console.log("\n--- TEST GROUP C: PRIVACY BY QUERY DESIGN ON LISTING ---");
     const team1Any = foundTeam1 as unknown as Record<string, unknown>;
     assert(team1Any["registrant_first_name"] === undefined, "Listing: registrant_first_name is absent");
     assert(team1Any["registrant_contact"] === undefined, "Listing: registrant_contact is absent");
@@ -471,17 +636,37 @@ async function runSuite() {
     assert(team1Any["admin_access"] === undefined, "Listing: admin_access is absent");
     assert(team1Any["admin_audit_logs"] === undefined, "Listing: admin_audit_logs is absent");
 
-    console.log("\n--- TEST GROUP C: PUBLIC TEAM PROFILE BY SLUG & SECURITY ---");
-
-    // Valid verified team
+    console.log("\n--- TEST GROUP D: PUBLIC TEAM PROFILE BY SLUG & MULTI-LEAGUE ISOLATION ---");
+    // Active team profile
     const team1Profile = await getPublicTeamBySlug(team1.slug);
     assert(!!team1Profile, "Team slug resolves successfully to public team profile");
     assert(team1Profile?.team_name === team1.team_name, "Team profile team_name matches");
     assert(team1Profile?.slug === team1.slug, "Team profile slug matches");
     assert(team1Profile?.category_name === `Open Division ${runTag}`, "Team profile category matches");
-    assert(team1Profile?.league_name === `Test League ${runTag}`, "Team profile league matches");
+    assert(team1Profile?.league_name === `Active League ${runTag}`, "Team profile league matches");
     assert(team1Profile?.roster_count === 14, "Team profile roster count is 14");
     assert(team1Profile?.roster.length === 14, "Team profile roster contains all 14 players (>12 allowed)");
+
+    // Historical-only team slug MUST return null (404)
+    const histOnlyProfile = await getPublicTeamBySlug(teamHistoricalOnly.slug);
+    assert(histOnlyProfile === null, "Historical-only team returns null (404, does not leak historical league)");
+
+    // Draft-only team slug MUST return null (404)
+    const draftOnlyProfile = await getPublicTeamBySlug(teamDraftOnly.slug);
+    assert(draftOnlyProfile === null, "Draft-only team returns null (404, does not leak draft league)");
+
+    // Multi-season team profile MUST resolve active tournament roster only
+    const multiSeasonProfile = await getPublicTeamBySlug(teamMultiSeason.slug);
+    assert(multiSeasonProfile !== null, "Multi-season team profile resolves active tournament registration");
+    assert(multiSeasonProfile?.league_name === `Active League ${runTag}`, "Multi-season profile resolves active league name");
+    assert(
+      multiSeasonProfile?.roster.some((p) => p.first_name === "CurrentRosterPlayer") === true,
+      "Multi-season roster contains current active player"
+    );
+    assert(
+      multiSeasonProfile?.roster.some((p) => p.first_name === "HistoricalRosterPlayer") === false,
+      "Historical player does NOT leak into active tournament roster"
+    );
 
     // Invalid & unverified slugs MUST return null (404)
     const unknownProfile = await getPublicTeamBySlug(`unknown-slug-${randomUUID()}`);
@@ -499,17 +684,15 @@ async function runSuite() {
     const unregisteredProfile = await getPublicTeamBySlug(team5.slug);
     assert(unregisteredProfile === null, "Unregistered team's valid slug returns null (triggers 404)");
 
-    // Empty roster profile
     const emptyRosterProfile = await getPublicTeamBySlug(team6.slug);
     assert(
       emptyRosterProfile !== null && emptyRosterProfile.roster.length === 0,
       "Team with empty roster resolves safely with roster.length === 0"
     );
 
-    console.log("\n--- TEST GROUP D: ROSTER SORTING & MEMBER FIELDS ---");
+    console.log("\n--- TEST GROUP E: ROSTER SORTING & MEMBER FIELDS ---");
     const roster = team1Profile?.roster || [];
 
-    // Check jersey numbers, positions, captain
     const captain = roster.find((p) => p.is_captain);
     assert(
       captain !== undefined && captain.jersey_number === 7 && captain.last_name === "Dela Cruz",
@@ -519,25 +702,19 @@ async function runSuite() {
     const setter = roster.find((p) => p.position === "Setter");
     assert(setter !== undefined && setter.jersey_number === 7, "Player position 'Setter' returned accurately");
 
-    // Sorting check:
-    // 1st numbered player should be jersey #2 (Carlos Yulo)
     assert(
       roster[0].jersey_number === 2 && roster[0].last_name === "Yulo",
       "Roster sorting: first player is lowest jersey number (#2)"
     );
-    // 2nd numbered player should be jersey #7
     assert(
       roster[1].jersey_number === 7,
       "Roster sorting: second player is jersey #7"
     );
-    // 3rd numbered player should be jersey #10
     assert(
       roster[2].jersey_number === 10,
       "Roster sorting: third player is jersey #10"
     );
 
-    // Numbered players: indexes 0 to 11 (12 numbered players: 2, 7, 10, 16..24)
-    // Unnumbered players: last 2 entries (Alvarez Ben, then Zubiri Aaron)
     const unnumbered1 = roster[12];
     const unnumbered2 = roster[13];
 
@@ -553,13 +730,11 @@ async function runSuite() {
         unnumbered2.first_name === "Aaron",
       "Roster sorting: unnumbered player 'Zubiri Aaron' sorts alphabetically second"
     );
-
     assert(
       unnumbered2.position === null,
       "Roster field: null position safely preserved without error"
     );
 
-    // Check pure sort function directly
     const mockRoster: PublicRosterPlayer[] = [
       { id: "1", jersey_number: null, position: null, is_captain: false, first_name: "Zack", middle_name: null, last_name: "Zulu", suffix: null, photo_url: null },
       { id: "2", jersey_number: 99, position: null, is_captain: false, first_name: "A", middle_name: null, last_name: "A", suffix: null, photo_url: null },
@@ -575,8 +750,7 @@ async function runSuite() {
       "sortRosterPlayers pure helper satisfies numeric jerseys then alphabetical unnumbered"
     );
 
-    console.log("\n--- TEST GROUP E: ROSTER PRIVACY BY QUERY DESIGN ---");
-    // Verify player private fields are strictly absent
+    console.log("\n--- TEST GROUP F: ROSTER PRIVACY BY QUERY DESIGN ---");
     for (const player of roster) {
       const pAny = player as unknown as Record<string, unknown>;
       assert(pAny["contact_number"] === undefined, "Roster player: contact_number is strictly absent");
@@ -590,8 +764,7 @@ async function runSuite() {
     assert(profileAny["notes"] === undefined, "Profile: registration notes are absent");
     assert(profileAny["payments"] === undefined, "Profile: payments are absent");
 
-    console.log("\n--- TEST GROUP F: SEARCH & FILTERING LOGIC BEHAVIOR ---");
-    // Search case-insensitivity
+    console.log("\n--- TEST GROUP G: SEARCH & FILTERING LOGIC BEHAVIOR ---");
     const searchLower = "verified spikers";
     const matchLower = publicTeams.filter((t) =>
       t.team_name.toLowerCase().includes(searchLower.toLowerCase())
@@ -604,29 +777,25 @@ async function runSuite() {
     );
     assert(matchUpper.length >= 1, "Search logic: case-insensitive uppercase search matches");
 
-    // Search leading/trailing whitespace
     const searchWhitespace = "   verified spikers   ".trim().toLowerCase();
     const matchWhitespace = publicTeams.filter((t) =>
       t.team_name.toLowerCase().includes(searchWhitespace)
     );
     assert(matchWhitespace.length >= 1, "Search logic: whitespace-trimmed search matches");
 
-    // No results search
     const noMatchSearch = "non-existent-team-xyz-999".trim().toLowerCase();
     const noMatches = publicTeams.filter((t) =>
       t.team_name.toLowerCase().includes(noMatchSearch)
     );
     assert(noMatches.length === 0, "Search logic: no-results query returns empty array");
 
-    // Category filter
     const catAFilter = publicTeams.filter((t) => t.category_id === testCategoryA.id);
     assert(
       catAFilter.length >= 1 && catAFilter.every((t) => t.category_id === testCategoryA.id),
       "Category filter: accurately filters teams by selected category"
     );
 
-    console.log("\n--- TEST GROUP G: READ-ONLY QUERY VERIFICATION ---");
-    // Verify no write operations occurred during public queries
+    console.log("\n--- TEST GROUP H: READ-ONLY QUERY VERIFICATION ---");
     const logCount = await prisma.admin_audit_logs.count({
       where: {
         entity_id: team1.id,
@@ -635,10 +804,8 @@ async function runSuite() {
     assert(logCount === 0, "Public queries performed zero writes / zero audit logs");
 
   } finally {
-    console.log("\n--- TEST GROUP H: CLEAN TEARDOWN ---");
-    // Clean up all ephemeral test fixtures
+    console.log("\n--- TEST GROUP I: CLEAN TEARDOWN ---");
     if (cleanupTeamIds.length > 0) {
-      // Cascade delete payments
       await prisma.payments.deleteMany({
         where: {
           registrations: {
@@ -647,7 +814,6 @@ async function runSuite() {
         },
       });
 
-      // Cascade delete registration_players
       await prisma.registration_players.deleteMany({
         where: {
           registrations: {
@@ -656,14 +822,12 @@ async function runSuite() {
         },
       });
 
-      // Cascade delete registrations
       await prisma.registrations.deleteMany({
         where: {
           team_id: { in: cleanupTeamIds },
         },
       });
 
-      // Delete teams
       await prisma.teams.deleteMany({
         where: {
           id: { in: cleanupTeamIds },

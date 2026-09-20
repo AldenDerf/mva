@@ -27,8 +27,14 @@ Git commits remain the authoritative technical history. This file records meanin
 * **Navigation & Platform Cleanup**:
   * Updated desktop and mobile drawer navigation to point directly to `/teams` (preserving the `MobileNav` portal architecture).
   * Cleaned up stale public-facing statements on the homepage (`app/page.tsx`), updating the minimum 12-player target notice and linking the banner directly to live registration.
+* **Architectural Hardening & Multi-League Scope Isolation**:
+  * Scoped public directory (`getPublicTeams`) and team profiles (`getPublicTeamBySlug`) strictly to the active tournament context (`getActivePublicLeague`).
+  * Filtered out historical, completed, archived, and draft leagues so past registrations never leak into the active directory.
+  * Implemented defensive team deduplication in `getPublicTeams` ensuring a team never appears more than once even when multiple historical or multi-category verified registrations exist.
+  * Verified that historical rosters can never leak or override the active tournament roster.
+  * Documented current schema characteristics and Phase 06 recommendations for multi-season support (such as explicit featured league flags or `/leagues/[leagueSlug]/teams` URL scoping).
 * **Verification**:
-  * Created 81-point automated verification suite in `scripts/verify-phase-05-6b-public-teams.ts` with local database safety probe (`mva_dev` on localhost).
+  * Created expanded 95-point automated verification suite in `scripts/verify-phase-05-6b-public-teams.ts` with local database safety probe (`mva_dev` on localhost).
   * Verified 100% pass across all regression suites (Phase 05.6A, per-player payments, Phase 05.4C, 05.4AB, 05.3, 05.2).
   * Verified zero horizontal overflow across all required mobile and desktop viewports (360px, 390px, 430px, 768px, 1280px).
 
