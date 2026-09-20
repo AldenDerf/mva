@@ -8,6 +8,36 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Admin Payment Monitoring & Payment Details Correction (Phase 05.7B)
+
+* **Dedicated Admin Payment Monitoring (`/admin/payments`)**:
+  * Implemented dedicated portal route (`app/admin/(portal)/payments/page.tsx`) protected by administrative authorization boundary (`requireAdmin()`).
+  * Activated `/admin/payments` navigation item in `components/admin/AdminShell.tsx`.
+  * Built high-performance data querying engine (`lib/admin/payments.ts`) with narrow relation selects and server-side pagination (default 20 items).
+  * Implemented safe, parameterized tokenized full-name search across split player name columns (`first_name`, `middle_name`, `last_name`, `suffix`), plus registration code, reference number, and team name search.
+  * Supported server-side filters for payment status (`PENDING`, `VERIFIED`, `REJECTED`, `REFUNDED`), payment method (`CASH`, `GCASH`, `BANK_TRANSFER`, `OTHER`), league division/category, verified-registration-only, and team payment completeness (`COMPLETE`, `INCOMPLETE`).
+  * Enforced critical completeness filter rule: qualifying registrations are evaluated against canonical accounting before payment counting and pagination, ensuring pagination counts accurately reflect the full filtered dataset.
+  * Reused canonical accounting model (`lib/admin/accounting.ts`) via single-pass batch map (`getBatchRegistrationAccounting`), eliminating N+1 accounting queries.
+  * Mobile-first payment card layout for 360px, 390px, and 430px viewports displaying player identity, team payment summary box, and touch-friendly actions without horizontal scrolling.
+  * Clean desktop table view for wider viewports with balanced column density.
+* **Dedicated Payment Correction Service (`lib/admin/payment-corrections.ts`)**:
+  * Built atomic correction domain service that updates EXISTING payment rows and strictly prohibits creating new payment rows.
+  * Allowed mutable business fields strictly limited to `payment_method` and `reference_number`.
+  * Strictly protected immutable fields: `id`, `registration_id`, `registration_player_id`, `amount`, `status`, `created_at`, `verified_at`, `verified_by_profile_id`, and registration status.
+  * Concurrency and stale-state protection: aborts with `STALE_STATE` without mutation or audit log if expected values differ from current database state.
+  * No-op guard: aborts with `NO_CHANGE` without updating rows or creating audit logs if new values match current database values.
+  * Non-empty reason policy (minimum 5 characters) enforced across all payment statuses.
+  * Created immutable `admin_audit_logs` record with action `PAYMENT_DETAILS_CORRECTED` preserving complete before/after values, reason, and actor identity.
+  * Surfaced legacy unallocated payments (`registration_player_id = null`) explicitly without attributing them to players.
+* **UI Components & Integrations**:
+  * Implemented reusable, accessible `PaymentCorrectionModal` with unmounted child form state reset.
+  * Added `PaymentCorrectionButton` to existing payments in Section E of `/admin/registrations/[id]`.
+  * Created `PaymentFilters` with URL query parameters and responsive loading transition feedback.
+  * Added mobile card and desktop table skeleton loading experience in `app/admin/(portal)/payments/loading.tsx`.
+* **Verification Suite (`scripts/verify-phase-05-7b.ts`)**:
+  * Created 47-point automated verification suite testing search tokens, filters, completeness before pagination, legacy payments, correction mutations, concurrency guards, no-ops, audit log payloads, and regression preservation.
+  * Enforced strict database safety probe (`current_database() === "mva_dev"` on local socket) and clean teardown.
+
 ### Admin Accounting Foundation & Team Payment Summary (Phase 05.7A)
 
 * **Canonical Server-Side Accounting Domain (`lib/admin/accounting.ts`)**:

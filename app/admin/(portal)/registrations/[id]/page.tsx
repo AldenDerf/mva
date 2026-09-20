@@ -11,6 +11,7 @@ import {
 import { RegistrationActionControls } from "@/components/admin/RegistrationActionControls";
 import { PlayerPaymentActionControls } from "@/components/admin/PlayerPaymentActionControls";
 import { AddPlayerModal } from "@/components/admin/AddPlayerModal";
+import { PaymentCorrectionButton } from "@/components/admin/PaymentCorrectionButton";
 
 interface PageProps {
   params: Promise<{
@@ -380,19 +381,49 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
               </div>
             ) : (
               <div className="divide-y divide-[#DDE3DE]">
-                {reg.payments.map((p, idx) => (
-                  <div key={p.id} className="p-5 sm:p-6 space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-[#5F6B61]">
-                          Payment #{idx + 1}
-                        </span>
-                        <PaymentStatusBadge status={p.status} />
+                {reg.payments.map((p, idx) => {
+                  const associatedPlayer = reg.roster.find(
+                    (r) => r.payment?.id === p.id
+                  );
+                  const playerName =
+                    p.registrationPlayerId === null
+                      ? "Legacy / Unallocated Payment"
+                      : associatedPlayer?.fullName || "Roster Player";
+
+                  return (
+                    <div key={p.id} className="p-5 sm:p-6 space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-[#5F6B61]">
+                            Payment #{idx + 1}
+                          </span>
+                          <PaymentStatusBadge status={p.status} />
+                          {p.registrationPlayerId === null && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              Legacy / Unallocated
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-base font-extrabold text-[#172019]">
+                            {formatCurrency(p.amount)}
+                          </span>
+                          <PaymentCorrectionButton
+                            payment={{
+                              id: p.id,
+                              registrationId: reg.id,
+                              registrationCode: reg.registrationCode,
+                              teamName: reg.team.name,
+                              playerName,
+                              amount: p.amount,
+                              status: p.status,
+                              paymentMethod: p.paymentMethod,
+                              referenceNumber: p.referenceNumber,
+                            }}
+                            size="xs"
+                          />
+                        </div>
                       </div>
-                      <span className="text-base font-extrabold text-[#172019]">
-                        {formatCurrency(p.amount)}
-                      </span>
-                    </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs pt-1">
                       <div>
@@ -451,7 +482,8 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                       </div>
                     )}
                   </div>
-                ))}
+                );
+              })}
               </div>
             )}
           </section>

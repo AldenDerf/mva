@@ -93,10 +93,10 @@ export const AdminShell: React.FC<AdminShellProps> = ({ admin, children }) => {
     },
     {
       label: "Payments",
-      href: "#",
-      active: false,
-      isPlaceholder: true,
-      phaseTag: "Phase 05.5",
+      href: "/admin/payments",
+      active:
+        pathname === "/admin/payments" ||
+        pathname.startsWith("/admin/payments/"),
       icon: ({ className }) => (
         <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
