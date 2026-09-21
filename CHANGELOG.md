@@ -16,6 +16,9 @@ Git commits remain the authoritative technical history. This file records meanin
   * Built high-performance data querying engine (`lib/admin/payments.ts`) with narrow relation selects and server-side pagination (default 20 items).
   * Implemented safe, parameterized tokenized full-name search across split player name columns (`first_name`, `middle_name`, `last_name`, `suffix`), plus registration code, reference number, and team name search.
   * Supported server-side filters for payment status (`PENDING`, `VERIFIED`, `REJECTED`, `REFUNDED`), payment method (`CASH`, `GCASH`, `BANK_TRANSFER`, `OTHER`), league division/category, verified-registration-only, and team payment completeness (`COMPLETE`, `INCOMPLETE`).
+  * Optimized completeness candidate selection: base payment filters (search, status, method, category, verified-only) narrow down candidate registration IDs first, eliminating unnecessary accounting computation for unrelated registrations.
+  * Clean early return on empty candidate or qualifying registration sets without unnecessary database queries or synthetic IDs.
+  * Reused preloaded candidate accounting map during payment list view item enrichment, eliminating redundant database queries.
   * Enforced critical completeness filter rule: qualifying registrations are evaluated against canonical accounting before payment counting and pagination, ensuring pagination counts accurately reflect the full filtered dataset.
   * Reused canonical accounting model (`lib/admin/accounting.ts`) via single-pass batch map (`getBatchRegistrationAccounting`), eliminating N+1 accounting queries.
   * Mobile-first payment card layout for 360px, 390px, and 430px viewports displaying player identity, team payment summary box, and touch-friendly actions without horizontal scrolling.
@@ -35,7 +38,7 @@ Git commits remain the authoritative technical history. This file records meanin
   * Created `PaymentFilters` with URL query parameters and responsive loading transition feedback.
   * Added mobile card and desktop table skeleton loading experience in `app/admin/(portal)/payments/loading.tsx`.
 * **Verification Suite (`scripts/verify-phase-05-7b.ts`)**:
-  * Created 47-point automated verification suite testing search tokens, filters, completeness before pagination, legacy payments, correction mutations, concurrency guards, no-ops, audit log payloads, and regression preservation.
+  * Created 61-point automated verification suite testing search tokens, filters, completeness before pagination, candidate narrowing, empty candidate handling, legacy payments, correction mutations, concurrency guards, no-ops, audit log payloads, and regression preservation.
   * Enforced strict database safety probe (`current_database() === "mva_dev"` on local socket) and clean teardown.
 
 ### Admin Accounting Foundation & Team Payment Summary (Phase 05.7A)

@@ -55,6 +55,7 @@ export interface AdminPaymentListItem {
 export interface AdminPaymentsQueryParams {
   search?: string;
   status?: payment_status;
+  paymentStatus?: payment_status;
   paymentMethod?: payment_method;
   categoryId?: string;
   verifiedRegistrationOnly?: boolean;
@@ -184,127 +185,18 @@ export async function getBatchRegistrationAccounting(
 }
 
 /**
- * Resolves qualifying registration IDs based on canonical team payment completeness.
- * Strictly satisfies Section E: evaluates completeness BEFORE payment count and pagination.
+ * Builds the base Prisma where clause for payments query from search, status,
+ * method, division/category, and verified-registration-only filters (excluding completeness).
  */
-async function getQualifyingRegistrationIdsForCompleteness(
-  completeness: PaymentCompletionStatus,
-  baseFilter: {
-    categoryId?: string;
-    verifiedRegistrationOnly?: boolean;
-  }
-): Promise<string[]> {
-  const regWhere: Prisma.registrationsWhereInput = {};
-
-  if (baseFilter.categoryId) {
-    regWhere.league_category_id = baseFilter.categoryId;
-  }
-
-  if (baseFilter.verifiedRegistrationOnly) {
-    regWhere.status = "VERIFIED";
-  }
-
-  const candidateRegistrations = await prisma.registrations.findMany({
-    where: regWhere,
-    select: {
-      id: true,
-      registration_code: true,
-      status: true,
-      teams: {
-        select: {
-          id: true,
-          team_name: true,
-          slug: true,
-        },
-      },
-      leagues: {
-        select: {
-          id: true,
-          name: true,
-          status: true,
-        },
-      },
-      league_categories_registrations_league_category_idToleague_categories: {
-        select: {
-          id: true,
-          name: true,
-          registration_fee: true,
-          min_players: true,
-          max_players: true,
-        },
-      },
-      registration_players: {
-        select: {
-          id: true,
-          jersey_number: true,
-          position: true,
-          is_captain: true,
-          players: {
-            select: {
-              id: true,
-              first_name: true,
-              middle_name: true,
-              last_name: true,
-              suffix: true,
-            },
-          },
-          payments: {
-            select: {
-              id: true,
-              amount: true,
-              status: true,
-              payment_method: true,
-              reference_number: true,
-              verified_at: true,
-              created_at: true,
-            },
-          },
-        },
-      },
-      payments: {
-        where: {
-          registration_player_id: null,
-        },
-        select: {
-          id: true,
-          registration_player_id: true,
-          amount: true,
-          status: true,
-          payment_method: true,
-          reference_number: true,
-          verified_at: true,
-          created_at: true,
-          notes: true,
-        },
-      },
-    },
-  });
-
-  const matchingIds: string[] = [];
-
-  for (const reg of candidateRegistrations) {
-    const acct = calculateRegistrationAccounting(reg);
-    if (completeness === "COMPLETE" && acct.paymentComplete) {
-      matchingIds.push(reg.id);
-    } else if (completeness === "INCOMPLETE" && !acct.paymentComplete) {
-      matchingIds.push(reg.id);
-    }
-  }
-
-  return matchingIds;
-}
-
-/**
- * Builds the Prisma where clause for payments query based on all active search and filter params.
- */
-export async function buildPaymentsWhereClause(
+export function buildBasePaymentsWhereClause(
   params: AdminPaymentsQueryParams
-): Promise<Prisma.paymentsWhereInput> {
+): Prisma.paymentsWhereInput {
   const andConditions: Prisma.paymentsWhereInput[] = [];
 
   // 1. Payment Status Filter
-  if (params.status) {
-    andConditions.push({ status: params.status });
+  const statusFilter = params.paymentStatus ?? params.status;
+  if (statusFilter) {
+    andConditions.push({ status: statusFilter });
   }
 
   // 2. Payment Method Filter
@@ -330,27 +222,7 @@ export async function buildPaymentsWhereClause(
     });
   }
 
-  // 5. Team Payment Completeness Filter (Section E)
-  if (params.completeness) {
-    const qualifyingRegistrationIds =
-      await getQualifyingRegistrationIdsForCompleteness(params.completeness, {
-        categoryId: params.categoryId,
-        verifiedRegistrationOnly: params.verifiedRegistrationOnly,
-      });
-
-    if (qualifyingRegistrationIds.length === 0) {
-      // Nil-UUID ensure 0 records match
-      andConditions.push({
-        registration_id: { in: ["00000000-0000-0000-0000-000000000000"] },
-      });
-    } else {
-      andConditions.push({
-        registration_id: { in: qualifyingRegistrationIds },
-      });
-    }
-  }
-
-  // 6. Search Query (Section C)
+  // 5. Search Query (Section C)
   // Supports: Registration code, Payment reference, Team name, and Tokenized player full-name
   const trimmedSearch = params.search?.trim();
   if (trimmedSearch) {
@@ -409,13 +281,68 @@ export async function buildPaymentsWhereClause(
 }
 
 /**
+ * Builds the complete Prisma where clause for payments query based on all active search,
+ * filters, and completeness candidates.
+ */
+export async function buildPaymentsWhereClause(
+  params: AdminPaymentsQueryParams
+): Promise<Prisma.paymentsWhereInput> {
+  const baseWhere = buildBasePaymentsWhereClause(params);
+
+  if (!params.completeness) {
+    return baseWhere;
+  }
+
+  // Narrow candidates to only registrations that contain payments matching the base filters
+  const candidateRows = await prisma.payments.findMany({
+    where: baseWhere,
+    select: { registration_id: true },
+    distinct: ["registration_id"],
+  });
+
+  const candidateRegistrationIds = candidateRows.map((r) => r.registration_id);
+
+  if (candidateRegistrationIds.length === 0) {
+    // Return impossible condition if candidate set is empty
+    return {
+      AND: [
+        baseWhere,
+        { registration_id: { in: [] } },
+      ],
+    };
+  }
+
+  // Batch-load canonical accounting ONLY for candidate registrations
+  const candidateAccountingMap = await getBatchRegistrationAccounting(
+    candidateRegistrationIds
+  );
+
+  const qualifyingRegistrationIds: string[] = [];
+  for (const [regId, acct] of candidateAccountingMap.entries()) {
+    if (params.completeness === "COMPLETE" && acct.paymentComplete) {
+      qualifyingRegistrationIds.push(regId);
+    } else if (params.completeness === "INCOMPLETE" && !acct.paymentComplete) {
+      qualifyingRegistrationIds.push(regId);
+    }
+  }
+
+  return {
+    AND: [
+      baseWhere,
+      { registration_id: { in: qualifyingRegistrationIds } },
+    ],
+  };
+}
+
+/**
  * Main query function for /admin/payments.
  *
  * Implements:
- * - Server-side search & filters
- * - Completeness before pagination
+ * - Base filters & tokenized full-name search
+ * - Completeness before pagination with narrowed candidate set
  * - Paginated payment retrieval
  * - Single-pass batched accounting lookup (No N+1)
+ * - Clean early return on empty candidate or qualifying sets
  * - Legacy payment demarcation
  */
 export async function getAdminPaymentsList(
@@ -425,13 +352,78 @@ export async function getAdminPaymentsList(
   const pageSize = Math.max(1, Math.min(100, params.pageSize || 20));
   const skip = (page - 1) * pageSize;
 
-  const where = await buildPaymentsWhereClause(params);
+  // 1. Build normal/base payment WHERE conditions first
+  const baseWhere = buildBasePaymentsWhereClause(params);
+
+  let finalWhere = baseWhere;
+  let preloadedAccountingMap: Map<string, CanonicalRegistrationAccounting> | null = null;
+
+  // 2. If completeness IS requested:
+  if (params.completeness) {
+    // Step A: Use base payment filters to obtain DISTINCT registration IDs represented by matching payments
+    const candidateRows = await prisma.payments.findMany({
+      where: baseWhere,
+      select: { registration_id: true },
+      distinct: ["registration_id"],
+    });
+
+    const candidateRegistrationIds = candidateRows.map((r) => r.registration_id);
+
+    // Step B: Clean early return if zero candidate registration IDs
+    if (candidateRegistrationIds.length === 0) {
+      return {
+        items: [],
+        totalCount: 0,
+        page,
+        pageSize,
+        totalPages: 0,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      };
+    }
+
+    // Step C & D: Batch-load canonical accounting inputs ONLY for those candidate registration IDs (ONE batched query)
+    preloadedAccountingMap = await getBatchRegistrationAccounting(
+      candidateRegistrationIds
+    );
+
+    // Step E & F: Evaluate COMPLETE / INCOMPLETE for each candidate registration
+    const qualifyingRegistrationIds: string[] = [];
+    for (const [regId, acct] of preloadedAccountingMap.entries()) {
+      if (params.completeness === "COMPLETE" && acct.paymentComplete) {
+        qualifyingRegistrationIds.push(regId);
+      } else if (params.completeness === "INCOMPLETE" && !acct.paymentComplete) {
+        qualifyingRegistrationIds.push(regId);
+      }
+    }
+
+    // Clean early return if zero qualifying registration IDs
+    if (qualifyingRegistrationIds.length === 0) {
+      return {
+        items: [],
+        totalCount: 0,
+        page,
+        pageSize,
+        totalPages: 0,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      };
+    }
+
+    // Step G: Add qualifying registration IDs to FINAL payment WHERE condition
+    finalWhere = {
+      AND: [
+        baseWhere,
+        { registration_id: { in: qualifyingRegistrationIds } },
+      ],
+    };
+  }
 
   // Execute count and paginated query
   const [totalCount, rawPayments] = await Promise.all([
-    prisma.payments.count({ where }),
+    prisma.payments.count({ where: finalWhere }),
     prisma.payments.findMany({
-      where,
+      where: finalWhere,
       skip,
       take: pageSize,
       orderBy: [
@@ -498,8 +490,9 @@ export async function getAdminPaymentsList(
     new Set(rawPayments.map((p) => p.registration_id))
   );
 
-  // Batch-load canonical accounting ONCE per registration (Section F)
-  const accountingMap = await getBatchRegistrationAccounting(uniqueRegIds);
+  // Reuse preloaded accounting from candidate step or batch-load canonical accounting ONCE
+  const accountingMap =
+    preloadedAccountingMap ?? (await getBatchRegistrationAccounting(uniqueRegIds));
 
   const items: AdminPaymentListItem[] = rawPayments.map((p) => {
     const isLegacy = p.registration_player_id === null;

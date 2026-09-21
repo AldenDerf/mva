@@ -916,8 +916,238 @@ async function run() {
     assert(acct1.balance === 0, "Balance remains ₱0.00");
     assert(acct1.paymentComplete === true, "Payment completeness remains COMPLETE");
 
-    // Test 47: Existing payment status mutation behavior remains functional
-    console.log("\n[Test 47] Existing payment status mutation behavior remains functional");
+    // =========================================================================
+    // SECTION 10: COMPLETENESS CANDIDATE NARROWING & PERFORMANCE HARDENING
+    // =========================================================================
+    console.log("\n--- PART 10: COMPLETENESS CANDIDATE NARROWING & PERFORMANCE HARDENING ---");
+
+    // Test 47: registration-code search + completeness
+    console.log("\n[Test 47] registration-code search + completeness");
+    const h1Complete = await getAdminPaymentsList({
+      search: reg1.registration_code!,
+      completeness: "COMPLETE",
+      categoryId: category.id,
+    });
+    assert(h1Complete.totalCount === 4, "Registration code + COMPLETE found exactly 4 payments for Team 1");
+    assert(h1Complete.items.every((i) => i.registrationCode === reg1.registration_code), "All results belong to Team 1");
+
+    const h1Incomplete = await getAdminPaymentsList({
+      search: reg1.registration_code!,
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+    });
+    assert(h1Incomplete.totalCount === 0 && h1Incomplete.items.length === 0, "Registration code for complete team + INCOMPLETE returns 0 payments");
+
+    const h1Team2Incomplete = await getAdminPaymentsList({
+      search: reg2.registration_code!,
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+    });
+    assert(h1Team2Incomplete.totalCount === 4, "Registration code + INCOMPLETE found exactly 4 payments for Team 2");
+
+    // Test 48: payment-reference search + completeness
+    console.log("\n[Test 48] payment-reference search + completeness");
+    const h2Complete = await getAdminPaymentsList({
+      search: "REF-JUAN-01-GCASH",
+      completeness: "COMPLETE",
+      categoryId: category.id,
+    });
+    assert(h2Complete.totalCount === 1, "Payment reference + COMPLETE matched 1 payment on complete team");
+    assert(h2Complete.items[0].referenceNumber === "REF-JUAN-01-GCASH", "Returned correct reference number");
+
+    const h2IncompleteMismatch = await getAdminPaymentsList({
+      search: "REF-JUAN-01-GCASH",
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+    });
+    assert(h2IncompleteMismatch.totalCount === 0, "Payment reference + INCOMPLETE returns 0 because parent registration is COMPLETE");
+
+    // Test 49: team-name search + completeness
+    console.log("\n[Test 49] team-name search + completeness");
+    const h3Complete = await getAdminPaymentsList({
+      search: team1.team_name,
+      completeness: "COMPLETE",
+      categoryId: category.id,
+    });
+    assert(h3Complete.totalCount === 4, "Team name search + COMPLETE returned 4 payments for Team 1");
+
+    const h3Incomplete = await getAdminPaymentsList({
+      search: team1.team_name,
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+    });
+    assert(h3Incomplete.totalCount === 0, "Team name search + INCOMPLETE returned 0 for complete Team 1");
+
+    // Test 50: multi-token player-name search + completeness
+    console.log("\n[Test 50] multi-token player-name search + completeness");
+    const h4Tokens = await getAdminPaymentsList({
+      search: "Cruz Juan",
+      completeness: "COMPLETE",
+      categoryId: category.id,
+    });
+    assert(h4Tokens.totalCount === 1, "Multi-token 'Cruz Juan' + COMPLETE matches Juan Dela Cruz");
+    assert(h4Tokens.items[0].fullName === "Juan Dela Cruz", "Item matches Juan Dela Cruz");
+
+    const h4TokensMismatch = await getAdminPaymentsList({
+      search: "Cruz Juan",
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+    });
+    assert(h4TokensMismatch.totalCount === 0, "Multi-token 'Cruz Juan' + INCOMPLETE returns 0 on complete team");
+
+    // Test 51: payment-status + completeness
+    console.log("\n[Test 51] payment-status + completeness");
+    const h5Verified = await getAdminPaymentsList({
+      paymentStatus: "VERIFIED",
+      completeness: "COMPLETE",
+      categoryId: category.id,
+    });
+    assert(h5Verified.totalCount === 3, "paymentStatus VERIFIED + COMPLETE returned 3 payments");
+    assert(h5Verified.items.every((i) => i.status === "VERIFIED"), "All returned items have VERIFIED status");
+
+    const h5Pending = await getAdminPaymentsList({
+      paymentStatus: "PENDING",
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+    });
+    assert(h5Pending.totalCount === 2, "paymentStatus PENDING + INCOMPLETE returned 2 payments (Carlos + Legacy)");
+
+    // Test 52: payment-method + completeness
+    console.log("\n[Test 52] payment-method + completeness");
+    const h6GcashComplete = await getAdminPaymentsList({
+      paymentMethod: "GCASH",
+      completeness: "COMPLETE",
+      categoryId: category.id,
+    });
+    assert(h6GcashComplete.totalCount === 2, "paymentMethod GCASH + COMPLETE matched 2 payments on Team 1");
+    assert(h6GcashComplete.items.every((i) => i.paymentMethod === "GCASH"), "All returned items have GCASH method");
+
+    const h6GcashIncomplete = await getAdminPaymentsList({
+      paymentMethod: "GCASH",
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+    });
+    assert(h6GcashIncomplete.totalCount === 1, "paymentMethod GCASH + INCOMPLETE matched Elena Cruz on Team 2");
+    assert(h6GcashIncomplete.items[0].referenceNumber === "REFUND-ELENA-06", "Correct payment record returned");
+
+    // Test 53: category/division + completeness
+    console.log("\n[Test 53] category/division + completeness");
+    const h7CatComplete = await getAdminPaymentsList({
+      categoryId: category.id,
+      completeness: "COMPLETE",
+    });
+    assert(h7CatComplete.totalCount === 4, "Category + COMPLETE returned 4 payments for Team 1");
+
+    const h7CatIncomplete = await getAdminPaymentsList({
+      categoryId: category.id,
+      completeness: "INCOMPLETE",
+    });
+    assert(h7CatIncomplete.totalCount === 4, "Category + INCOMPLETE returned 4 payments for Team 2");
+
+    // Test 54: verified-registration-only + completeness
+    console.log("\n[Test 54] verified-registration-only + completeness");
+    const h8VerRegComplete = await getAdminPaymentsList({
+      verifiedRegistrationOnly: true,
+      completeness: "COMPLETE",
+      categoryId: category.id,
+    });
+    assert(h8VerRegComplete.totalCount === 4, "verifiedRegistrationOnly + COMPLETE returned 4 payments");
+
+    const h8VerRegIncomplete = await getAdminPaymentsList({
+      verifiedRegistrationOnly: true,
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+    });
+    assert(h8VerRegIncomplete.totalCount === 0, "verifiedRegistrationOnly + INCOMPLETE returned 0 (Team 2 is PENDING_PAYMENT)");
+
+    // Test 55: empty candidate set
+    console.log("\n[Test 55] empty candidate set");
+    const h9Empty = await getAdminPaymentsList({
+      search: "DEFINITELY-NONEXISTENT-TOKEN-9999",
+      completeness: "COMPLETE",
+      categoryId: category.id,
+    });
+    assert(h9Empty.totalCount === 0, "Empty candidate set returns totalCount 0");
+    assert(h9Empty.items.length === 0, "Empty candidate set returns items []");
+    assert(h9Empty.totalPages === 0, "Empty candidate set returns totalPages 0");
+
+    // Test 56: correct totalCount with completeness
+    console.log("\n[Test 56] correct totalCount with completeness");
+    const h10Count = await getAdminPaymentsList({
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+      pageSize: 2,
+    });
+    assert(h10Count.totalCount === 4, "totalCount reflects full matching set (4) when pageSize is 2");
+    assert(h10Count.totalPages === 2, "totalPages is 2 for 4 items with pageSize 2");
+    assert(h10Count.items.length === 2, "items array contains only page items (2)");
+
+    // Test 57: pagination correctness with completeness
+    console.log("\n[Test 57] pagination correctness with completeness");
+    const h11Page1 = await getAdminPaymentsList({
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+      page: 1,
+      pageSize: 2,
+    });
+    assert(h11Page1.items.length === 2, "Page 1 has 2 items");
+    assert(h11Page1.hasPreviousPage === false, "Page 1 has no previous page");
+    assert(h11Page1.hasNextPage === true, "Page 1 has next page");
+
+    const h11Page2 = await getAdminPaymentsList({
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+      page: 2,
+      pageSize: 2,
+    });
+    assert(h11Page2.items.length === 2, "Page 2 has 2 items");
+    assert(h11Page2.hasPreviousPage === true, "Page 2 has previous page");
+    assert(h11Page2.hasNextPage === false, "Page 2 has no next page");
+
+    const page1Ids = new Set(h11Page1.items.map((i) => i.id));
+    const disjoint = h11Page2.items.every((i) => !page1Ids.has(i.id));
+    assert(disjoint, "Page 1 and Page 2 items are completely disjoint");
+
+    // Test 58: completeness resolved before pagination
+    console.log("\n[Test 58] completeness resolved before pagination");
+    const h12Pre = await getAdminPaymentsList({
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+      page: 1,
+      pageSize: 2,
+    });
+    assert(h12Pre.items.length === 2, "Pre-pagination completeness guarantees page is full (2 items)");
+    assert(h12Pre.totalCount === 4, "Total count is accurately 4 across all pages");
+    assert(h12Pre.items.every((i) => i.registrationId === reg2.id), "All page items belong to qualifying incomplete registration");
+
+    // Test 59: no regression of tokenized full-name search
+    console.log("\n[Test 59] no regression of tokenized full-name search");
+    const h13Tokens1 = await getAdminPaymentsList({
+      search: "Juan Cruz Dela",
+      categoryId: category.id,
+    });
+    assert(h13Tokens1.totalCount === 1 && h13Tokens1.items[0].referenceNumber === "REF-JUAN-01-GCASH", "Tokens 'Juan Cruz Dela' matched Juan Dela Cruz");
+
+    const h13Tokens2 = await getAdminPaymentsList({
+      search: "Dela Cruz Juan",
+      categoryId: category.id,
+    });
+    assert(h13Tokens2.totalCount === 1 && h13Tokens2.items[0].referenceNumber === "REF-JUAN-01-GCASH", "Tokens 'Dela Cruz Juan' matched Juan Dela Cruz");
+
+    // Test 60: no regression of legacy/unallocated payment handling
+    console.log("\n[Test 60] no regression of legacy/unallocated payment handling");
+    const h14Legacy = await getAdminPaymentsList({
+      search: "LEGACY-OTHER-99",
+      completeness: "INCOMPLETE",
+      categoryId: category.id,
+    });
+    assert(h14Legacy.totalCount === 1, "Legacy payment found with completeness filter");
+    assert(h14Legacy.items[0].isLegacyUnallocated === true, "isLegacyUnallocated is true for unallocated payment");
+    assert(h14Legacy.items[0].fullName === "Legacy / Unallocated Payment", "Placeholder name for legacy payment");
+    assert(h14Legacy.items[0].registrationPlayerId === null, "registrationPlayerId is null for legacy payment");
+
+    // Test 61: Existing payment status mutation behavior remains functional
+    console.log("\n[Test 61] Existing payment status mutation behavior remains functional");
     const mutResult = await mutatePlayerPaymentStatus(adminContext, {
       registrationPlayerId: rp3.id,
       paymentId: pay3.id,
@@ -1006,7 +1236,7 @@ async function run() {
   }
 
   console.log("===============================================================");
-  console.log("ALL 47 VERIFICATION SUITE TESTS PASSED 100% SUCCESSFULLY");
+  console.log("ALL 61 VERIFICATION SUITE TESTS PASSED 100% SUCCESSFULLY");
   console.log("===============================================================");
 }
 
