@@ -1110,7 +1110,9 @@ Never make destructive actions visually compete with the primary normal workflow
 
 ### Performance-conscious UX
 
-Good UX includes performance.
+Good UX includes performance. Performance is an essential aspect of both correctness and user experience.
+
+The MVA system must feel responsive on both mobile and desktop devices, including for users on slower hardware or unstable mobile network connections.
 
 Before adding client-side JavaScript or additional data fetching:
 
@@ -1121,6 +1123,8 @@ Before adding client-side JavaScript or additional data fetching:
 - avoid loading data that is not needed for the current view
 - preserve pagination for potentially large datasets
 - optimize perceived performance without compromising correctness
+
+For comprehensive architectural, data-fetching, database, bundle, and route-level guidelines, refer to [Next.js Performance & Optimization Standards](#nextjs-performance--optimization-standards) below.
 
 ### Existing architecture first
 
@@ -1152,3 +1156,294 @@ Before creating a new component or interaction pattern, inspect whether the proj
 Prefer consistency over unnecessary novelty.
 
 If a new pattern is genuinely better, implement it in a reusable way when practical.
+
+---
+
+# NEXT.JS PERFORMANCE & OPTIMIZATION STANDARDS
+
+Performance is an explicit project-wide engineering requirement for the MVA platform. It is a fundamental element of both system correctness and user experience.
+
+The MVA web application must deliver fast, predictable, and responsive interactions across diverse devices and network environments—especially ordinary mobile smartphones on variable cellular connections—without compromising security, auditability, or data integrity.
+
+## Core Priority Order
+
+Whenever architectural, design, or implementation tradeoffs arise, strictly adhere to this priority order:
+
+1. Correct business behavior
+2. Security and authorization
+3. Financial / data integrity
+4. Accessibility
+5. User-perceived responsiveness
+6. Server / database efficiency
+7. Client bundle efficiency
+8. Micro-optimization
+
+```text
+CORRECTNESS → SECURITY → DATA INTEGRITY → PERFORMANCE
+```
+
+**Non-Negotiable Rule**: Optimization must NEVER compromise payment correctness, authorization, auditability, registration rules, or data integrity. A 50 ms raw performance gain is **never** worth weakening payment reconciliation, security checks, canonical accounting, or code maintainability.
+
+---
+
+## Architectural & Implementation Principles
+
+Base all performance decisions on modern Next.js 16+ App Router best practices, taking into account the repository's React 19 and Prisma architecture. Always inspect the actual route behavior and data requirements before choosing an optimization—do not optimize mechanically.
+
+### 1. Server Components by Default
+
+Prefer React Server Components (RSC) by default for components that:
+
+- Primarily read data;
+- Render static or dynamic layout/content;
+- Do not require browser APIs (e.g. `window`, `localStorage`);
+- Do not require client-side state (`useState`, `useReducer`) or event listeners (`onClick`, `onChange`).
+
+Guidelines:
+
+- Use `"use client"` only when client-side interactivity or browser APIs are strictly necessary.
+- Never convert an entire page or route subtree into a Client Component merely because one nested element needs client state or interactivity.
+- Push `"use client"` boundaries as far down the component tree as practical (isolate interactive leaves).
+- Server Components eliminate client hydration overhead, reduce client JavaScript bundle size, and keep database access closer to the source.
+
+### 2. Data Fetching
+
+Avoid unnecessary, duplicate, or oversized database and data-fetching operations.
+
+Before introducing a query:
+
+1. **Inspect existing data**: Check what data the page or parent component has already fetched.
+2. **Reuse existing queries**: Determine whether an existing query or relation can safely provide the needed data without overfetching.
+3. **Select required fields/relations**: Avoid fetching full relations or sensitive fields that the current view does not render.
+4. **Enforce boundaries**: Never execute unrestricted queries where pagination, limit clauses, or search filters are appropriate.
+5. **Parallelize independent queries**: For independent asynchronous operations, use parallel execution (such as `Promise.all()`) when:
+   - The operations do not depend on each other's results;
+   - Doing so preserves overall correctness;
+   - It does not cause connection contention or unsafe database behavior.
+6. **Preserve sequential ordering when required**: Do NOT parallelize operations that require strict transactional ordering or depend on the output of prior operations.
+
+### 3. Avoid Avoidable Data Waterfalls
+
+Actively inspect routes for sequential awaiting of independent promises:
+
+```typescript
+// AVOIDABLE WATERFALL: independent queries executed sequentially
+const teams = await getTeams();
+const leagues = await getLeagues();
+const categories = await getCategories();
+```
+
+Instead, where queries are genuinely independent, execute them concurrently or co-locate them with React Suspense:
+
+```typescript
+// CONCURRENT: independent queries executed together
+const [teams, leagues, categories] = await Promise.all([
+  getTeams(),
+  getLeagues(),
+  getCategories(),
+]);
+```
+
+Where appropriate, use:
+
+- Parallel fetching with `Promise.all()`;
+- Component-level data fetching wrapped in React Suspense boundaries;
+- Architectural preloading patterns.
+
+*Note*: Do not optimize mechanically. If query B requires an ID produced by query A, the dependency is legitimate and must remain sequential.
+
+### 4. Loading and Streaming
+
+Leverage Next.js App Router loading and streaming patterns to enhance perceived performance:
+
+- Use `loading.tsx` for route-level loading states.
+- Wrap slow or secondary data sections in React `<Suspense>` boundaries to allow progressive page streaming.
+- Design meaningful skeleton UI that mirrors the layout of the incoming content to avoid Cumulative Layout Shift (CLS).
+- Ensure loading indicators appear promptly and communicate that the system is actively working.
+
+Rules:
+
+- Do NOT add loading screens, spinners, or skeletons merely for decoration.
+- Never introduce artificial delays or timers just to display an animated loading state.
+
+### 5. Caching Must Be Intentional
+
+Do NOT assume that every database query or route response should be cached. Cache decisions must be deliberate and context-aware.
+
+Before introducing caching or revalidation:
+
+- Evaluate change frequency: How often does the underlying data change?
+- Evaluate freshness expectations: Does the user expect to see live changes immediately?
+- Evaluate operational risk: Could stale data cause an administrative error or duplicate payment?
+- Evaluate authorization: Does the data vary based on the user's role or identity? Never cache sensitive authorization decisions unsafely.
+
+#### Public Read-Heavy Data vs. Admin Operational Data
+
+- **Public Read-Heavy Routes** (e.g., public league overviews, team rosters, schedules):
+  - Caching and revalidation (e.g., ISR or time-based revalidation) may be evaluated where content changes infrequently and real-time freshness is not critical.
+- **Admin, Payment, and Registration Routes** (e.g., registration review, payment reconciliation, balances):
+  - **Prioritize freshness and absolute correctness**.
+  - Do NOT introduce aggressive caching that could lead administrators to act on stale balances, unrecorded payments, outdated verification statuses, or incorrect roster states.
+  - Rely on fresh server-side reads to ensure decision-making data is authoritative.
+
+Always follow the caching semantics of the installed Next.js version (Next.js 16+ App Router conventions) rather than outdated assumptions from earlier versions.
+
+### 6. Database Performance
+
+Performance optimization directly encompasses database behavior and Prisma usage.
+
+When developing data-heavy pages and queries:
+
+- **Eliminate N+1 query patterns**: Use Prisma's `include` or `select` to fetch related records in unified queries, rather than querying in loops.
+- **Avoid duplicate queries**: Avoid fetching identical datasets repeatedly across sibling or parent-child components within the same request lifecycle.
+- **Select specific fields**: Use `select` to limit payloads when querying wide tables with unused text or auditing columns.
+- **Preserve database-level pagination**: Always enforce `take` and `skip` (or cursor-based pagination) for potentially large datasets. Never load an entire table into memory merely to slice or paginate on the server or client.
+- **Filter and sort at the database level**: Let PostgreSQL handle sorting, filtering, and counting through indexed columns.
+- **Strict Database Safety**: Do NOT casually alter or add database indexes. If a performance issue suggests a missing index:
+  1. Document and explain the observed query bottleneck;
+  2. Propose the specific index or schema adjustment;
+  3. Evaluate it against the existing MVA data model and indexing strategy;
+  4. Obtain explicit approval before modifying the database.
+
+### 7. Bundle Size and Client JavaScript
+
+Keep client-side JavaScript minimal, intentional, and strictly budgeted:
+
+- Avoid unnecessary Client Components.
+- Do not import large third-party utility libraries when native JavaScript or concise helper functions suffice.
+- Ensure server-only code (Prisma, database credentials, server utilities) never leaks into client bundles.
+- Avoid duplicate utility functions and excessive global state containers.
+- When considering a client dependency:
+  - Check if a lightweight alternative exists;
+  - Evaluate if the functionality can run entirely on the server;
+  - Consider dynamic imports if the feature is heavy and accessed infrequently.
+- Do not sacrifice code clarity or maintainability merely to shave negligible bytes.
+
+### 8. Images
+
+Follow Next.js image optimization best practices:
+
+- Prefer `next/image` over raw `<img>` tags for images supported by Next.js optimization.
+- Provide explicit `width` and `height` (or use `fill` with a sized container) to prevent layout shift.
+- Use responsive `sizes` attribute for images rendered across multiple viewport widths.
+- Reserve `priority` exclusively for above-the-fold Largest Contentful Paint (LCP) assets (e.g., hero images).
+- Do not eagerly load all images on a page; let non-critical images load lazily.
+- Always display the official MVA logo and official brand assets accurately, maintaining correct aspect ratios and visual fidelity.
+
+### 9. Fonts
+
+- Use Next.js font optimization (`next/font`) for primary typography (e.g., Inter, Manrope).
+- Load only the required font weights, styles, and subsets.
+- Do not introduce additional font families without explicit design rationale.
+
+### 10. Third-Party Scripts
+
+- Treat every third-party script as an operational, performance, and security risk.
+- Before adding any script, evaluate:
+  - Is it strictly necessary?
+  - What is its impact on page performance, TBT (Total Blocking Time), and LCP?
+  - What are the privacy, data governance, and security implications?
+  - Can it be deferred or loaded off the critical rendering path?
+- Use Next.js `<Script>` with appropriate strategies (`afterInteractive`, `lazyOnload`) when third-party integration is required.
+
+### 11. Dynamic Imports and Code Splitting
+
+- Consider dynamic imports (`next/dynamic` or `React.lazy`) for heavy, non-critical client features that are not required on initial page render (e.g., complex export dialogs, interactive charting widgets, or heavy modal sheets).
+- Do NOT dynamically import components routinely or for small components. Dynamic imports introduce additional network requests and chunk overhead; use them only when measurable bundle reductions justify the split.
+
+### 12. Navigation
+
+- Preserve fast client-side navigation provided by the Next.js App Router.
+- Always use `<Link>` or `router.push()` for internal navigation; avoid hard `<a href>` links that trigger full-page browser reloads unless intentionally resetting the application state.
+- Avoid navigation patterns that unnecessarily discard server-rendered layouts or cause redundant data refetching.
+
+### 13. Mobile and Slow Network Performance
+
+The MVA platform is **mobile-first**. Real-world users in Mahatao and tournament venues will frequently access the system using entry-level or mid-range mobile devices on cellular networks.
+
+- Always evaluate performance with mobile constraints in mind (modest CPU, constrained RAM, high latency, limited bandwidth).
+- Do not test or judge performance solely on high-spec developer laptops with high-speed fiber connections.
+- Keep payloads compact and minimize client-side JavaScript execution.
+- Ensure the public registration flow (`/register`) and team directories load smoothly and reliably under adverse network conditions.
+
+### 14. Perceived Performance & Optimistic UI Boundaries
+
+Performance is as much about user perception as it is about raw response times:
+
+- Provide immediate visual feedback on interactive elements (buttons, inputs, toggles).
+- Use route-level loading skeletons to maintain visual structure during page transitions.
+- Prevent Cumulative Layout Shift by reserving space for dynamically loaded content.
+- Use optimistic UI cautiously and **ONLY** where business logic permits safe recovery.
+- **CRITICAL PAYMENT RULE**: Do **NOT** use optimistic updates for financial, payment, or balance operations unless the architecture explicitly provides an atomic, bulletproof rollback mechanism. Payment verification, adjustments, and reconciliation must always reflect confirmed server state. Never visually present a financial operation as successful before the server has fully verified and committed it.
+
+### 15. Measure Before Complex Optimization
+
+Do not introduce architectural complexity, premature caching layers, or esoteric abstractions based merely on guesses or assumptions.
+
+When addressing a suspected performance issue:
+
+1. **Identify the bottleneck**: Measure before modifying. Is the slowdown in database queries, network latency, server rendering, payload size, client hydration, or asset downloads?
+2. **Inspect the implementation**: Examine the current code, Prisma query logs, and React component tree.
+3. **Apply the minimal fix**: Implement the smallest, most direct optimization that resolves the bottleneck.
+4. **Verify and measure**: Confirm both the performance gain and the functional correctness of the change.
+5. **Use available tooling**: Utilize browser DevTools (Network, Performance, Lighthouse), Next.js build stats, and Prisma query logging when investigating performance.
+
+Avoid premature micro-optimizations (e.g., indiscriminately wrapping every calculation in `useMemo` or callbacks in `useCallback` without an actual render bottleneck).
+
+---
+
+## Route-Specific Performance Framework
+
+Evaluate performance requirements and trade-offs according to route archetype:
+
+### Public Routes (`/register`, `/teams`, `/teams/[slug]`, `/`)
+- **Primary Goals**: Fast initial server render, minimal client JavaScript, high mobile network resilience, smooth step-by-step UX.
+- **Strategies**:
+  - Keep interactive client boundaries isolated to form inputs and step controllers.
+  - Deliver lightweight initial HTML.
+  - Safe caching and revalidation where public data is stable.
+  - Immediate tactile feedback on touch interactions.
+
+### Admin Routes (`/admin/registrations`, `/admin/registrations/[id]`, `/admin/payments`, etc.)
+- **Primary Goals**: Absolute data correctness, real-time freshness, efficient operational workflows, zero stale financial data.
+- **Strategies**:
+  - Prioritize fresh server-side data fetching over caching.
+  - Enforce server-side pagination, sorting, and filtering on large tables.
+  - Eliminate duplicate accounting or verification queries.
+  - Clear, unambiguous pending states for consequential administrative actions.
+  - Smooth client transitions between views without sacrificing data integrity.
+
+---
+
+## Performance Review Checklist
+
+Before declaring a meaningful feature or route implementation complete, review this checklist:
+
+- [ ] **Client JS**: Is unnecessary client-side JavaScript avoided? Are `"use client"` directives pushed to leaf components?
+- [ ] **Server Components**: Are Server Components utilized by default for data reading and page layout?
+- [ ] **Waterfalls**: Are avoidable sequential `await` waterfalls eliminated using parallel fetching or Suspense?
+- [ ] **Query Efficiency**: Are duplicate database queries and N+1 query patterns avoided?
+- [ ] **Selective Fetching**: Is only the necessary data and relational fields being fetched?
+- [ ] **Pagination**: Is database-level pagination enforced for potentially large datasets?
+- [ ] **Caching Freshness**: Is caching applied appropriately without risking stale data on admin, payment, or registration screens?
+- [ ] **Loading UX**: Does the route have an appropriate loading state (`loading.tsx` or `<Suspense>`) that prevents layout shifts?
+- [ ] **Mobile Usability**: Does the route load and operate smoothly on mobile devices under throttled network conditions?
+- [ ] **Asset Optimization**: Are images using `next/image` with proper dimensions, and are fonts optimized via `next/font`?
+- [ ] **Correctness & Safety**: Did the optimization preserve all business rules, canonical accounting, security, authorization, and accessibility standards?
+
+---
+
+## Performance Anti-Patterns
+
+Avoid these common pitfalls across the codebase:
+
+1. **`"use client"` by Default**: Turning entire pages or large container components into Client Components out of habit or convenience.
+2. **Duplicate Querying**: Querying the same database records independently in multiple components during a single request.
+3. **In-Memory Table Slicing**: Fetching hundreds or thousands of rows from PostgreSQL only to paginate or filter them in JavaScript memory.
+4. **Client-Side Heavy Filtering**: Downloading unpaginated datasets to the client browser for client-side search or filtering.
+5. **Aggressive Financial Caching**: Caching payment summaries, team balances, or registration review states, causing administrators to see stale financial records.
+6. **Premature Memoization**: Scattering `useMemo` and `useCallback` everywhere across simple components without measuring or demonstrating a rendering performance problem.
+7. **Decorative Loading Delays**: Using `setTimeout` or artificial delays to force loading animations to show.
+8. **Unjustified Dynamic Imports**: Dynamically importing tiny components, which creates unnecessary chunk fragmentation and latency.
+9. **Heavy Dependencies for Minor Tasks**: Importing large third-party libraries (e.g., date libraries, utility lodash-like suites) for simple logic that native JavaScript handles easily.
+10. **Complexity Over Clarity**: Introducing convoluted caching, state machines, or abstractions that make code unreadable and fragile without delivering a measurable, meaningful benefit.
