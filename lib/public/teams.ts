@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "../prisma";
 
 export interface PublicTeamListItem {
@@ -69,7 +70,7 @@ export const ACTIVE_PUBLIC_LEAGUE_STATUSES = [
  * 1. An explicit featured tournament setting or administrative active flag.
  * 2. Scoped public URLs for past seasons (e.g. `/leagues/[leagueSlug]/teams` or season selector).
  */
-export async function getActivePublicLeague() {
+export const getActivePublicLeague = cache(async () => {
   const candidateLeagues = await prisma.leagues.findMany({
     where: {
       status: {
@@ -110,7 +111,7 @@ export async function getActivePublicLeague() {
   });
 
   return candidateLeagues[0];
-}
+});
 
 /**
  * Sorts roster players according to official MVA business rules:
@@ -257,10 +258,11 @@ export async function getPublicTeams(): Promise<{
  * 4. Historical rosters cannot leak or override the active tournament roster.
  * 5. Privacy by query design: excludes sensitive player and registration fields.
  */
-export async function getPublicTeamBySlug(slug: string): Promise<PublicTeamProfile | null> {
-  if (!slug || typeof slug !== "string") {
-    return null;
-  }
+export const getPublicTeamBySlug = cache(
+  async (slug: string): Promise<PublicTeamProfile | null> => {
+    if (!slug || typeof slug !== "string") {
+      return null;
+    }
 
   const normalizedSlug = slug.trim().toLowerCase();
   if (!normalizedSlug) {
@@ -364,4 +366,4 @@ export async function getPublicTeamBySlug(slug: string): Promise<PublicTeamProfi
     roster_count: sortedRoster.length,
     roster: sortedRoster,
   };
-}
+});

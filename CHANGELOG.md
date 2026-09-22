@@ -8,6 +8,14 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Registration & Team Performance Polish (Phase 05.7C.4)
+
+* **Per-Request Query Deduplication (`lib/admin/registrations.ts`, `lib/public/teams.ts`)**:
+  * **Admin Registration Detail**: Wrapped `getAdminRegistrationById` with React `cache()`, eliminating duplicate database queries executed between `generateMetadata` and `AdminRegistrationDetailPage` on `/admin/registrations/[id]`.
+  * **Filter Category Lookup**: Memoized `getFilterCategories` per-request to avoid redundant dropdown relation queries.
+  * **Public Team Directory & Profiles**: Wrapped `getPublicTeamBySlug` and `getActivePublicLeague` with React `cache()`, eliminating duplicate tournament and team queries executed between `generateMetadata` and `TeamProfilePage` on `/teams/[slug]`.
+  * **Data Freshness Guarantee**: Retained strictly request-scoped memoization, preserving real-time financial and administrative freshness across requests without cross-request caching risk.
+
 ### Admin Registration Search & Filter Interaction Polish (Phase 05.7C.3)
 
 * **Admin Registration Filters & Search (`components/admin/RegistrationFilters.tsx`)**:

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import {
   registration_status,
@@ -182,26 +183,28 @@ function formatFullName(
 /**
  * Retrieves dynamic category options for filter dropdowns.
  */
-export async function getFilterCategories(): Promise<FilterCategoryOption[]> {
-  const categories = await prisma.league_categories.findMany({
-    select: {
-      id: true,
-      name: true,
-      leagues: {
-        select: {
-          name: true,
+export const getFilterCategories = cache(
+  async (): Promise<FilterCategoryOption[]> => {
+    const categories = await prisma.league_categories.findMany({
+      select: {
+        id: true,
+        name: true,
+        leagues: {
+          select: {
+            name: true,
+          },
         },
       },
-    },
-    orderBy: [{ leagues: { name: "asc" } }, { name: "asc" }],
-  });
+      orderBy: [{ leagues: { name: "asc" } }, { name: "asc" }],
+    });
 
-  return categories.map((cat) => ({
-    id: cat.id,
-    name: cat.name,
-    leagueName: cat.leagues.name,
-  }));
-}
+    return categories.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      leagueName: cat.leagues.name,
+    }));
+  }
+);
 
 /**
  * Retrieves paginated, filtered, and searchable registration list.
@@ -399,12 +402,11 @@ export async function getAdminRegistrations(
  * Retrieves a single registration by ID with full operational details.
  * Strictly read-only; returns null if not found or if the ID is invalid.
  */
-export async function getAdminRegistrationById(
-  id: string
-): Promise<AdminRegistrationDetail | null> {
-  if (!id || !UUID_REGEX.test(id)) {
-    return null;
-  }
+export const getAdminRegistrationById = cache(
+  async (id: string): Promise<AdminRegistrationDetail | null> => {
+    if (!id || !UUID_REGEX.test(id)) {
+      return null;
+    }
 
   const [record, auditLogs] = await Promise.all([
     prisma.registrations.findUnique({
@@ -653,4 +655,4 @@ export async function getAdminRegistrationById(
     playerCount: roster.length,
     accounting: calculateRegistrationAccounting(record),
   };
-}
+});
