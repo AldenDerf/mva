@@ -123,9 +123,15 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#172019]">
               Team Registrations
             </h1>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#205823]/10 text-[#205823] border border-[#205823]/20">
-              {data.totalCount} {data.totalCount === 1 ? "Record" : "Records"}
-            </span>
+            {hasActiveFilters ? (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-800 border border-amber-500/20">
+                {data.totalCount} {data.totalCount === 1 ? "Filtered Match" : "Filtered Matches"}
+              </span>
+            ) : (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#205823]/10 text-[#205823] border border-[#205823]/20">
+                {data.totalCount} {data.totalCount === 1 ? "Record" : "Records"}
+              </span>
+            )}
           </div>
           <p className="text-sm text-[#5F6B61] mt-1">
             Browse, search, and inspect association tournament registration entries and canonical accounting balances.
@@ -170,17 +176,17 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
             {hasActiveFilters ? (
               <>
                 <h2 className="text-base font-bold text-[#172019]">
-                  No matching registrations found
+                  No registrations match your current search and filters
                 </h2>
                 <p className="text-sm text-[#5F6B61] max-w-md mt-1 leading-relaxed">
-                  No records matched your search query or filter criteria. Try adjusting your search term or resetting the filters.
+                  No records matched your search query or filter criteria. Try adjusting your search term or clearing the active filters.
                 </p>
                 <div className="mt-5">
                   <Link
                     href="/admin/registrations"
-                    className="inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold text-[#205823] bg-[#eef5ef] hover:bg-[#dcebdd] border border-[#205823]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
+                    className="inline-flex items-center min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold text-[#205823] bg-[#eef5ef] hover:bg-[#dcebdd] border border-[#205823]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                   >
-                    Reset all filters
+                    Clear all filters
                   </Link>
                 </div>
               </>
@@ -504,7 +510,8 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
               <div>
                 Showing <strong className="text-[#172019]">{startRecord}</strong> to{" "}
                 <strong className="text-[#172019]">{endRecord}</strong> of{" "}
-                <strong className="text-[#172019]">{data.totalCount}</strong> registrations
+                <strong className="text-[#172019]">{data.totalCount}</strong>{" "}
+                {hasActiveFilters ? "matching registrations" : "registrations"}
               </div>
 
               <div className="flex items-center gap-2">
