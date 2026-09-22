@@ -211,6 +211,9 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                     <th scope="col" className="py-3.5 px-3 text-center">
                       Roster
                     </th>
+                    <th scope="col" className="py-3.5 px-5 text-center">
+                      Payment Completeness
+                    </th>
                     <th scope="col" className="py-3.5 px-4 text-right">
                       Expected
                     </th>
@@ -219,9 +222,6 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                     </th>
                     <th scope="col" className="py-3.5 px-4 text-right">
                       Balance
-                    </th>
-                    <th scope="col" className="py-3.5 px-5 text-center">
-                      Payment Completeness
                     </th>
                     <th scope="col" className="py-3.5 px-5 text-center">
                       Registration Status
@@ -238,20 +238,22 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                       className="hover:bg-[#FAFAF8]/80 transition-colors group"
                     >
                       {/* Reference Code */}
-                      <td className="py-4 px-5 font-mono font-bold text-xs text-[#205823] whitespace-nowrap">
-                        {item.registrationCode}
+                      <td className="py-4 px-5 font-mono font-bold text-xs whitespace-nowrap">
+                        <span className="text-[#205823] bg-[#205823]/5 px-2 py-1 rounded-md border border-[#205823]/15 inline-block">
+                          {item.registrationCode}
+                        </span>
                       </td>
 
                       {/* Team & Division */}
                       <td className="py-4 px-5">
                         <Link
                           href={`/admin/registrations/${item.id}`}
-                          className="font-bold text-[#172019] hover:text-[#205823] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] rounded-xs block"
+                          className="font-bold text-base text-[#172019] hover:text-[#205823] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] rounded-xs block leading-snug"
                         >
                           {item.teamName}
                         </Link>
                         <span className="text-xs text-[#5F6B61] block mt-0.5">
-                          {item.categoryName} • {item.leagueName}
+                          {item.categoryName} &bull; {item.leagueName}
                         </span>
                       </td>
 
@@ -262,8 +264,31 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                         </span>
                       </td>
 
+                      {/* Payment Completeness */}
+                      <td className="py-4 px-5 text-center whitespace-nowrap">
+                        <div className="flex flex-col items-center gap-1">
+                          <PaymentCompletionBadge
+                            status={item.paymentCompletionStatus}
+                            size="xs"
+                          />
+                          <span className="text-[11px] font-medium text-[#5F6B61]">
+                            {item.paidPlayerCount} of {item.playerCount} Paid
+                          </span>
+                          {item.hasLegacyPayments && (
+                            <div className="mt-1 flex flex-col items-center">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
+                                Payment needs review
+                              </span>
+                              <span className="text-[10px] text-amber-700 mt-0.5">
+                                Unassigned payment
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
                       {/* Expected */}
-                      <td className="py-4 px-4 text-right font-mono text-xs font-semibold text-[#172019] whitespace-nowrap">
+                      <td className="py-4 px-4 text-right font-mono text-xs font-medium text-[#5F6B61] whitespace-nowrap">
                         {formatCurrency(item.expectedAmount)}
                       </td>
 
@@ -274,35 +299,34 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
 
                       {/* Balance */}
                       <td className="py-4 px-4 text-right font-mono text-xs whitespace-nowrap">
-                        <span
-                          className={`font-bold ${
-                            item.balance > 0
-                              ? "text-amber-700"
-                              : item.balance < 0
-                              ? "text-blue-700"
-                              : "text-[#5F6B61]"
-                          }`}
-                        >
-                          {formatCurrency(item.balance)}
-                        </span>
-                      </td>
-
-                      {/* Payment Completeness */}
-                      <td className="py-4 px-5 text-center whitespace-nowrap">
-                        <div className="flex flex-col items-center gap-1">
-                          <PaymentCompletionBadge
-                            status={item.paymentCompletionStatus}
-                            size="xs"
-                          />
-                          <span className="text-[11px] text-[#5F6B61]">
-                            {item.paidPlayerCount} of {item.playerCount} Paid
-                          </span>
-                          {item.hasLegacyPayments && (
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
-                              Legacy Unallocated
+                        {item.balance > 0 ? (
+                          <div>
+                            <span className="font-extrabold text-amber-800 block text-xs">
+                              {formatCurrency(item.balance)}
                             </span>
-                          )}
-                        </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                              Due
+                            </span>
+                          </div>
+                        ) : item.balance < 0 ? (
+                          <div>
+                            <span className="font-bold text-blue-700 block text-xs">
+                              {formatCurrency(item.balance)}
+                            </span>
+                            <span className="text-[10px] font-medium uppercase tracking-wider text-blue-700">
+                              Credit
+                            </span>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="font-bold text-[#205823] block text-xs">
+                              {formatCurrency(0)}
+                            </span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[#205823]">
+                              Settled
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Registration Status */}
@@ -314,10 +338,10 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                       <td className="py-4 px-5 text-right whitespace-nowrap">
                         <Link
                           href={`/admin/registrations/${item.id}`}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#205823] bg-[#eef5ef] hover:bg-[#205823] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#205823] bg-[#eef5ef] hover:bg-[#205823] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] min-h-[36px]"
                         >
                           <span>View Details</span>
-                          <span aria-hidden="true">→</span>
+                          <span aria-hidden="true">&rarr;</span>
                         </Link>
                       </td>
                     </tr>
@@ -330,109 +354,143 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
             <div className="lg:hidden divide-y divide-[#DDE3DE]">
               {data.items.map((item: AdminRegistrationListItem) => (
                 <div key={item.id} className="p-4 sm:p-5 space-y-3.5">
-                  {/* Card Header: Code and Date */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono font-bold text-xs text-[#205823]">
+                  {/* Card Top: Team Name as Primary Title + Registration Status */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h2 className="font-bold text-base text-[#172019] leading-snug">
+                        <Link
+                          href={`/admin/registrations/${item.id}`}
+                          className="hover:text-[#205823] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] rounded block"
+                        >
+                          {item.teamName}
+                        </Link>
+                      </h2>
+                      <p className="text-xs text-[#5F6B61] mt-0.5">
+                        {item.categoryName} &bull; {item.leagueName}
+                      </p>
+                    </div>
+                    <div className="shrink-0">
+                      <RegistrationStatusBadge status={item.status} />
+                    </div>
+                  </div>
+
+                  {/* Reference Code and Submission Date Metadata */}
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="font-mono font-bold text-xs text-[#205823] bg-[#205823]/5 px-2 py-0.5 rounded border border-[#205823]/15">
                       {item.registrationCode}
                     </span>
-                    <span className="text-xs text-[#5F6B61]">
+                    <span className="text-[11px] text-[#5F6B61]">
                       {formatDate(item.submittedAt)}
                     </span>
                   </div>
 
-                  {/* Team & Division */}
-                  <div>
-                    <h2 className="font-bold text-base text-[#172019]">
-                      <Link
-                        href={`/admin/registrations/${item.id}`}
-                        className="hover:text-[#205823]"
-                      >
-                        {item.teamName}
-                      </Link>
-                    </h2>
-                    <p className="text-xs text-[#5F6B61] mt-0.5">
-                      {item.categoryName} • {item.leagueName}
-                    </p>
+                  {/* Payment Completeness & Balance Container */}
+                  <div className="space-y-2 pt-1 border-t border-[#DDE3DE]/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <PaymentCompletionBadge
+                        status={item.paymentCompletionStatus}
+                        size="xs"
+                      />
+                      <span className="text-xs font-semibold text-[#172019]">
+                        {item.paidPlayerCount} of {item.playerCount} Paid
+                      </span>
+                    </div>
+
+                    {/* Balance & Fee Breakdown Box */}
+                    <div
+                      className={`rounded-xl p-3 border text-xs space-y-1.5 ${
+                        item.balance > 0
+                          ? "bg-amber-50/70 border-amber-200 text-amber-950"
+                          : item.balance < 0
+                          ? "bg-blue-50/70 border-blue-200 text-blue-950"
+                          : "bg-[#eef5ef]/60 border-[#205823]/20 text-[#172019]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-[#5F6B61]">Balance:</span>
+                        <span className="font-mono font-extrabold text-sm">
+                          {item.balance > 0 ? (
+                            <span className="text-amber-800">
+                              {formatCurrency(item.balance)}{" "}
+                              <span className="text-[10px] uppercase font-bold tracking-wider">Due</span>
+                            </span>
+                          ) : item.balance < 0 ? (
+                            <span className="text-blue-700">
+                              {formatCurrency(item.balance)}{" "}
+                              <span className="text-[10px] uppercase font-bold tracking-wider">Credit</span>
+                            </span>
+                          ) : (
+                            <span className="text-[#205823]">
+                              {formatCurrency(0)}{" "}
+                              <span className="text-[10px] uppercase font-bold tracking-wider">Settled</span>
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-[#5F6B61] pt-1 border-t border-black/5">
+                        <span>
+                          Expected: <strong className="font-mono text-[#172019]">{formatCurrency(item.expectedAmount)}</strong>
+                        </span>
+                        <span>
+                          Paid: <strong className="font-mono text-[#205823]">{formatCurrency(item.verifiedPaidAmount)}</strong>
+                        </span>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Legacy Payment Review Notice */}
+                  {item.hasLegacyPayments && (
+                    <div className="rounded-xl bg-amber-50 border border-amber-300 p-3 text-xs text-amber-900 space-y-1.5">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                        <svg
+                          className="w-4 h-4 text-amber-700 shrink-0"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                          />
+                        </svg>
+                        <span>Payment needs review</span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 leading-relaxed">
+                        This registration has an older payment that isn&apos;t assigned to a specific player.
+                      </p>
+                      <div>
+                        <Link
+                          href={`/admin/registrations/${item.id}`}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 hover:underline min-h-[36px] py-1"
+                        >
+                          <span>View payment details</span>
+                          <span aria-hidden="true">&rarr;</span>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Registrant & Roster Size */}
                   <div className="flex items-center justify-between text-xs text-[#5F6B61] pt-1">
                     <span>
                       Registrant: <strong className="text-[#172019]">{item.registrantName}</strong>
                     </span>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-[#FAFAF8] text-[#172019] border border-[#DDE3DE]">
+                    <span className="font-medium">
                       {item.playerCount} {item.playerCount === 1 ? "Player" : "Players"}
                     </span>
                   </div>
 
-                  {/* Accounting Summary Grid (3-column mobile-friendly) */}
-                  <div className="bg-[#FAFAF8] rounded-xl p-3 border border-[#DDE3DE] grid grid-cols-3 gap-2 text-center text-xs">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
-                        Expected
-                      </span>
-                      <span className="font-mono font-bold text-[#172019] text-xs sm:text-sm mt-0.5 block">
-                        {formatCurrency(item.expectedAmount)}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
-                        Paid
-                      </span>
-                      <span className="font-mono font-bold text-[#205823] text-xs sm:text-sm mt-0.5 block">
-                        {formatCurrency(item.verifiedPaidAmount)}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
-                        Balance
-                      </span>
-                      <span
-                        className={`font-mono font-bold text-xs sm:text-sm mt-0.5 block ${
-                          item.balance > 0
-                            ? "text-amber-700"
-                            : item.balance < 0
-                            ? "text-blue-700"
-                            : "text-[#5F6B61]"
-                        }`}
-                      >
-                        {formatCurrency(item.balance)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Payment Completeness & Registration Status */}
-                  <div className="space-y-2 pt-1 border-t border-[#DDE3DE]/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <PaymentCompletionBadge
-                          status={item.paymentCompletionStatus}
-                          size="xs"
-                        />
-                        <span className="text-xs text-[#5F6B61]">
-                          ({item.paidPlayerCount} of {item.playerCount} Players Paid)
-                        </span>
-                      </div>
-                      <RegistrationStatusBadge status={item.status} />
-                    </div>
-
-                    {item.hasLegacyPayments && (
-                      <div className="text-[11px] text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
-                        Contains unallocated legacy payment records
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Card Action Button */}
+                  {/* Card Action Button (approaching 44-48px touch target) */}
                   <div className="pt-2">
                     <Link
                       href={`/admin/registrations/${item.id}`}
-                      className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-[#205823] bg-[#eef5ef] hover:bg-[#205823] hover:text-white transition-colors"
+                      className="w-full min-h-[46px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-[#205823] bg-[#eef5ef] hover:bg-[#205823] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                     >
                       <span>View Registration Details</span>
-                      <span aria-hidden="true">→</span>
+                      <span aria-hidden="true">&rarr;</span>
                     </Link>
                   </div>
                 </div>

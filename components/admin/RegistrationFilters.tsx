@@ -84,10 +84,10 @@ export function RegistrationFilters({
         {/* Search Input (Takes 5 cols on lg) */}
         <div className="lg:col-span-4 relative">
           <label htmlFor="reg-search" className="sr-only">
-            Search registrations by code, team, or registrant
+            Search registrations by team name, reference code, or registrant
           </label>
           <div className="relative">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#5F6B61]">
+            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#5F6B61]">
               <svg
                 className="w-4 h-4"
                 fill="none"
@@ -108,14 +108,14 @@ export function RegistrationFilters({
               type="search"
               value={searchVal}
               onChange={(e) => setSearchVal(e.target.value)}
-              placeholder="Search code, team, or registrant..."
-              className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] text-[#172019] placeholder-[#5F6B61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-colors"
+              placeholder="Search team, code, or registrant..."
+              className="w-full min-h-[44px] pl-10 pr-9 py-2 text-sm rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] text-[#172019] placeholder-[#5F6B61]/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-colors"
             />
             {searchVal && (
               <button
                 type="button"
                 onClick={handleClearSearch}
-                className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-[#5F6B61] hover:text-[#172019]"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#5F6B61] hover:text-[#172019] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] rounded-lg"
                 aria-label="Clear search text"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -135,7 +135,7 @@ export function RegistrationFilters({
             id="filter-status"
             value={currentStatus}
             onChange={(e) => applyFilters({ status: e.target.value || null })}
-            className="w-full py-2 px-3 text-sm rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] text-[#172019] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-colors cursor-pointer"
+            className="w-full min-h-[44px] py-2.5 px-3 text-sm rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] text-[#172019] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-colors cursor-pointer"
           >
             <option value="">All Registration Statuses</option>
             <option value="PENDING_PAYMENT">Pending Payment</option>
@@ -154,7 +154,7 @@ export function RegistrationFilters({
             id="filter-payment"
             value={currentPaymentStatus}
             onChange={(e) => applyFilters({ paymentStatus: e.target.value || null })}
-            className="w-full py-2 px-3 text-sm rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] text-[#172019] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-colors cursor-pointer"
+            className="w-full min-h-[44px] py-2.5 px-3 text-sm rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] text-[#172019] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-colors cursor-pointer"
           >
             <option value="">All Payments</option>
             <option value="PENDING">Pending</option>
@@ -173,7 +173,7 @@ export function RegistrationFilters({
             id="filter-category"
             value={currentCategoryId}
             onChange={(e) => applyFilters({ categoryId: e.target.value || null })}
-            className="w-full py-2 px-3 text-sm rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] text-[#172019] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-colors cursor-pointer"
+            className="w-full min-h-[44px] py-2.5 px-3 text-sm rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] text-[#172019] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-colors cursor-pointer"
           >
             <option value="">All Categories</option>
             {categories.map((cat) => (
@@ -189,7 +189,7 @@ export function RegistrationFilters({
           <button
             type="submit"
             disabled={isPending}
-            className="w-full py-2 px-3 bg-[#205823] hover:bg-[#18441a] text-white text-xs font-bold rounded-xl shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] flex items-center justify-center min-h-[38px] disabled:opacity-50"
+            className="w-full min-h-[44px] py-2.5 px-3 bg-[#205823] hover:bg-[#18441a] text-white text-xs font-bold rounded-xl shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] flex items-center justify-center disabled:opacity-50 cursor-pointer"
           >
             {isPending ? (
               <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -206,46 +206,46 @@ export function RegistrationFilters({
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[#5F6B61] font-medium">Active filters:</span>
             {currentQuery && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FAFAF8] border border-[#DDE3DE] text-[#172019] font-medium">
+              <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg bg-[#FAFAF8] border border-[#DDE3DE] text-[#172019] font-medium">
                 <span>Query: &ldquo;{currentQuery}&rdquo;</span>
                 <button
                   type="button"
                   onClick={() => applyFilters({ q: null })}
-                  className="text-[#5F6B61] hover:text-[#172019]"
+                  className="w-6 h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                   aria-label="Remove search query filter"
                 >
-                  ×
+                  <span className="text-base leading-none">&times;</span>
                 </button>
               </span>
             )}
             {currentStatus && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FAFAF8] border border-[#DDE3DE] text-[#172019] font-medium">
+              <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg bg-[#FAFAF8] border border-[#DDE3DE] text-[#172019] font-medium">
                 <span>Status: {currentStatus.replace("_", " ")}</span>
                 <button
                   type="button"
                   onClick={() => applyFilters({ status: null })}
-                  className="text-[#5F6B61] hover:text-[#172019]"
+                  className="w-6 h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                   aria-label="Remove status filter"
                 >
-                  ×
+                  <span className="text-base leading-none">&times;</span>
                 </button>
               </span>
             )}
             {currentPaymentStatus && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FAFAF8] border border-[#DDE3DE] text-[#172019] font-medium">
+              <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg bg-[#FAFAF8] border border-[#DDE3DE] text-[#172019] font-medium">
                 <span>Payment: {currentPaymentStatus}</span>
                 <button
                   type="button"
                   onClick={() => applyFilters({ paymentStatus: null })}
-                  className="text-[#5F6B61] hover:text-[#172019]"
+                  className="w-6 h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                   aria-label="Remove payment status filter"
                 >
-                  ×
+                  <span className="text-base leading-none">&times;</span>
                 </button>
               </span>
             )}
             {currentCategoryId && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FAFAF8] border border-[#DDE3DE] text-[#172019] font-medium">
+              <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg bg-[#FAFAF8] border border-[#DDE3DE] text-[#172019] font-medium">
                 <span>
                   Category:{" "}
                   {categories.find((c) => c.id === currentCategoryId)?.name || "Selected"}
@@ -253,10 +253,10 @@ export function RegistrationFilters({
                 <button
                   type="button"
                   onClick={() => applyFilters({ categoryId: null })}
-                  className="text-[#5F6B61] hover:text-[#172019]"
+                  className="w-6 h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                   aria-label="Remove category filter"
                 >
-                  ×
+                  <span className="text-base leading-none">&times;</span>
                 </button>
               </span>
             )}
@@ -265,7 +265,7 @@ export function RegistrationFilters({
           <button
             type="button"
             onClick={handleResetAll}
-            className="text-xs font-semibold text-[#205823] hover:underline hover:text-[#18441a] transition-colors focus-visible:outline-none focus-visible:underline"
+            className="min-h-[36px] px-3 py-1.5 rounded-lg border border-[#DDE3DE] bg-[#FAFAF8] hover:bg-white text-xs font-semibold text-[#205823] hover:text-[#18441a] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] cursor-pointer"
           >
             Clear all filters
           </button>

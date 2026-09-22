@@ -387,7 +387,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                   );
                   const playerName =
                     p.registrationPlayerId === null
-                      ? "Legacy / Unallocated Payment"
+                      ? "Unassigned Payment (Needs Review)"
                       : associatedPlayer?.fullName || "Roster Player";
 
                   return (
@@ -399,8 +399,8 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                           </span>
                           <PaymentStatusBadge status={p.status} />
                           {p.registrationPlayerId === null && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                              Legacy / Unallocated
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                              Payment needs review
                             </span>
                           )}
                         </div>
@@ -424,6 +424,17 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                           />
                         </div>
                       </div>
+
+                      {p.registrationPlayerId === null && (
+                        <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 flex items-start gap-2">
+                          <svg className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-[11px] leading-relaxed">
+                            This registration has an older payment that isn&apos;t assigned to a specific player. Use the action button to assign this payment or review its details.
+                          </p>
+                        </div>
+                      )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs pt-1">
                       <div>

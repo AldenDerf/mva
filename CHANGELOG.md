@@ -8,6 +8,20 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Registration UX & Loading Experience (Phase 05.7C.1)
+
+* **Admin Registration List UX Refinement (`/admin/registrations`)**:
+  * Prioritized clear operational information hierarchy: Team name as primary anchor, followed by Division, Payment State, Balance, Player Completeness, Registration Status, and Primary Action.
+  * Restructured mobile cards for 360px, 390px, and 430px viewports with comfortable ~46px touch targets, eliminating dense 3-column crowding and avoiding horizontal overflow.
+  * Replaced technical database jargon (*"Legacy Unallocated"* / *"Contains unallocated legacy payment records"*) with clear, human-readable copy: *"Payment needs review"* accompanied by plain-language explanation and a direct link to review unassigned payments.
+  * Enhanced desktop table hierarchy with prominent Team & Division display, contextual Balance indicators (Settled vs Due), accessible reference code chips, and touch-friendly actions.
+  * Refined `RegistrationFilters` search placeholders, select inputs, filter chip removal buttons, and reset controls with accessible touch targets (44px min height).
+* **Admin & Public Loading Experience**:
+  * Created `app/admin/(portal)/registrations/loading.tsx` with responsive desktop table and mobile card skeleton representations matching the real page structure.
+  * Created `app/teams/loading.tsx` for the public tournament directory with header, division tabs, search bar, and team card grid skeletons.
+  * Created `app/teams/[slug]/loading.tsx` for the public team profile and roster page.
+  * Maintained MVA visual identity (green/gold/neutral tokens), layout stability, and accessibility with `role="status"` and `motion-reduce:animate-none`.
+
 ### Admin Payment Monitoring & Payment Details Correction (Phase 05.7B)
 
 * **Dedicated Admin Payment Monitoring (`/admin/payments`)**:
