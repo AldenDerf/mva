@@ -56,6 +56,30 @@ function formatDate(date: Date): string {
   }).format(new Date(date));
 }
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: "Cash",
+  GCASH: "GCash",
+  BANK_TRANSFER: "Bank Transfer",
+  OTHER: "Other",
+};
+
+function formatPaymentMethod(method: string): string {
+  return PAYMENT_METHOD_LABELS[method] || method;
+}
+
+const AUDIT_STATUS_LABELS: Record<string, string> = {
+  PENDING_PAYMENT: "Pending Payment",
+  VERIFIED: "Verified",
+  REJECTED: "Rejected",
+  CANCELLED: "Cancelled",
+  PENDING: "Pending",
+  REFUNDED: "Refunded",
+};
+
+function formatAuditStatus(status: string): string {
+  return AUDIT_STATUS_LABELS[status] || status;
+}
+
 export default async function AdminRegistrationDetailPage({ params }: PageProps) {
   const { id } = await params;
   const reg = await getAdminRegistrationById(id);
@@ -72,7 +96,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
       <div>
         <Link
           href="/admin/registrations"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5F6B61] hover:text-[#205823] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] rounded-md px-1 py-0.5"
+          className="inline-flex items-center gap-2 min-h-[40px] px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#5F6B61] hover:text-[#205823] hover:bg-neutral-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
         >
           <svg
             className="w-4 h-4"
@@ -178,10 +202,10 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
           </div>
           <a
             href="#payment-records"
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 transition-colors shadow-2xs shrink-0 self-start sm:self-center"
+            className="inline-flex items-center justify-center gap-1.5 min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 transition-colors shadow-2xs shrink-0 self-start sm:self-center"
           >
             <span>Review Payments</span>
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </a>
@@ -202,7 +226,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
               Expected Fees
             </span>
             <div className="my-2">
-              <span className="font-mono font-black text-xl sm:text-2xl text-[#172019] block tracking-tight">
+              <span className="font-mono font-black text-lg sm:text-2xl text-[#172019] block tracking-tight break-words">
                 {formatCurrency(reg.accounting.expectedAmount)}
               </span>
             </div>
@@ -217,7 +241,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
               Verified Paid
             </span>
             <div className="my-2">
-              <span className="font-mono font-black text-xl sm:text-2xl text-[#205823] block tracking-tight">
+              <span className="font-mono font-black text-lg sm:text-2xl text-[#205823] block tracking-tight break-words">
                 {formatCurrency(reg.accounting.verifiedPaidAmount)}
               </span>
             </div>
@@ -233,7 +257,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
             </span>
             <div className="my-2">
               <span
-                className={`font-mono font-black text-xl sm:text-2xl block tracking-tight ${
+                className={`font-mono font-black text-lg sm:text-2xl block tracking-tight break-words ${
                   reg.accounting.balance > 0
                     ? "text-amber-800"
                     : reg.accounting.balance < 0
@@ -419,6 +443,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                 {/* ------------------------------------------------------------ */}
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-sm">
+                    <caption className="sr-only">Official tournament player roster and individual payment verification states</caption>
                     <thead className="bg-[#FAFAF8] text-[#5F6B61] text-xs uppercase font-bold tracking-wider border-b border-[#DDE3DE]">
                       <tr>
                         <th scope="col" className="py-3 px-6 text-center w-12">
@@ -452,7 +477,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                           <td className="py-3.5 px-6 text-center text-xs font-mono text-[#5F6B61]">
                             {idx + 1}
                           </td>
-                          <td className="py-3.5 px-6">
+                          <th scope="row" className="py-3.5 px-6 font-normal text-left">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-[#172019]">
                                 {player.fullName}
@@ -463,7 +488,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                 </span>
                               )}
                             </div>
-                          </td>
+                          </th>
                           <td className="py-3.5 px-4 text-center text-xs">
                             {player.isCaptain ? (
                               <span className="font-semibold text-[#205823]">
@@ -611,7 +636,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                           Method
                         </span>
                         <span className="font-semibold text-[#172019]">
-                          {p.paymentMethod}
+                          {formatPaymentMethod(p.paymentMethod)}
                         </span>
                       </div>
 
@@ -705,8 +730,8 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                         </span>
                         {item.previousStatus && item.newStatus && (
                           <span className="text-[#5F6B61]">
-                            {item.previousStatus} →{" "}
-                            <strong className="text-[#172019]">{item.newStatus}</strong>
+                            {formatAuditStatus(item.previousStatus)} →{" "}
+                            <strong className="text-[#172019]">{formatAuditStatus(item.newStatus)}</strong>
                           </span>
                         )}
                       </div>

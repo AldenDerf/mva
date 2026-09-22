@@ -206,6 +206,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
             {/* DESKTOP TABLE VIEW (lg:block, hidden on mobile) */}
             <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-left text-sm">
+                <caption className="sr-only">Tournament team registrations list</caption>
                 <thead className="bg-[#FAFAF8] text-[#5F6B61] text-xs uppercase font-bold tracking-wider border-b border-[#DDE3DE]">
                   <tr>
                     <th scope="col" className="py-3.5 px-5">
@@ -244,11 +245,11 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                       className="hover:bg-[#FAFAF8]/80 transition-colors group"
                     >
                       {/* Reference Code */}
-                      <td className="py-4 px-5 font-mono font-bold text-xs whitespace-nowrap">
+                      <th scope="row" className="py-4 px-5 font-mono font-bold text-xs whitespace-nowrap font-normal text-left">
                         <span className="text-[#205823] bg-[#205823]/5 px-2 py-1 rounded-md border border-[#205823]/15 inline-block">
                           {item.registrationCode}
                         </span>
-                      </td>
+                      </th>
 
                       {/* Team & Division */}
                       <td className="py-4 px-5">
@@ -344,6 +345,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                       <td className="py-4 px-5 text-right whitespace-nowrap">
                         <Link
                           href={`/admin/registrations/${item.id}`}
+                          aria-label={`View registration details for ${item.teamName} (${item.registrationCode})`}
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-[#205823] bg-[#eef5ef] hover:bg-[#205823] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] min-h-[36px]"
                         >
                           <span>View Details</span>
@@ -358,19 +360,21 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
 
             {/* MOBILE & TABLET CARD VIEW (Visible below lg: 360px, 390px, 430px) */}
             <div className="lg:hidden divide-y divide-[#DDE3DE]">
+              <h2 className="sr-only">Registration Entries</h2>
               {data.items.map((item: AdminRegistrationListItem) => (
-                <div key={item.id} className="p-4 sm:p-5 space-y-3.5">
+                <article key={item.id} className="p-4 sm:p-5 space-y-3.5">
                   {/* Card Top: Team Name as Primary Title + Registration Status */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <h2 className="font-bold text-base text-[#172019] leading-snug">
+                      <h3 className="font-bold text-base text-[#172019] leading-snug break-words">
                         <Link
                           href={`/admin/registrations/${item.id}`}
+                          aria-label={`View registration details for ${item.teamName} (${item.registrationCode})`}
                           className="hover:text-[#205823] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] rounded block"
                         >
                           {item.teamName}
                         </Link>
-                      </h2>
+                      </h3>
                       <p className="text-xs text-[#5F6B61] mt-0.5">
                         {item.categoryName} &bull; {item.leagueName}
                       </p>
@@ -381,7 +385,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                   </div>
 
                   {/* Reference Code and Submission Date Metadata */}
-                  <div className="flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center justify-between gap-2 text-xs flex-wrap">
                     <span className="font-mono font-bold text-xs text-[#205823] bg-[#205823]/5 px-2 py-0.5 rounded border border-[#205823]/15">
                       {item.registrationCode}
                     </span>
@@ -392,7 +396,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
 
                   {/* Payment Completeness & Balance Container */}
                   <div className="space-y-2 pt-1 border-t border-[#DDE3DE]/60">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <PaymentCompletionBadge
                         status={item.paymentCompletionStatus}
                         size="xs"
@@ -433,7 +437,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                           )}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-[11px] text-[#5F6B61] pt-1 border-t border-black/5">
+                      <div className="flex items-center justify-between flex-wrap gap-1 text-[11px] text-[#5F6B61] pt-1 border-t border-black/5">
                         <span>
                           Expected: <strong className="font-mono text-[#172019]">{formatCurrency(item.expectedAmount)}</strong>
                         </span>
@@ -470,7 +474,8 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                       <div>
                         <Link
                           href={`/admin/registrations/${item.id}`}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 hover:underline min-h-[36px] py-1"
+                          aria-label={`View unassigned payment details for ${item.teamName}`}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 hover:underline min-h-[44px] py-1"
                         >
                           <span>View payment details</span>
                           <span aria-hidden="true">&rarr;</span>
@@ -480,11 +485,11 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                   )}
 
                   {/* Registrant & Roster Size */}
-                  <div className="flex items-center justify-between text-xs text-[#5F6B61] pt-1">
-                    <span>
+                  <div className="flex items-center justify-between text-xs text-[#5F6B61] pt-1 gap-2">
+                    <span className="min-w-0 flex-1 truncate">
                       Registrant: <strong className="text-[#172019]">{item.registrantName}</strong>
                     </span>
-                    <span className="font-medium">
+                    <span className="font-medium shrink-0">
                       {item.playerCount} {item.playerCount === 1 ? "Player" : "Players"}
                     </span>
                   </div>
@@ -493,20 +498,24 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                   <div className="pt-2">
                     <Link
                       href={`/admin/registrations/${item.id}`}
+                      aria-label={`View registration details for ${item.teamName} (${item.registrationCode})`}
                       className="w-full min-h-[46px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-[#205823] bg-[#eef5ef] hover:bg-[#205823] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                     >
                       <span>View Registration Details</span>
                       <span aria-hidden="true">&rarr;</span>
                     </Link>
                   </div>
-                </div>
+                </article>
               ))}
             </div>
 
             {/* ============================================================ */}
             {/* PAGINATION BAR */}
             {/* ============================================================ */}
-            <div className="p-4 sm:px-6 sm:py-4 border-t border-[#DDE3DE] bg-[#FAFAF8] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#5F6B61]">
+            <nav
+              aria-label="Pagination Navigation"
+              className="p-4 sm:px-6 sm:py-4 border-t border-[#DDE3DE] bg-[#FAFAF8] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#5F6B61]"
+            >
               <div>
                 Showing <strong className="text-[#172019]">{startRecord}</strong> to{" "}
                 <strong className="text-[#172019]">{endRecord}</strong> of{" "}
@@ -518,34 +527,45 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                 {data.page > 1 ? (
                   <Link
                     href={buildPageUrl(data.page - 1)}
-                    className="px-3 py-1.5 rounded-lg border border-[#DDE3DE] bg-white text-[#172019] font-medium hover:bg-neutral-50 hover:border-neutral-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
+                    aria-label="Previous page"
+                    className="min-h-[40px] px-3.5 py-2 inline-flex items-center justify-center rounded-lg border border-[#DDE3DE] bg-white text-[#172019] font-medium hover:bg-neutral-50 hover:border-neutral-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                   >
                     ← Previous
                   </Link>
                 ) : (
-                  <span className="px-3 py-1.5 rounded-lg border border-[#DDE3DE]/60 bg-neutral-100 text-[#5F6B61]/50 cursor-not-allowed select-none">
+                  <span
+                    aria-disabled="true"
+                    className="min-h-[40px] px-3.5 py-2 inline-flex items-center justify-center rounded-lg border border-[#DDE3DE]/60 bg-neutral-100 text-[#5F6B61]/50 cursor-not-allowed select-none"
+                  >
                     ← Previous
                   </span>
                 )}
 
-                <span className="px-2.5 py-1.5 rounded-lg bg-white border border-[#DDE3DE] font-semibold text-[#172019]">
+                <span
+                  aria-current="page"
+                  className="min-h-[40px] px-3 py-2 inline-flex items-center justify-center rounded-lg bg-white border border-[#DDE3DE] font-semibold text-[#172019]"
+                >
                   Page {data.page} of {data.totalPages}
                 </span>
 
                 {data.page < data.totalPages ? (
                   <Link
                     href={buildPageUrl(data.page + 1)}
-                    className="px-3 py-1.5 rounded-lg border border-[#DDE3DE] bg-white text-[#172019] font-medium hover:bg-neutral-50 hover:border-neutral-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
+                    aria-label="Next page"
+                    className="min-h-[40px] px-3.5 py-2 inline-flex items-center justify-center rounded-lg border border-[#DDE3DE] bg-white text-[#172019] font-medium hover:bg-neutral-50 hover:border-neutral-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                   >
                     Next →
                   </Link>
                 ) : (
-                  <span className="px-3 py-1.5 rounded-lg border border-[#DDE3DE]/60 bg-neutral-100 text-[#5F6B61]/50 cursor-not-allowed select-none">
+                  <span
+                    aria-disabled="true"
+                    className="min-h-[40px] px-3.5 py-2 inline-flex items-center justify-center rounded-lg border border-[#DDE3DE]/60 bg-neutral-100 text-[#5F6B61]/50 cursor-not-allowed select-none"
+                  >
                     Next →
                   </span>
                 )}
               </div>
-            </div>
+            </nav>
           </div>
         )}
       </div>

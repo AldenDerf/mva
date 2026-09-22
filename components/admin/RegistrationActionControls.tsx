@@ -40,18 +40,37 @@ export function RegistrationActionControls({
   const isRosterBelowMinimum = playerCount < minPlayers;
   const isPaymentNotVerified = paymentStatus !== "VERIFIED";
 
+  const handleCloseModal = React.useCallback(() => {
+    if (isPending) return;
+    setActiveModal(null);
+    setReason("");
+    setErrorMsg(null);
+  }, [isPending]);
+
+  // Escape key handler and body overflow lock for modals
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isPending && activeModal !== null) {
+        handleCloseModal();
+      }
+    };
+    if (activeModal !== null) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [activeModal, isPending, handleCloseModal]);
+
   const handleOpenModal = (modal: ModalType) => {
     setActiveModal(modal);
     setReason("");
     setErrorMsg(null);
     setSuccessMsg(null);
-  };
-
-  const handleCloseModal = () => {
-    if (isPending) return;
-    setActiveModal(null);
-    setReason("");
-    setErrorMsg(null);
   };
 
   const handleSubmit = (action: "VERIFY" | "REJECT" | "CANCEL") => {
@@ -84,6 +103,13 @@ export function RegistrationActionControls({
     });
   };
 
+  const terminalStatusLabel =
+    currentStatus === "REJECTED"
+      ? "Rejected"
+      : currentStatus === "CANCELLED"
+      ? "Cancelled"
+      : currentStatus;
+
   // If status is terminal (REJECTED or CANCELLED), render clean status notice
   if (currentStatus === "REJECTED" || currentStatus === "CANCELLED") {
     return (
@@ -105,12 +131,25 @@ export function RegistrationActionControls({
         <div>
           <span className="font-bold text-[#172019]">Terminal Status: </span>
           This registration is{" "}
-          <strong className="font-semibold text-[#172019]">{currentStatus}</strong>.
+          <strong className="font-semibold text-[#172019]">{terminalStatusLabel}</strong>.
           No further status transitions can be performed.
         </div>
       </div>
     );
   }
+
+  const humanPaymentStatus =
+    paymentStatus === "NO_PAYMENT"
+      ? "No Payment"
+      : paymentStatus === "VERIFIED"
+      ? "Verified"
+      : paymentStatus === "PENDING"
+      ? "Pending"
+      : paymentStatus === "REJECTED"
+      ? "Rejected"
+      : paymentStatus === "REFUNDED"
+      ? "Refunded"
+      : paymentStatus;
 
   return (
     <div className="space-y-3">
@@ -257,7 +296,8 @@ export function RegistrationActionControls({
                 type="button"
                 onClick={handleCloseModal}
                 disabled={isPending}
-                className="text-[#5F6B61] hover:text-[#172019] text-sm p-1 rounded-md"
+                className="text-[#5F6B61] hover:text-[#172019] text-sm p-1.5 rounded-lg hover:bg-neutral-100 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center disabled:opacity-50"
+                aria-label="Close dialog"
               >
                 ✕
               </button>
@@ -294,7 +334,7 @@ export function RegistrationActionControls({
               <div className="flex justify-between">
                 <span className="text-[#5F6B61]">Payment Status:</span>
                 <span className="font-semibold text-[#172019]">
-                  {paymentStatus} {paymentAmount > 0 ? `(₱${paymentAmount.toFixed(2)})` : ""}
+                  {humanPaymentStatus} {paymentAmount > 0 ? `(₱${paymentAmount.toFixed(2)})` : ""}
                 </span>
               </div>
             </div>
@@ -322,7 +362,7 @@ export function RegistrationActionControls({
                   <span>Payment Pending Notice</span>
                 </div>
                 <p className="text-[11px] leading-relaxed">
-                  Payment for this registration is currently <strong>{paymentStatus}</strong>. Verifying this registration
+                  Payment for this registration is currently <strong>{humanPaymentStatus}</strong>. Verifying this registration
                   will officially accept the team entry into the tournament, but will <strong>NOT</strong> verify its payment.
                   Payment verification is a separate administrative action.
                 </p>
@@ -400,7 +440,8 @@ export function RegistrationActionControls({
                 type="button"
                 onClick={handleCloseModal}
                 disabled={isPending}
-                className="text-[#5F6B61] hover:text-[#172019] text-sm p-1 rounded-md"
+                className="text-[#5F6B61] hover:text-[#172019] text-sm p-1.5 rounded-lg hover:bg-neutral-100 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center disabled:opacity-50"
+                aria-label="Close dialog"
               >
                 ✕
               </button>
@@ -493,7 +534,8 @@ export function RegistrationActionControls({
                 type="button"
                 onClick={handleCloseModal}
                 disabled={isPending}
-                className="text-[#5F6B61] hover:text-[#172019] text-sm p-1 rounded-md"
+                className="text-[#5F6B61] hover:text-[#172019] text-sm p-1.5 rounded-lg hover:bg-neutral-100 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center disabled:opacity-50"
+                aria-label="Close dialog"
               >
                 ✕
               </button>

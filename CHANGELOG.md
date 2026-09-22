@@ -8,6 +8,20 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Admin Registration Accessibility & UX Audit Polish (Phase 05.7C.5)
+
+* **Accessibility & Keyboard Usability (`RegistrationActionControls`, `PlayerPaymentActionControls`, `AddPlayerModal`)**:
+  * **Modal Keyboard Dismissal & Scroll Lock**: Added `Escape` key listeners and background scroll locks across verification, rejection, cancellation, player payment, and roster addition dialogs to prevent keyboard traps.
+  * **Accessible Names**: Added descriptive `aria-label` attributes to modal close buttons ("Close dialog"), payment action controls (e.g. "Verify payment for [Player]", "Refund payment for [Player]"), correction buttons, and registration details links.
+* **Semantic Structure & Table Accessibility (`/admin/registrations`, `/admin/registrations/[id]`)**:
+  * **Table Captions & Row Scopes**: Introduced screen-reader `<caption className="sr-only">` elements and `<th scope="row">` identifiers on registration and roster tables for enhanced assistive technology navigation.
+  * **Pagination Navigation**: Enclosed pagination controls in semantic `<nav aria-label="Pagination Navigation">` with explicit `aria-label` attributes ("Previous page", "Next page"), `aria-disabled="true"` for inactive states, and 40px touch targets.
+* **Mobile-First & Touch Usability Polish**:
+  * **Enlarged Touch Targets**: Enriched touch areas for the "Back to Registrations" link, "Review Payments" anchor, search clear button, filter removal chips, and mobile card action buttons.
+  * **Responsive Content Stress Testing**: Applied word-breaking and truncation safeguards to prevent mobile horizontal overflow on small viewports (360px–430px) for long team names, registrant names, and large currency amounts.
+* **Human-Readable Terminology Polish**:
+  * Formatted raw database payment method enums (e.g. `BANK_TRANSFER` → `Bank Transfer`) and audit trail status transitions into clear, operator-friendly titles.
+
 ### Registration & Team Performance Polish (Phase 05.7C.4)
 
 * **Per-Request Query Deduplication (`lib/admin/registrations.ts`, `lib/public/teams.ts`)**:

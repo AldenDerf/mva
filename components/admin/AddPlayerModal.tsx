@@ -36,6 +36,31 @@ export function AddPlayerModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const handleClose = React.useCallback(() => {
+    if (isPending) return;
+    setIsOpen(false);
+    setErrorMsg(null);
+  }, [isPending]);
+
+  // Escape key handler and body overflow lock for modal
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isPending && isOpen) {
+        handleClose();
+      }
+    };
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [isOpen, isPending, handleClose]);
+
   const handleOpen = () => {
     setFirstName("");
     setMiddleName("");
@@ -46,12 +71,6 @@ export function AddPlayerModal({
     setIsCaptain(false);
     setErrorMsg(null);
     setIsOpen(true);
-  };
-
-  const handleClose = () => {
-    if (isPending) return;
-    setIsOpen(false);
-    setErrorMsg(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {

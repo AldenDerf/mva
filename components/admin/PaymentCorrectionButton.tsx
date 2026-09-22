@@ -32,8 +32,9 @@ export function PaymentCorrectionButton({
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className={`inline-flex items-center gap-1.5 font-bold rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] ${
-          isXs ? "px-2 py-1 text-[11px]" : "px-2.5 py-1.5 text-xs"
+        aria-label={`Correct payment details for ${payment.playerName}`}
+        className={`inline-flex items-center gap-1.5 font-bold rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] cursor-pointer ${
+          isXs ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]" : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
         } ${
           variant === "outline"
             ? "border border-[#DDE3DE] bg-white text-[#172019] hover:bg-[#FAFAF8] shadow-2xs"
@@ -48,6 +49,7 @@ export function PaymentCorrectionButton({
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
+          aria-hidden="true"
         >
           <path
             strokeLinecap="round"

@@ -153,10 +153,10 @@ export function RegistrationFilters({
                   <button
                     type="button"
                     onClick={handleClearSearch}
-                    className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-[#5F6B61] hover:text-[#172019] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] rounded-md"
+                    className="absolute inset-y-0 right-0 w-9 h-full flex items-center justify-center text-[#5F6B61] hover:text-[#172019] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] rounded-md"
                     aria-label="Clear search text"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -259,7 +259,7 @@ export function RegistrationFilters({
                       setSearchVal("");
                       applyFilters({ q: null });
                     }}
-                    className="w-6 h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
+                    className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                     aria-label={`Remove search filter for "${currentQuery}"`}
                   >
                     <span className="text-base leading-none" aria-hidden="true">&times;</span>
@@ -274,7 +274,7 @@ export function RegistrationFilters({
                   <button
                     type="button"
                     onClick={() => applyFilters({ status: null })}
-                    className="w-6 h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
+                    className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                     aria-label={`Remove Registration Status: ${REGISTRATION_STATUS_LABELS[currentStatus] || currentStatus} filter`}
                   >
                     <span className="text-base leading-none" aria-hidden="true">&times;</span>
@@ -289,7 +289,7 @@ export function RegistrationFilters({
                   <button
                     type="button"
                     onClick={() => applyFilters({ paymentStatus: null })}
-                    className="w-6 h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
+                    className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                     aria-label={`Remove Payment Status: ${PAYMENT_STATUS_LABELS[currentPaymentStatus] || currentPaymentStatus} filter`}
                   >
                     <span className="text-base leading-none" aria-hidden="true">&times;</span>
@@ -306,7 +306,7 @@ export function RegistrationFilters({
                   <button
                     type="button"
                     onClick={() => applyFilters({ categoryId: null })}
-                    className="w-6 h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
+                    className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-[#5F6B61] hover:text-[#172019] hover:bg-[#DDE3DE]/50 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823]"
                     aria-label={`Remove Category: ${categories.find((c) => c.id === currentCategoryId)?.name || "Selected"} filter`}
                   >
                     <span className="text-base leading-none" aria-hidden="true">&times;</span>
@@ -318,7 +318,7 @@ export function RegistrationFilters({
             <button
               type="button"
               onClick={handleResetAll}
-              className="self-start sm:self-auto min-h-[38px] px-3.5 py-1.5 rounded-lg border border-[#DDE3DE] bg-[#FAFAF8] hover:bg-white text-xs font-bold text-[#205823] hover:text-[#18441a] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] cursor-pointer inline-flex items-center gap-1.5 shrink-0"
+              className="self-start sm:self-auto min-h-[40px] px-3.5 py-2 rounded-lg border border-[#DDE3DE] bg-[#FAFAF8] hover:bg-white text-xs font-bold text-[#205823] hover:text-[#18441a] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] cursor-pointer inline-flex items-center gap-1.5 shrink-0"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

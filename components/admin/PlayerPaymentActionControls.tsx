@@ -37,17 +37,36 @@ export function PlayerPaymentActionControls({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const handleCloseModal = React.useCallback(() => {
+    if (isPending) return;
+    setActiveModal(null);
+    setReason("");
+    setErrorMsg(null);
+  }, [isPending]);
+
+  // Escape key handler and body overflow lock for modals
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isPending && activeModal !== null) {
+        handleCloseModal();
+      }
+    };
+    if (activeModal !== null) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [activeModal, isPending, handleCloseModal]);
+
   const handleOpenModal = (modal: ModalType) => {
     setActiveModal(modal);
     setSelectedMethod(paymentMethod || "CASH");
     setRefNum(referenceNumber || "");
-    setReason("");
-    setErrorMsg(null);
-  };
-
-  const handleCloseModal = () => {
-    if (isPending) return;
-    setActiveModal(null);
     setReason("");
     setErrorMsg(null);
   };
@@ -98,7 +117,8 @@ export function PlayerPaymentActionControls({
             type="button"
             onClick={() => handleOpenModal("REFUND")}
             disabled={isPending}
-            className="text-[10px] text-[#5F6B61] hover:text-rose-700 underline font-medium ml-1 transition-colors disabled:opacity-50"
+            aria-label={`Refund payment for ${playerName}`}
+            className="text-xs text-[#5F6B61] hover:text-rose-700 underline font-medium ml-1 transition-colors disabled:opacity-50 min-h-[36px] py-1 px-1.5 inline-flex items-center"
           >
             Refund
           </button>
@@ -112,7 +132,8 @@ export function PlayerPaymentActionControls({
             type="button"
             onClick={() => handleOpenModal("VERIFY")}
             disabled={isPending}
-            className="px-2 py-1 text-[11px] font-bold bg-[#205823] hover:bg-[#18441a] text-white rounded-lg shadow-2xs transition-colors disabled:opacity-50"
+            aria-label={`Verify payment for ${playerName}`}
+            className="min-h-[36px] px-3 py-1.5 text-xs font-bold bg-[#205823] hover:bg-[#18441a] text-white rounded-lg shadow-2xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] disabled:opacity-50 inline-flex items-center justify-center cursor-pointer"
           >
             Verify
           </button>
@@ -131,7 +152,8 @@ export function PlayerPaymentActionControls({
             type="button"
             onClick={() => handleOpenModal("VERIFY")}
             disabled={isPending}
-            className="px-2.5 py-1 text-[11px] font-bold bg-[#205823] hover:bg-[#18441a] text-white rounded-lg shadow-2xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] disabled:opacity-50"
+            aria-label={`Verify payment for ${playerName}`}
+            className="min-h-[36px] px-3 py-1.5 text-xs font-bold bg-[#205823] hover:bg-[#18441a] text-white rounded-lg shadow-2xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] disabled:opacity-50 inline-flex items-center justify-center cursor-pointer"
           >
             Verify
           </button>
@@ -162,7 +184,8 @@ export function PlayerPaymentActionControls({
                 type="button"
                 onClick={handleCloseModal}
                 disabled={isPending}
-                className="text-[#5F6B61] hover:text-[#172019] text-sm p-1 rounded-md"
+                className="text-[#5F6B61] hover:text-[#172019] text-sm p-1.5 rounded-lg hover:bg-neutral-100 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center disabled:opacity-50"
+                aria-label="Close dialog"
               >
                 ✕
               </button>
@@ -281,7 +304,8 @@ export function PlayerPaymentActionControls({
                 type="button"
                 onClick={handleCloseModal}
                 disabled={isPending}
-                className="text-[#5F6B61] hover:text-[#172019] text-sm p-1 rounded-md"
+                className="text-[#5F6B61] hover:text-[#172019] text-sm p-1.5 rounded-lg hover:bg-neutral-100 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center disabled:opacity-50"
+                aria-label="Close dialog"
               >
                 ✕
               </button>
