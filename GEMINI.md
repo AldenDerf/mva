@@ -915,3 +915,240 @@ Do not recreate the logo using text, CSS, or a different generated graphic.
 
 Use the official asset when available in the project.
 
+---
+
+## UI/UX Design Standard
+
+### Design foundation
+
+For all new UI work and UI refactoring in the MVA project, follow Google Material Design usability, interaction, accessibility, and responsive-design principles while preserving the existing MVA visual identity.
+
+Material Design is a UX foundation.
+
+DO NOT make the application look like a clone of Google, Gmail, Google Admin, or another Google product.
+
+The MVA design system and branding remain the visual source of truth.
+
+### Mobile-first
+
+The MVA application must be designed mobile-first.
+
+Many users and administrators may access the system primarily from smartphones.
+
+Requirements:
+
+- Start with small-screen usability before desktop enhancement.
+- Avoid unnecessary horizontal scrolling.
+- Important actions must be comfortably tappable.
+- Prefer approximately 44–48px touch targets where practical.
+- Do not place critical actions too close together.
+- Layouts must work well around common mobile widths such as 360px, 390px, and 430px.
+- Desktop layouts may become denser when additional screen space is available.
+
+### Visual hierarchy
+
+Every screen should make it obvious:
+
+1. Where the user is.
+2. What information is most important.
+3. What requires attention.
+4. What the primary next action is.
+
+Do not give every piece of information equal visual weight.
+
+For information-heavy admin screens, prioritize decision-making information first and progressively expose secondary details.
+
+### Progressive disclosure
+
+Avoid overwhelming users with all available information at once.
+
+Show essential operational information first.
+
+Secondary, historical, technical, or auditing information may be exposed through:
+
+- detail views
+- expandable sections
+- dialogs
+- tooltips/help text
+- secondary actions
+
+when appropriate.
+
+### Human-readable language
+
+Admin interfaces must be understandable to non-technical MVA officers.
+
+Do not expose database terminology or implementation terminology as primary user-facing copy.
+
+For example, avoid presenting:
+
+"Legacy Unallocated Payment"
+
+as the primary message.
+
+Prefer something understandable such as:
+
+"Payment needs review"
+
+with supporting text such as:
+
+"This registration has an older payment that isn't assigned to a specific player."
+
+Technical terminology may still appear as secondary information when useful for auditing or troubleshooting.
+
+### Interaction states
+
+Interactive components must provide appropriate states where applicable:
+
+- default
+- hover
+- focus
+- active/pressed
+- selected
+- disabled
+- loading
+- success
+- warning
+- error
+
+Never leave users wondering whether an action is processing.
+
+### Loading experience
+
+Use appropriate loading indicators, skeletons, Suspense boundaries, or route-level loading UI where they improve perceived performance.
+
+Loading states should preserve enough layout context to reduce unnecessary visual shifting.
+
+Do not add loading animations purely for decoration.
+
+### Empty and error states
+
+Empty states must explain:
+
+- what is missing
+- whether it is normal
+- what the user can do next
+
+Error messages should explain the problem in plain language and provide a recovery action whenever possible.
+
+### Forms
+
+Forms should:
+
+- group related fields logically
+- use clear labels
+- minimize unnecessary fields
+- provide understandable validation messages
+- preserve entered information when recoverable errors occur
+- make required vs optional fields clear
+- place primary actions predictably
+
+### Accessibility
+
+Maintain:
+
+- semantic HTML
+- keyboard accessibility
+- visible focus indicators
+- accessible labels
+- appropriate ARIA only where necessary
+- sufficient contrast
+- readable text sizes
+- accessible form validation
+- reasonable touch targets
+
+Do not sacrifice accessibility for visual minimalism.
+
+### MVA visual identity
+
+Preserve the existing MVA visual language, including where appropriate:
+
+- green / gold / neutral identity
+- existing typography
+- existing spacing conventions
+- rounded surfaces
+- existing component patterns
+- consistent public/admin branding
+
+Do not introduce a completely separate Material-style component system unless explicitly requested.
+
+Use Material Design principles to improve usability rather than replace MVA branding.
+
+### Admin UX
+
+Admin interfaces should optimize for operational work.
+
+For lists such as registrations, payments, teams, and players, prioritize information needed to make the next administrative decision.
+
+For example, registration management may prioritize:
+
+- Team
+- Division
+- Payment state
+- Balance
+- Player/payment completeness
+- Registration state
+- Primary action
+
+Supporting information should remain available without overwhelming the initial view.
+
+### Destructive and consequential actions
+
+Actions such as:
+
+- deleting records
+- changing verified information
+- modifying payment records
+- removing players
+- changing registration state
+
+must use appropriate safety patterns.
+
+Use confirmation when appropriate and clearly communicate the consequence.
+
+Never make destructive actions visually compete with the primary normal workflow.
+
+### Performance-conscious UX
+
+Good UX includes performance.
+
+Before adding client-side JavaScript or additional data fetching:
+
+- determine whether it is actually necessary
+- prefer Server Components where appropriate
+- avoid unnecessary client components
+- avoid duplicate queries
+- avoid loading data that is not needed for the current view
+- preserve pagination for potentially large datasets
+- optimize perceived performance without compromising correctness
+
+### Existing architecture first
+
+Before redesigning an existing screen:
+
+1. Inspect the current implementation.
+2. Understand the business rules.
+3. Identify reusable components.
+4. Preserve working functionality.
+5. Improve incrementally.
+6. Avoid rebuilding working features without a clear reason.
+
+UI/UX refactoring must NOT silently alter:
+
+- business rules
+- payment calculations
+- canonical accounting
+- authorization
+- audit behavior
+- registration rules
+- database relationships
+
+unless the task explicitly requires those changes.
+
+### Consistency rule
+
+Before creating a new component or interaction pattern, inspect whether the project already has an equivalent reusable pattern.
+
+Prefer consistency over unnecessary novelty.
+
+If a new pattern is genuinely better, implement it in a reusable way when practical.
