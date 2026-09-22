@@ -8,6 +8,19 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Admin Registration Detail UX Refinement (Phase 05.7C.2)
+
+* **Admin Registration Detail Page (`/admin/registrations/[id]`)**:
+  * **Team Identity Priority**: Anchored the page top with prominent team name (`<h1>`), followed by category/division, league, reference code chip (`MVA-2026-XXXX`), and status badges.
+  * **Elevated Payment Summary**: Relocated canonical accounting summary directly below the header in four accessible cards: Expected Fees, Verified Paid, Remaining Balance with explicit semantic labels (`Due` / `Settled` / `Credit`), and Payment Completeness badge with player completeness ratios (e.g. `X of Y players paid • Z players still need payment`).
+  * **Prominent "Payment needs review" Banner**: Added dedicated top-level notice whenever unassigned or legacy payments exist, providing plain-language context, the unassigned verified amount, and a direct link to review payments.
+  * **Responsive Player Roster**: Introduced mobile-first player cards (for ~360px–430px viewports) displaying player identity, captain badge, jersey number, position, explicit payment state badge (`Paid` vs `Unpaid`), and touch-friendly action controls without horizontal scrolling, paired with a dense scannable table on desktop (`md:` breakpoint).
+  * **Refined Payment Transactions Section**: Standardized payment card presentation with human-readable unassigned payment callouts and accessible `PaymentCorrectionButton` triggers.
+  * **Secondary Information Hierarchy**: Neatly organized registration metadata, authorized registrant contact info, and chronological administrative audit history in the secondary column.
+* **Registration Detail Loading Experience**:
+  * Added `app/admin/(portal)/registrations/[id]/loading.tsx` with header, payment summary tiles, mobile card roster, desktop table, and transaction history skeleton matching the actual layout.
+  * Enforced accessible loading semantics (`role="status"`, `aria-busy="true"`, `aria-label`, and `motion-reduce:animate-none`).
+
 ### Registration UX & Loading Experience (Phase 05.7C.1)
 
 * **Admin Registration List UX Refinement (`/admin/registrations`)**:

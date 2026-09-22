@@ -88,34 +88,39 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
       </div>
 
       {/* ============================================================ */}
-      {/* PAGE HEADER */}
+      {/* PAGE HEADER: TEAM IDENTITY & OPERATIONAL CONTEXT */}
       {/* ============================================================ */}
-      <div className="bg-white rounded-2xl border border-[#DDE3DE] p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="font-mono font-extrabold text-sm sm:text-base px-2.5 py-0.5 rounded-lg bg-[#205823]/10 text-[#205823] border border-[#205823]/20">
-              {reg.registrationCode}
-            </span>
-            <RegistrationStatusBadge status={reg.status} />
-            <PaymentCompletionBadge status={reg.accounting.paymentCompletionStatus} />
-          </div>
-
+      <div className="bg-white rounded-2xl border border-[#DDE3DE] p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-start justify-between gap-6">
+        <div className="space-y-2">
+          {/* Primary Visual Anchor: Team Name */}
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#172019]">
             {reg.team.name}
           </h1>
 
-          <p className="text-xs sm:text-sm text-[#5F6B61]">
-            {reg.league.name} • <span className="font-semibold text-[#172019]">{reg.category.name}</span>
+          {/* Context: Division & Tournament */}
+          <p className="text-sm sm:text-base text-[#5F6B61] flex flex-wrap items-center gap-1.5">
+            <span className="font-bold text-[#172019]">{reg.category.name}</span>
+            <span aria-hidden="true">•</span>
+            <span>{reg.league.name}</span>
           </p>
+
+          {/* Reference code & status badges */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="font-mono font-bold text-xs sm:text-sm px-2.5 py-1 rounded-lg bg-[#205823]/10 text-[#205823] border border-[#205823]/20">
+              Ref: {reg.registrationCode}
+            </span>
+            <RegistrationStatusBadge status={reg.status} />
+            <PaymentCompletionBadge status={reg.accounting.paymentCompletionStatus} />
+          </div>
         </div>
 
         <div className="flex flex-col md:items-end gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-[#DDE3DE]">
-          <div className="text-left md:text-right text-xs text-[#5F6B61]">
+          <div className="text-left md:text-right text-xs text-[#5F6B61] space-y-0.5">
             <span className="block font-medium text-[#172019]">
               Submitted on {formatDate(reg.submittedAt)}
             </span>
-            <span className="text-[11px] text-[#5F6B61] mt-0.5 block">
-              System Record ID: {reg.id.slice(0, 8)}...
+            <span className="text-[11px] text-[#5F6B61] block">
+              Record ID: {reg.id.slice(0, 8)}...
             </span>
           </div>
 
@@ -147,12 +152,152 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
         </div>
       </div>
 
+      {/* ============================================================ */}
+      {/* ATTENTION BANNER: PAYMENT NEEDS REVIEW */}
+      {/* ============================================================ */}
+      {(reg.accounting.hasLegacyPayments || reg.accounting.unallocatedVerifiedAmount > 0) && (
+        <aside
+          aria-label="Payment review required"
+          className="rounded-2xl bg-amber-50/90 border border-amber-300 p-4 sm:p-5 text-amber-950 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-amber-200/80 text-amber-900 flex items-center justify-center shrink-0 mt-0.5">
+              <svg className="w-5 h-5 text-amber-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div className="space-y-1 text-xs sm:text-sm">
+              <h2 className="font-bold text-amber-950 text-sm sm:text-base">
+                Payment needs review
+              </h2>
+              <p className="text-amber-900 leading-relaxed text-xs">
+                This registration has an older payment{reg.accounting.unallocatedVerifiedAmount > 0 ? ` (${formatCurrency(reg.accounting.unallocatedVerifiedAmount)})` : ""} that isn&apos;t assigned to a specific player.
+                Please review the payment records below to confirm or correct details.
+              </p>
+            </div>
+          </div>
+          <a
+            href="#payment-records"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 transition-colors shadow-2xs shrink-0 self-start sm:self-center"
+          >
+            <span>Review Payments</span>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </a>
+        </aside>
+      )}
+
+      {/* ============================================================ */}
+      {/* FINANCIAL & PAYMENT COMPLETENESS SUMMARY */}
+      {/* ============================================================ */}
+      <section aria-labelledby="payment-summary-heading" className="space-y-3">
+        <h2 id="payment-summary-heading" className="sr-only">
+          Payment and Fee Summary
+        </h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* Tile 1: Expected Fees */}
+          <div className="bg-white rounded-2xl border border-[#DDE3DE] p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+            <span className="text-[11px] sm:text-xs uppercase font-bold text-[#5F6B61] tracking-wider block">
+              Expected Fees
+            </span>
+            <div className="my-2">
+              <span className="font-mono font-black text-xl sm:text-2xl text-[#172019] block tracking-tight">
+                {formatCurrency(reg.accounting.expectedAmount)}
+              </span>
+            </div>
+            <span className="text-[11px] text-[#5F6B61] block">
+              {reg.accounting.rosterCount} {reg.accounting.rosterCount === 1 ? "player" : "players"} × {formatCurrency(reg.accounting.feePerPlayer)}
+            </span>
+          </div>
+
+          {/* Tile 2: Verified Paid */}
+          <div className="bg-white rounded-2xl border border-[#DDE3DE] p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+            <span className="text-[11px] sm:text-xs uppercase font-bold text-[#5F6B61] tracking-wider block">
+              Verified Paid
+            </span>
+            <div className="my-2">
+              <span className="font-mono font-black text-xl sm:text-2xl text-[#205823] block tracking-tight">
+                {formatCurrency(reg.accounting.verifiedPaidAmount)}
+              </span>
+            </div>
+            <span className="text-[11px] text-[#5F6B61] block">
+              {reg.accounting.paidPlayerCount} of {reg.accounting.rosterCount} {reg.accounting.rosterCount === 1 ? "player" : "players"} paid
+            </span>
+          </div>
+
+          {/* Tile 3: Remaining Balance */}
+          <div className="bg-white rounded-2xl border border-[#DDE3DE] p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+            <span className="text-[11px] sm:text-xs uppercase font-bold text-[#5F6B61] tracking-wider block">
+              Remaining Balance
+            </span>
+            <div className="my-2">
+              <span
+                className={`font-mono font-black text-xl sm:text-2xl block tracking-tight ${
+                  reg.accounting.balance > 0
+                    ? "text-amber-800"
+                    : reg.accounting.balance < 0
+                    ? "text-blue-800"
+                    : "text-[#205823]"
+                }`}
+              >
+                {formatCurrency(reg.accounting.balance)}
+              </span>
+            </div>
+            <span className="text-[11px] font-semibold block">
+              {reg.accounting.balance > 0 ? (
+                <span className="text-amber-800">
+                  Due ({reg.accounting.unpaidPlayerCount} {reg.accounting.unpaidPlayerCount === 1 ? "player" : "players"} unpaid)
+                </span>
+              ) : reg.accounting.balance < 0 ? (
+                <span className="text-blue-800">Credit Balance</span>
+              ) : (
+                <span className="text-[#205823]">Fully Settled</span>
+              )}
+            </span>
+          </div>
+
+          {/* Tile 4: Payment Completeness */}
+          <div className="bg-white rounded-2xl border border-[#DDE3DE] p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+            <span className="text-[11px] sm:text-xs uppercase font-bold text-[#5F6B61] tracking-wider block">
+              Payment Completeness
+            </span>
+            <div className="my-2">
+              <PaymentCompletionBadge
+                status={reg.accounting.paymentCompletionStatus}
+                size="sm"
+              />
+            </div>
+            <span className="text-[11px] text-[#5F6B61] block">
+              {reg.accounting.paymentComplete
+                ? "All roster fees verified"
+                : `${reg.accounting.unpaidPlayerCount} ${reg.accounting.unpaidPlayerCount === 1 ? "player" : "players"} still need payment`}
+            </span>
+          </div>
+        </div>
+
+        {/* Anomaly Alerts if any */}
+        {reg.accounting.hasFinancialAnomaly && (
+          <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-950 rounded-xl space-y-1 text-xs">
+            <div className="font-bold flex items-center gap-1.5 text-amber-900">
+              <span aria-hidden="true">⚠️</span>
+              <span>Financial Reconciliation Notice</span>
+            </div>
+            {reg.accounting.anomalyNotes.map((note, nIdx) => (
+              <p key={nIdx} className="text-[11px] leading-relaxed text-amber-900">
+                • {note}
+              </p>
+            ))}
+          </div>
+        )}
+      </section>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ============================================================ */}
-        {/* LEFT COLUMN: 2 COLS ON LG (Roster & Overview) */}
+        {/* LEFT COLUMN: 2 COLS ON LG (Roster & Payment Records) */}
         {/* ============================================================ */}
         <div className="lg:col-span-2 space-y-6">
-          {/* SECTION D: PLAYER ROSTER */}
+          {/* SECTION: PLAYER PAYMENT ROSTER */}
           <section
             aria-labelledby="roster-heading"
             className="bg-white rounded-2xl border border-[#DDE3DE] shadow-xs overflow-hidden"
@@ -160,10 +305,10 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
             <div className="p-5 sm:p-6 border-b border-[#DDE3DE] flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 id="roster-heading" className="text-base font-bold text-[#172019]">
-                  Tournament Roster
+                  Tournament Roster & Player Payments
                 </h2>
                 <p className="text-xs text-[#5F6B61] mt-0.5">
-                  Official player list submitted for this registration entry.
+                  Official player list and individual payment verification states.
                 </p>
               </div>
               <div className="flex items-center gap-2.5">
@@ -185,81 +330,73 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                 No players registered on this roster.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-[#FAFAF8] text-[#5F6B61] text-xs uppercase font-bold tracking-wider border-b border-[#DDE3DE]">
-                    <tr>
-                      <th scope="col" className="py-3 px-6 text-center w-12">
-                        #
-                      </th>
-                      <th scope="col" className="py-3 px-6">
-                        Player Name
-                      </th>
-                      <th scope="col" className="py-3 px-4 text-center">
-                        Role
-                      </th>
-                      <th scope="col" className="py-3 px-4 text-center">
-                        Jersey
-                      </th>
-                      <th scope="col" className="py-3 px-6">
-                        Position
-                      </th>
-                      <th scope="col" className="py-3 px-6">
-                        Payment Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#DDE3DE] text-[#172019]">
-                    {reg.roster.map((player, idx) => (
-                      <tr
+              <>
+                {/* ------------------------------------------------------------ */}
+                {/* MOBILE ROSTER: RESPONSIVE CARDS (hidden on md:block) */}
+                {/* ------------------------------------------------------------ */}
+                <div className="md:hidden divide-y divide-[#DDE3DE]">
+                  {reg.roster.map((player, idx) => {
+                    const isPaid = player.payment?.status === "VERIFIED";
+
+                    return (
+                      <div
                         key={player.id}
-                        className={`hover:bg-[#FAFAF8]/80 transition-colors ${
-                          player.isCaptain ? "bg-[#eef5ef]/40" : ""
+                        className={`p-4 space-y-3 ${
+                          player.isCaptain ? "bg-[#eef5ef]/30" : "hover:bg-[#FAFAF8]/60"
                         }`}
                       >
-                        <td className="py-3.5 px-6 text-center text-xs font-mono text-[#5F6B61]">
-                          {idx + 1}
-                        </td>
-                        <td className="py-3.5 px-6">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-[#172019]">
-                              {player.fullName}
+                            <span className="w-5 text-center text-xs font-mono text-[#5F6B61]">
+                              {idx + 1}.
                             </span>
-                            {player.isCaptain && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#205823] text-white">
-                                Captain
+                            <div>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-bold text-[#172019] text-sm">
+                                  {player.fullName}
+                                </span>
+                                {player.isCaptain && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#205823] text-white">
+                                    Captain
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-[#5F6B61] mt-0.5">
+                                {player.jerseyNumber !== null ? (
+                                  <span className="font-mono font-bold text-[#172019]">
+                                    #{player.jerseyNumber}
+                                  </span>
+                                ) : (
+                                  <span>No Jersey #</span>
+                                )}
+                                <span aria-hidden="true">•</span>
+                                <span>{player.position || "Position not specified"}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Quick Payment State Badge */}
+                          <div>
+                            {isPaid ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#205823]/10 text-[#205823] border border-[#205823]/25">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span>Paid</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                Unpaid
                               </span>
                             )}
                           </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-center text-xs">
-                          {player.isCaptain ? (
-                            <span className="font-semibold text-[#205823]">
-                              Team Captain
-                            </span>
-                          ) : (
-                            <span className="text-[#5F6B61]">Member</span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 text-center font-mono text-xs text-[#172019]">
-                          {player.jerseyNumber !== null ? (
-                            <span className="px-2 py-0.5 rounded-md bg-[#FAFAF8] border border-[#DDE3DE] font-bold">
-                              #{player.jerseyNumber}
-                            </span>
-                          ) : (
-                            <span className="text-[#5F6B61]/50 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-6 text-xs">
-                          {player.position ? (
-                            <span className="font-medium text-[#172019]">
-                              {player.position}
-                            </span>
-                          ) : (
-                            <span className="text-[#5F6B61]/50 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-6">
+                        </div>
+
+                        {/* Mobile Action Row */}
+                        <div className="pt-2 border-t border-[#DDE3DE]/60 flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-[#5F6B61]">
+                            Fee: {formatCurrency(reg.category.registrationFee)}
+                          </span>
                           <PlayerPaymentActionControls
                             registrationId={reg.id}
                             registrationPlayerId={player.id}
@@ -271,109 +408,133 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                             referenceNumber={player.payment?.referenceNumber}
                             verifiedAt={player.payment?.verifiedAt}
                           />
-                        </td>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* ------------------------------------------------------------ */}
+                {/* DESKTOP ROSTER: DENSE SCANNABLE TABLE (hidden on mobile) */}
+                {/* ------------------------------------------------------------ */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-[#FAFAF8] text-[#5F6B61] text-xs uppercase font-bold tracking-wider border-b border-[#DDE3DE]">
+                      <tr>
+                        <th scope="col" className="py-3 px-6 text-center w-12">
+                          #
+                        </th>
+                        <th scope="col" className="py-3 px-6">
+                          Player Name
+                        </th>
+                        <th scope="col" className="py-3 px-4 text-center">
+                          Role
+                        </th>
+                        <th scope="col" className="py-3 px-4 text-center">
+                          Jersey
+                        </th>
+                        <th scope="col" className="py-3 px-6">
+                          Position
+                        </th>
+                        <th scope="col" className="py-3 px-6">
+                          Payment Status & Actions
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-[#DDE3DE] text-[#172019]">
+                      {reg.roster.map((player, idx) => (
+                        <tr
+                          key={player.id}
+                          className={`hover:bg-[#FAFAF8]/80 transition-colors ${
+                            player.isCaptain ? "bg-[#eef5ef]/40" : ""
+                          }`}
+                        >
+                          <td className="py-3.5 px-6 text-center text-xs font-mono text-[#5F6B61]">
+                            {idx + 1}
+                          </td>
+                          <td className="py-3.5 px-6">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-[#172019]">
+                                {player.fullName}
+                              </span>
+                              {player.isCaptain && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#205823] text-white">
+                                  Captain
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-center text-xs">
+                            {player.isCaptain ? (
+                              <span className="font-semibold text-[#205823]">
+                                Team Captain
+                              </span>
+                            ) : (
+                              <span className="text-[#5F6B61]">Member</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-mono text-xs text-[#172019]">
+                            {player.jerseyNumber !== null ? (
+                              <span className="px-2 py-0.5 rounded-md bg-[#FAFAF8] border border-[#DDE3DE] font-bold">
+                                #{player.jerseyNumber}
+                              </span>
+                            ) : (
+                              <span className="text-[#5F6B61]/50 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-6 text-xs">
+                            {player.position ? (
+                              <span className="font-medium text-[#172019]">
+                                {player.position}
+                              </span>
+                            ) : (
+                              <span className="text-[#5F6B61]/50 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-6">
+                            <PlayerPaymentActionControls
+                              registrationId={reg.id}
+                              registrationPlayerId={player.id}
+                              paymentId={player.payment?.id}
+                              playerName={player.fullName}
+                              paymentStatus={player.payment ? player.payment.status : "UNPAID"}
+                              amount={player.payment ? player.payment.amount : reg.category.registrationFee}
+                              paymentMethod={player.payment?.paymentMethod}
+                              referenceNumber={player.payment?.referenceNumber}
+                              verifiedAt={player.payment?.verifiedAt}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </section>
 
-          {/* SECTION E: PAYMENT INFORMATION */}
+          {/* SECTION: PAYMENT RECORDS */}
           <section
+            id="payment-records"
             aria-labelledby="payment-heading"
             className="bg-white rounded-2xl border border-[#DDE3DE] shadow-xs overflow-hidden"
           >
             <div className="p-5 sm:p-6 border-b border-[#DDE3DE] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 id="payment-heading" className="text-base font-bold text-[#172019]">
-                  Payment Information
+                  Payment Transactions
                 </h2>
                 <p className="text-xs text-[#5F6B61] mt-0.5">
-                  Fee assessments and verified transaction records for this team and roster.
+                  Detailed payment transaction records submitted for this registration.
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-[#205823] bg-[#eef5ef] px-3 py-1 rounded-full border border-[#205823]/20">
-                  Rate: {formatCurrency(reg.category.registrationFee)} / player
+                  Category Fee: {formatCurrency(reg.category.registrationFee)} / player
                 </span>
               </div>
             </div>
 
-            {/* Canonical Per-Player Payment Accounting Summary Banner */}
-            <div className="p-4 sm:p-5 bg-[#FAFAF8] border-b border-[#DDE3DE] space-y-3 text-xs">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                <div className="p-2.5 rounded-xl bg-white border border-[#DDE3DE]">
-                  <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
-                    Expected Fees
-                  </span>
-                  <span className="font-mono font-bold text-[#172019] text-sm mt-0.5 block">
-                    {formatCurrency(reg.accounting.expectedAmount)}
-                  </span>
-                  <span className="text-[10px] text-[#5F6B61] block mt-0.5">
-                    {reg.accounting.rosterCount} × ₱{reg.accounting.feePerPlayer.toFixed(0)}
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-white border border-[#DDE3DE]">
-                  <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
-                    Verified Paid
-                  </span>
-                  <span className="font-mono font-bold text-[#205823] text-sm mt-0.5 block">
-                    {formatCurrency(reg.accounting.verifiedPaidAmount)}
-                  </span>
-                  <span className="text-[10px] text-[#5F6B61] block mt-0.5">
-                    {reg.accounting.paidPlayerCount} players verified
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-white border border-[#DDE3DE]">
-                  <span className="text-[10px] uppercase font-bold text-[#5F6B61] block">
-                    Balance
-                  </span>
-                  <span
-                    className={`font-mono font-bold text-sm mt-0.5 block ${
-                      reg.accounting.balance > 0
-                        ? "text-amber-700"
-                        : reg.accounting.balance < 0
-                        ? "text-blue-700"
-                        : "text-[#5F6B61]"
-                    }`}
-                  >
-                    {formatCurrency(reg.accounting.balance)}
-                  </span>
-                  <span className="text-[10px] text-[#5F6B61] block mt-0.5">
-                    {reg.accounting.unpaidPlayerCount} unpaid players
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-white border border-[#DDE3DE] flex flex-col justify-center items-center">
-                  <span className="text-[10px] uppercase font-bold text-[#5F6B61] block mb-1">
-                    Completion
-                  </span>
-                  <PaymentCompletionBadge
-                    status={reg.accounting.paymentCompletionStatus}
-                    size="xs"
-                  />
-                </div>
-              </div>
-
-              {/* Anomaly Alerts */}
-              {reg.accounting.hasFinancialAnomaly && (
-                <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl space-y-1">
-                  <div className="font-bold flex items-center gap-1.5 text-amber-800">
-                    <span>⚠️</span>
-                    <span>Financial Reconciliation Notice</span>
-                  </div>
-                  {reg.accounting.anomalyNotes.map((note, nIdx) => (
-                    <p key={nIdx} className="text-[11px] leading-relaxed">
-                      • {note}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
 
             {reg.payments.length === 0 ? (
               <div className="py-10 px-6 text-center text-[#5F6B61] text-xs">
@@ -385,24 +546,27 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                   const associatedPlayer = reg.roster.find(
                     (r) => r.payment?.id === p.id
                   );
-                  const playerName =
-                    p.registrationPlayerId === null
-                      ? "Unassigned Payment (Needs Review)"
-                      : associatedPlayer?.fullName || "Roster Player";
+                  const isUnassigned = p.registrationPlayerId === null;
+                  const playerName = isUnassigned
+                    ? "Unassigned Payment"
+                    : associatedPlayer?.fullName || "Roster Player";
 
                   return (
-                    <div key={p.id} className="p-5 sm:p-6 space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
+                    <div key={p.id} className="p-5 sm:p-6 space-y-4 hover:bg-[#FAFAF8]/40 transition-colors">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs font-bold text-[#5F6B61]">
                             Payment #{idx + 1}
                           </span>
                           <PaymentStatusBadge status={p.status} />
-                          {p.registrationPlayerId === null && (
+                          {isUnassigned && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
                               Payment needs review
                             </span>
                           )}
+                          <span className="text-xs text-[#5F6B61]">
+                            • {playerName}
+                          </span>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-base font-extrabold text-[#172019]">
@@ -425,14 +589,19 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                         </div>
                       </div>
 
-                      {p.registrationPlayerId === null && (
-                        <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 flex items-start gap-2">
+                      {isUnassigned && (
+                        <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 text-xs text-amber-950 flex items-start gap-2.5">
                           <svg className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <p className="text-[11px] leading-relaxed">
-                            This registration has an older payment that isn&apos;t assigned to a specific player. Use the action button to assign this payment or review its details.
-                          </p>
+                          <div className="space-y-0.5">
+                            <span className="font-bold text-amber-900 block">
+                              Unassigned Payment
+                            </span>
+                            <p className="text-[11px] leading-relaxed text-amber-900">
+                              This registration has an older payment that isn&apos;t assigned to a specific player. Use the action button to review or correct its method and reference details.
+                            </p>
+                          </div>
                         </div>
                       )}
 
@@ -614,7 +783,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
               )}
 
               <div className="flex items-center justify-between">
-                <dt className="text-[#5F6B61]">Payment Status</dt>
+                <dt className="text-[#5F6B61]">Payment Completeness</dt>
                 <dd>
                   <PaymentCompletionBadge status={reg.accounting.paymentCompletionStatus} size="xs" />
                 </dd>
@@ -632,9 +801,18 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
 
               <div className="flex items-center justify-between">
                 <dt className="text-[#5F6B61]">Remaining Balance</dt>
-                <dd className="font-mono font-bold text-[#172019]">
-                  <span className={reg.accounting.balance > 0 ? "text-amber-700" : "text-[#5F6B61]"}>
+                <dd className="font-mono font-bold text-[#172019] text-right">
+                  <span className={reg.accounting.balance > 0 ? "text-amber-800" : reg.accounting.balance < 0 ? "text-blue-800" : "text-[#205823]"}>
                     {formatCurrency(reg.accounting.balance)}
+                  </span>
+                  <span className="block text-[10px] font-semibold">
+                    {reg.accounting.balance > 0 ? (
+                      <span className="text-amber-800">Due</span>
+                    ) : reg.accounting.balance < 0 ? (
+                      <span className="text-blue-800">Credit</span>
+                    ) : (
+                      <span className="text-[#205823]">Settled</span>
+                    )}
                   </span>
                 </dd>
               </div>
