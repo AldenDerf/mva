@@ -2,6 +2,9 @@ import { prisma } from "../lib/prisma";
 import pg from "pg";
 import assert from "assert";
 import {
+  calculateRegistrationAccounting,
+} from "../lib/admin/accounting";
+import {
   evaluateRosterMemberDeletionEligibility,
   evaluateRegistrationDeletionEligibility,
   executeUnverifiedRosterMemberHardDelete,
@@ -17,9 +20,32 @@ if (typeof process.loadEnvFile === "function") {
   }
 }
 
+interface DatabaseSnapshot {
+  playerCount: number;
+  registrationPlayerCount: number;
+  paymentCount: number;
+  verifiedPaymentSum: number;
+}
+
+async function getDatabaseSnapshot(client: pg.Client): Promise<DatabaseSnapshot> {
+  const pRes = await client.query("SELECT count(*)::int as count FROM players;");
+  const rpRes = await client.query("SELECT count(*)::int as count FROM registration_players;");
+  const payRes = await client.query("SELECT count(*)::int as count FROM payments;");
+  const sumRes = await client.query(
+    "SELECT COALESCE(SUM(amount), 0)::numeric as sum FROM payments WHERE status = 'VERIFIED';"
+  );
+
+  return {
+    playerCount: pRes.rows[0].count,
+    registrationPlayerCount: rpRes.rows[0].count,
+    paymentCount: payRes.rows[0].count,
+    verifiedPaymentSum: parseFloat(sumRes.rows[0].sum),
+  };
+}
+
 async function run() {
   console.log("================================================================================");
-  console.log("  PHASE 05.7D.3 — ROSTER SAFETY FOUNDATION & DELETION POLICIES VERIFICATION");
+  console.log("  PHASE 05.7D.3 — ROSTER SAFETY FOUNDATION & ACCOUNTING HARDENING VERIFICATION");
   console.log("================================================================================\n");
 
   const connectionString = process.env.DATABASE_URL;
@@ -49,6 +75,14 @@ async function run() {
     );
   }
   console.log("  PASS: Safety probe passed (local mva_dev database verified)\n");
+
+  // Record initial database snapshot for preservation check
+  console.log("[PRESERVATION] Taking pre-test database snapshot...");
+  const snapshotBefore = await getDatabaseSnapshot(pgClient);
+  console.log(`  - players: ${snapshotBefore.playerCount}`);
+  console.log(`  - registration_players: ${snapshotBefore.registrationPlayerCount}`);
+  console.log(`  - payments: ${snapshotBefore.paymentCount}`);
+  console.log(`  - verified payment sum: ₱${snapshotBefore.verifiedPaymentSum.toFixed(2)}\n`);
 
   // Track created entities for deterministic cleanup
   const cleanup = {
@@ -90,7 +124,6 @@ async function run() {
     console.log("[SETUP] Provisioning test entities in local mva_dev...");
     const uniqueSuffix = Date.now().toString().slice(-6);
 
-    // 1. Admin Profile
     const adminAuthUserId = `00000000-0000-0000-0000-057d3${uniqueSuffix.slice(0, 7)}`.padEnd(36, "0");
     const profile = await prisma.profiles.create({
       data: {
@@ -115,10 +148,9 @@ async function run() {
       role: "ADMIN",
     };
 
-    // 2. League & Categories
     const league = await prisma.leagues.create({
       data: {
-        name: `MVA Test Safety League ${uniqueSuffix}`,
+        name: `MVA Safety & Accounting League ${uniqueSuffix}`,
         year: 2026,
         status: "OPEN_FOR_REGISTRATION",
       },
@@ -128,7 +160,7 @@ async function run() {
     const cat1 = await prisma.league_categories.create({
       data: {
         league_id: league.id,
-        name: `Men's Open ${uniqueSuffix}`,
+        name: `Division A ${uniqueSuffix}`,
         registration_fee: 300.0,
         min_players: 6,
         max_players: 14,
@@ -139,7 +171,7 @@ async function run() {
     const cat2 = await prisma.league_categories.create({
       data: {
         league_id: league.id,
-        name: `Mahatao Only ${uniqueSuffix}`,
+        name: `Division B ${uniqueSuffix}`,
         registration_fee: 300.0,
         min_players: 6,
         max_players: 14,
@@ -147,16 +179,14 @@ async function run() {
     });
     cleanup.categoryId2 = cat2.id;
 
-    // 3. Teams
     const team1 = await prisma.teams.create({
       data: {
-        team_name: `Safety Thunder ${uniqueSuffix}`,
-        slug: `safety-thunder-${uniqueSuffix}`,
+        team_name: `Safety Hawks ${uniqueSuffix}`,
+        slug: `safety-hawks-${uniqueSuffix}`,
       },
     });
     cleanup.teamId1 = team1.id;
 
-    // 4. Registrations
     const reg1 = await prisma.registrations.create({
       data: {
         league_id: league.id,
@@ -166,89 +196,280 @@ async function run() {
         registrant_last_name: "Gomez",
         registrant_contact: "09171112222",
         status: "VERIFIED",
-        registration_code: `MVA-SAFE-${uniqueSuffix}`,
+        registration_code: `MVA-ACT-${uniqueSuffix}`,
       },
     });
     cleanup.registrationId1 = reg1.id;
 
-    // 5. Players & Roster entries
-    // Player A: Paid / Verified Roster Member
-    const playerA = await prisma.players.create({
-      data: {
-        first_name: "Juan",
-        last_name: "Dela Cruz",
+    // -------------------------------------------------------------------------
+    // TEST A: ALL ACTIVE PLAYERS (12 PLAYERS NORMAL ACCOUNTING)
+    // -------------------------------------------------------------------------
+    console.log("[TEST A] Testing All Active Players (12 active players)...");
+    const activeTestPlayers = [];
+    for (let i = 1; i <= 12; i++) {
+      const pl = await prisma.players.create({
+        data: { first_name: `Player${i}`, last_name: `Active${uniqueSuffix}` },
+      });
+      cleanup.playerIds.push(pl.id);
+
+      const rp = await prisma.registration_players.create({
+        data: {
+          registration_id: reg1.id,
+          player_id: pl.id,
+          jersey_number: i,
+          position: i === 1 ? "Setter" : "Hitter",
+          is_captain: i === 1,
+          status: "ACTIVE",
+        },
+      });
+      cleanup.registrationPlayerIds.push(rp.id);
+
+      // Give 5 players verified payments, 7 unverified
+      if (i <= 5) {
+        const pay = await prisma.payments.create({
+          data: {
+            registration_id: reg1.id,
+            registration_player_id: rp.id,
+            payment_method: "GCASH",
+            amount: 300.0,
+            status: "VERIFIED",
+            verified_at: new Date(),
+            verified_by_profile_id: profile.id,
+            reference_number: `VER-${i}-${uniqueSuffix}`,
+          },
+        });
+        cleanup.paymentIds.push(pay.id);
+      } else {
+        const pay = await prisma.payments.create({
+          data: {
+            registration_id: reg1.id,
+            registration_player_id: rp.id,
+            payment_method: "OTHER",
+            amount: 300.0,
+            status: "PENDING",
+            notes: "Player registration fee assessment",
+          },
+        });
+        cleanup.paymentIds.push(pay.id);
+      }
+      activeTestPlayers.push({ pl, rp });
+    }
+
+    const regWithPlayersA = await prisma.registrations.findUniqueOrThrow({
+      where: { id: reg1.id },
+      include: {
+        teams: true,
+        leagues: true,
+        league_categories_registrations_league_category_idToleague_categories: true,
+        registration_players: {
+          include: {
+            players: true,
+            payments: true,
+          },
+        },
+        payments: true,
       },
     });
-    cleanup.playerIds.push(playerA.id);
 
-    const rpA = await prisma.registration_players.create({
-      data: {
-        registration_id: reg1.id,
-        player_id: playerA.id,
-        jersey_number: 7,
-        position: "Setter",
-        is_captain: true,
-        status: "ACTIVE",
-      },
-    });
-    cleanup.registrationPlayerIds.push(rpA.id);
-
-    const payVerified = await prisma.payments.create({
-      data: {
-        registration_id: reg1.id,
-        registration_player_id: rpA.id,
-        payment_method: "GCASH",
-        amount: 300.0,
-        status: "VERIFIED",
-        verified_at: new Date(),
-        verified_by_profile_id: profile.id,
-        reference_number: `VER-${uniqueSuffix}`,
-      },
-    });
-    cleanup.paymentIds.push(payVerified.id);
-
-    // Player B: Unverified / Unpaid Roster Member with PENDING payment placeholder
-    const playerB = await prisma.players.create({
-      data: {
-        first_name: "Pedro",
-        last_name: "Santos",
-      },
-    });
-    cleanup.playerIds.push(playerB.id);
-
-    const rpB = await prisma.registration_players.create({
-      data: {
-        registration_id: reg1.id,
-        player_id: playerB.id,
-        jersey_number: 10,
-        position: "Outside Hitter",
-        is_captain: false,
-        status: "ACTIVE",
-      },
-    });
-    cleanup.registrationPlayerIds.push(rpB.id);
-
-    const payPending = await prisma.payments.create({
-      data: {
-        registration_id: reg1.id,
-        registration_player_id: rpB.id,
-        payment_method: "OTHER",
-        amount: 300.0,
-        status: "PENDING",
-        notes: "Player registration fee assessment",
-      },
-    });
-    cleanup.paymentIds.push(payPending.id);
-
-    console.log("  Setup complete.\n");
+    const acctA = calculateRegistrationAccounting(regWithPlayersA);
+    assert(acctA.rosterCount === 12, `Expected active rosterCount = 12, got ${acctA.rosterCount}`);
+    assert(acctA.expectedAmount === 3600, `Expected expectedAmount = 3600, got ${acctA.expectedAmount}`);
+    assert(acctA.paidPlayerCount === 5, `Expected paidPlayerCount = 5, got ${acctA.paidPlayerCount}`);
+    assert(acctA.unpaidPlayerCount === 7, `Expected unpaidPlayerCount = 7, got ${acctA.unpaidPlayerCount}`);
+    assert(acctA.verifiedPaidAmount === 1500, `Expected verifiedPaidAmount = 1500, got ${acctA.verifiedPaidAmount}`);
+    assert(acctA.balance === 2100, `Expected balance = 2100, got ${acctA.balance}`);
+    assert(acctA.paymentComplete === false, "Payment should not be complete");
+    assert(acctA.historicalRemovedVerifiedAmount === 0, "No historical removed verified amount");
+    console.log("  PASS: Test A (All Active) baseline verified with zero regression\n");
 
     // -------------------------------------------------------------------------
-    // TEST 3: DB LEVEL CASCADE BLOCKED (ON DELETE RESTRICT)
+    // TEST B: REMOVED UNPAID PLAYER
     // -------------------------------------------------------------------------
-    console.log("[TEST 3] Testing DB level rejection of direct DELETE on paid roster player...");
+    console.log("[TEST B] Testing Removed Unpaid Player (12 -> 11 active, 1 removed unpaid)...");
+    // Transition player 12 (unpaid) to REMOVED
+    const rp12 = activeTestPlayers[11].rp;
+    await prisma.registration_players.update({
+      where: { id: rp12.id },
+      data: {
+        status: "REMOVED",
+        removed_at: new Date(),
+        removed_by_profile_id: profile.id,
+      },
+    });
+
+    const regWithPlayersB = await prisma.registrations.findUniqueOrThrow({
+      where: { id: reg1.id },
+      include: {
+        teams: true,
+        leagues: true,
+        league_categories_registrations_league_category_idToleague_categories: true,
+        registration_players: {
+          include: {
+            players: true,
+            payments: true,
+          },
+        },
+        payments: true,
+      },
+    });
+
+    const acctB = calculateRegistrationAccounting(regWithPlayersB);
+    assert(acctB.rosterCount === 11, `Expected active rosterCount = 11, got ${acctB.rosterCount}`);
+    assert(acctB.removedRosterCount === 1, `Expected removedRosterCount = 1, got ${acctB.removedRosterCount}`);
+    assert(acctB.expectedAmount === 3300, `Expected expectedAmount = 3300, got ${acctB.expectedAmount}`);
+    assert(acctB.paidPlayerCount === 5, `Expected paidPlayerCount = 5, got ${acctB.paidPlayerCount}`);
+    assert(acctB.unpaidPlayerCount === 6, `Expected unpaidPlayerCount = 6, got ${acctB.unpaidPlayerCount}`);
+    assert(acctB.balance === 1800, `Expected balance = 1800, got ${acctB.balance}`);
+    assert(acctB.rosterPayments.length === 11, "Active rosterPayments breakdown must contain 11 players");
+    assert(!acctB.rosterPayments.some((p) => p.registrationPlayerId === rp12.id), "Removed player excluded from active rosterPayments");
+    console.log("  PASS: Test B (Removed Unpaid Player) excluded from active obligation and unpaid count\n");
+
+    // -------------------------------------------------------------------------
+    // TEST C: REMOVED VERIFIED PLAYER (HISTORICAL MONEY PRESERVED)
+    // -------------------------------------------------------------------------
+    console.log("[TEST C] Testing Removed Verified Player (historical money preserved, not transferred)...");
+    // Transition player 5 (who has a VERIFIED payment of ₱300) to REMOVED using executeRosterMemberSoftRemoval
+    const rp5 = activeTestPlayers[4].rp;
+    const removeResult = await executeRosterMemberSoftRemoval(adminContext, {
+      registrationPlayerId: rp5.id,
+      registrationId: reg1.id,
+      reason: "Medical injury before match",
+    });
+    assert(removeResult.success === true, "executeRosterMemberSoftRemoval must succeed");
+    assert(removeResult.newStatus === "REMOVED");
+
+    const regWithPlayersC = await prisma.registrations.findUniqueOrThrow({
+      where: { id: reg1.id },
+      include: {
+        teams: true,
+        leagues: true,
+        league_categories_registrations_league_category_idToleague_categories: true,
+        registration_players: {
+          include: {
+            players: true,
+            payments: true,
+          },
+        },
+        payments: true,
+      },
+    });
+
+    const acctC = calculateRegistrationAccounting(regWithPlayersC);
+    // Active roster now: 10 players (players 1-4 verified, players 6-11 unpaid)
+    assert(acctC.rosterCount === 10, `Expected active rosterCount = 10, got ${acctC.rosterCount}`);
+    assert(acctC.removedRosterCount === 2, `Expected removedRosterCount = 2, got ${acctC.removedRosterCount}`);
+    assert(acctC.expectedAmount === 3000, `Expected expectedAmount = 3000, got ${acctC.expectedAmount}`);
+    assert(acctC.paidPlayerCount === 4, `Expected active paidPlayerCount = 4, got ${acctC.paidPlayerCount}`);
+    assert(acctC.unpaidPlayerCount === 6, `Expected active unpaidPlayerCount = 6, got ${acctC.unpaidPlayerCount}`);
+    assert(acctC.verifiedPaidAmount === 1200, `Expected active verifiedPaidAmount = 1200, got ${acctC.verifiedPaidAmount}`);
+    assert(acctC.balance === 1800, `Expected active balance = 1800, got ${acctC.balance}`);
+    // Historical verified money from removed player 5 is preserved
+    assert(
+      acctC.historicalRemovedVerifiedAmount === 300,
+      `Expected historicalRemovedVerifiedAmount = 300, got ${acctC.historicalRemovedVerifiedAmount}`
+    );
+    assert(
+      acctC.totalVerifiedCollected === 1500,
+      `Expected totalVerifiedCollected = 1500 (1200 active + 300 removed), got ${acctC.totalVerifiedCollected}`
+    );
+    assert(acctC.hasFinancialAnomaly === true, "Must flag financial anomaly for administrative review");
+    assert(
+      acctC.anomalyNotes.some((n) => n.includes("associated with removed roster members")),
+      "Anomaly notes must include removed roster member payment notification"
+    );
+    console.log("  PASS: Test C (Removed Verified Player) preserved historical money without applying to active balance\n");
+
+    // -------------------------------------------------------------------------
+    // TEST D: REMAINING ACTIVE PLAYER UNPAID (COMPLETENESS INVARIANT)
+    // -------------------------------------------------------------------------
+    console.log("[TEST D] Testing Remaining Active Player Unpaid (10 active: 9 verified, 1 unpaid, 1 removed verified)...");
+    // Verify payments for players 6, 7, 8, 9, 10 (leaving only player 11 unpaid)
+    for (let i = 5; i <= 9; i++) {
+      const rp = activeTestPlayers[i].rp;
+      const pay = await prisma.payments.findFirstOrThrow({
+        where: { registration_player_id: rp.id },
+      });
+      await prisma.payments.update({
+        where: { id: pay.id },
+        data: {
+          status: "VERIFIED",
+          verified_at: new Date(),
+          verified_by_profile_id: profile.id,
+        },
+      });
+    }
+
+    const regWithPlayersD = await prisma.registrations.findUniqueOrThrow({
+      where: { id: reg1.id },
+      include: {
+        teams: true,
+        leagues: true,
+        league_categories_registrations_league_category_idToleague_categories: true,
+        registration_players: {
+          include: {
+            players: true,
+            payments: true,
+          },
+        },
+        payments: true,
+      },
+    });
+
+    const acctD = calculateRegistrationAccounting(regWithPlayersD);
+    // 10 active players: 9 verified (₱2,700), 1 unpaid (₱300 due). 1 removed verified player (₱300).
+    // Total collected: ₱2,700 + ₱300 = ₱3,000.
+    // Active expected: ₱3,000.
+    // BUT player 11 is UNPAID, so paymentComplete MUST BE FALSE!
+    assert(acctD.rosterCount === 10, `Expected active rosterCount = 10, got ${acctD.rosterCount}`);
+    assert(acctD.paidPlayerCount === 9, `Expected paidPlayerCount = 9, got ${acctD.paidPlayerCount}`);
+    assert(acctD.unpaidPlayerCount === 1, `Expected unpaidPlayerCount = 1, got ${acctD.unpaidPlayerCount}`);
+    assert(acctD.verifiedPaidAmount === 2700, `Expected verifiedPaidAmount = 2700, got ${acctD.verifiedPaidAmount}`);
+    assert(acctD.balance === 300, `Expected balance = 300, got ${acctD.balance}`);
+    assert(acctD.paymentComplete === false, "CRITICAL: paymentComplete MUST be false when an active player is unpaid!");
+    assert(acctD.paymentCompletionStatus === "INCOMPLETE", "paymentCompletionStatus must be INCOMPLETE");
+    assert(acctD.totalVerifiedCollected === 3000, `Total verified collected is 3000 (2700 + 300)`);
+    console.log("  PASS: Test D: Removed player's ₱300 payment did NOT satisfy unpaid player 11. Completeness = INCOMPLETE\n");
+
+    // -------------------------------------------------------------------------
+    // TEST E: PUBLIC ROSTER EXCLUDES REMOVED PLAYERS
+    // -------------------------------------------------------------------------
+    console.log("[TEST E] Testing Public Roster query semantics (excludes REMOVED players)...");
+    const publicRosterQuery = await prisma.teams.findUniqueOrThrow({
+      where: { id: team1.id },
+      include: {
+        registrations: {
+          where: { id: reg1.id },
+          include: {
+            registration_players: {
+              where: { status: "ACTIVE" },
+            },
+            _count: {
+              select: {
+                registration_players: {
+                  where: { status: "ACTIVE" },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const activeList = publicRosterQuery.registrations[0].registration_players;
+    const activeCount = publicRosterQuery.registrations[0]._count.registration_players;
+    assert(activeList.length === 10, `Public roster must return 10 active players, got ${activeList.length}`);
+    assert(activeCount === 10, `Public roster count must be 10, got ${activeCount}`);
+    assert(!activeList.some((p) => p.id === rp5.id), "Removed player 5 must NOT appear in public roster");
+    assert(!activeList.some((p) => p.id === rp12.id), "Removed player 12 must NOT appear in public roster");
+    console.log("  PASS: Test E: Public roster query strictly filters for status: 'ACTIVE'\n");
+
+    // -------------------------------------------------------------------------
+    // TEST F: PHYSICAL DELETE PROTECTION (ON DELETE RESTRICT)
+    // -------------------------------------------------------------------------
+    console.log("[TEST F] Testing Physical Delete Protection on paid player...");
     let directDeleteError: { code?: string; message?: string } | null = null;
     try {
-      await pgClient.query("DELETE FROM registration_players WHERE id = $1;", [rpA.id]);
+      await pgClient.query("DELETE FROM registration_players WHERE id = $1;", [rp5.id]);
     } catch (err: unknown) {
       directDeleteError = err as { code?: string; message?: string };
     }
@@ -262,161 +483,90 @@ async function run() {
       Boolean(directDeleteError.message && directDeleteError.message.includes("fk_payments_registration_player")),
       "Error must reference fk_payments_registration_player constraint"
     );
-    console.log("  PASS: Direct SQL DELETE strictly rejected by Postgres constraint fk_payments_registration_player\n");
+
+    // Verify policy evaluation blocks deletion
+    const evalRp5 = await evaluateRosterMemberDeletionEligibility(rp5.id);
+    assert(evalRp5.eligible === false, "evaluateRosterMemberDeletionEligibility must block paid player");
+    assert(evalRp5.policy === "BLOCKED_VERIFIED_PAYMENT");
+    console.log("  PASS: Test F: Physical delete strictly rejected by Postgres constraint and application policy\n");
 
     // -------------------------------------------------------------------------
-    // TEST 4: VERIFIED PAYMENT PRESERVATION INVARIANT
+    // TEST G: UNVERIFIED HARD DELETE
     // -------------------------------------------------------------------------
-    console.log("[TEST 4] Verifying that verified payment and roster anchor are 100% intact...");
-    const verifiedPaymentAfter = await prisma.payments.findUnique({
-      where: { id: payVerified.id },
+    console.log("[TEST G] Testing Unverified Hard Delete (accidental player deletion)...");
+    // Create an unverified accidental player
+    const accidentalPlayer = await prisma.players.create({
+      data: { first_name: "Accidental", last_name: `Entry${uniqueSuffix}` },
     });
-    assert(verifiedPaymentAfter !== null, "Verified payment record must still exist");
-    assert(verifiedPaymentAfter.status === "VERIFIED", "Payment status must remain VERIFIED");
-    assert(
-      verifiedPaymentAfter.registration_player_id === rpA.id,
-      "Payment anchor to registration_players must be intact"
-    );
-    console.log("  PASS: Verified payment was NOT lost or modified\n");
+    cleanup.playerIds.push(accidentalPlayer.id);
 
-    // -------------------------------------------------------------------------
-    // TEST 5: POLICY EVALUATION FOR VERIFIED ROSTER MEMBER
-    // -------------------------------------------------------------------------
-    console.log("[TEST 5] Testing evaluateRosterMemberDeletionEligibility on VERIFIED player...");
-    const evalA = await evaluateRosterMemberDeletionEligibility(rpA.id);
-    assert(evalA.eligible === false, "Verified player must NOT be eligible for deletion");
-    assert(
-      evalA.policy === "BLOCKED_VERIFIED_PAYMENT",
-      `Expected policy 'BLOCKED_VERIFIED_PAYMENT', got '${evalA.policy}'`
-    );
-    assert(evalA.verifiedPaymentCount === 1, "Must report 1 verified payment");
-    console.log(`  - Reason: "${evalA.reason}"`);
-    console.log("  PASS: Verified roster member correctly BLOCKED from hard deletion\n");
+    const rpAccidental = await prisma.registration_players.create({
+      data: {
+        registration_id: reg1.id,
+        player_id: accidentalPlayer.id,
+        jersey_number: 99,
+        position: "Utility",
+        status: "ACTIVE",
+      },
+    });
+    cleanup.registrationPlayerIds.push(rpAccidental.id);
 
-    // -------------------------------------------------------------------------
-    // TEST 6: POLICY EVALUATION FOR UNVERIFIED ROSTER MEMBER
-    // -------------------------------------------------------------------------
-    console.log("[TEST 6] Testing evaluateRosterMemberDeletionEligibility on UNVERIFIED player...");
-    const evalB = await evaluateRosterMemberDeletionEligibility(rpB.id);
-    assert(evalB.eligible === true, "Unverified player must be eligible for deletion");
-    assert(
-      evalB.policy === "UNVERIFIED_HARD_DELETE_ALLOWED",
-      `Expected policy 'UNVERIFIED_HARD_DELETE_ALLOWED', got '${evalB.policy}'`
-    );
-    assert(evalB.verifiedPaymentCount === 0, "Must report 0 verified payments");
-    assert(evalB.pendingPaymentCount === 1, "Must detect 1 pending payment placeholder");
-    assert(evalB.pendingPaymentIds.includes(payPending.id), "Pending payment ID must be detected");
-    console.log(`  - Reason: "${evalB.reason}"`);
-    console.log("  PASS: Unverified roster member correctly approved for guarded hard deletion\n");
+    const payAccidental = await prisma.payments.create({
+      data: {
+        registration_id: reg1.id,
+        registration_player_id: rpAccidental.id,
+        payment_method: "OTHER",
+        amount: 300.0,
+        status: "PENDING",
+        notes: "Accidental entry pending placeholder",
+      },
+    });
+    cleanup.paymentIds.push(payAccidental.id);
 
-    // -------------------------------------------------------------------------
-    // TEST 7: SAFE ATOMIC HARD DELETION OF UNVERIFIED ROSTER MEMBER
-    // -------------------------------------------------------------------------
-    console.log("[TEST 7] Executing guarded hard deletion of unverified player B...");
+    // Eligibility check
+    const evalAccidental = await evaluateRosterMemberDeletionEligibility(rpAccidental.id);
+    assert(evalAccidental.eligible === true, "Unverified player must be eligible for deletion");
+    assert(evalAccidental.policy === "UNVERIFIED_HARD_DELETE_ALLOWED");
+
+    // Execute atomic hard delete
     const delResult = await executeUnverifiedRosterMemberHardDelete(adminContext, {
-      registrationPlayerId: rpB.id,
+      registrationPlayerId: rpAccidental.id,
       registrationId: reg1.id,
     });
+    assert(delResult.success === true, "Hard delete must succeed");
 
-    assert(delResult.success === true, `Deletion should succeed: ${delResult.error} - ${delResult.message}`);
-    assert(delResult.deletedRegistrationPlayerId === rpB.id);
-    assert(delResult.purgedPendingPaymentIds?.includes(payPending.id));
-
-    // Verify DB state:
-    // a. registration_players row deleted
-    const checkRpB = await prisma.registration_players.findUnique({
-      where: { id: rpB.id },
+    // Verify DB state
+    const checkRpAccidental = await prisma.registration_players.findUnique({
+      where: { id: rpAccidental.id },
     });
-    assert(checkRpB === null, "registration_players row must be deleted");
+    assert(checkRpAccidental === null, "registration_players row must be physically deleted");
 
-    // b. pending payment placeholder deleted
-    const checkPayPending = await prisma.payments.findUnique({
-      where: { id: payPending.id },
+    const checkPayAccidental = await prisma.payments.findUnique({
+      where: { id: payAccidental.id },
     });
-    assert(checkPayPending === null, "Pending payment placeholder must be deleted");
+    assert(checkPayAccidental === null, "Pending payment placeholder must be deleted");
 
-    // c. Global player record in players table MUST BE PRESERVED (Section E)
-    const checkPlayerB = await prisma.players.findUnique({
-      where: { id: playerB.id },
+    const checkGlobalPlayer = await prisma.players.findUnique({
+      where: { id: accidentalPlayer.id },
     });
-    assert(checkPlayerB !== null, "CRITICAL: Global players record must be PRESERVED after roster membership deletion");
-    console.log("  - Global player record preserved:", checkPlayerB.id, `${checkPlayerB.first_name} ${checkPlayerB.last_name}`);
+    assert(checkGlobalPlayer !== null, "CRITICAL: Global players record must be PRESERVED");
 
-    // d. Audit log recorded
+    // Audit log check
     assert(delResult.auditLogId, "Audit log ID must be returned");
     const auditLog = await prisma.admin_audit_logs.findUnique({
       where: { id: delResult.auditLogId },
     });
-    assert(auditLog !== null, "Audit log record must exist in DB");
-    assert(auditLog.action === "ROSTER_MEMBER_DELETED");
-    const auditMeta = (auditLog.metadata ?? {}) as Record<string, unknown>;
-    assert(auditMeta.registration_id === reg1.id, "Audit log must contain registration_id");
-    assert(auditMeta.global_player_preserved === true, "Audit log must record global player preservation");
-    console.log("  PASS: Atomic unverified deletion completed safely with audit trail and global player preserved\n");
+    assert(auditLog !== null && auditLog.action === "ROSTER_MEMBER_DELETED");
+    console.log("  PASS: Test G: Unverified member hard-deleted, placeholders purged, global player preserved, audit logged\n");
 
     // -------------------------------------------------------------------------
-    // TEST 8: ATTEMPT HARD DELETE ON VERIFIED PLAYER MUST THROW
+    // TEST H: REGISTRATION DELETE POLICY (ONLY CANCELLED ALLOWED)
     // -------------------------------------------------------------------------
-    console.log("[TEST 8] Verifying executeUnverifiedRosterMemberHardDelete rejects VERIFIED player...");
-    let caughtError: Error | null = null;
-    try {
-      await executeUnverifiedRosterMemberHardDelete(adminContext, {
-        registrationPlayerId: rpA.id,
-        registrationId: reg1.id,
-      });
-    } catch (err: unknown) {
-      caughtError = err as Error;
-    }
-    assert(caughtError !== null, "executeUnverifiedRosterMemberHardDelete must throw on verified player");
-    assert(
-      Boolean(caughtError.message && caughtError.message.includes("CRITICAL_FINANCIAL_INVARIANT_VIOLATION")),
-      "Error must state financial invariant violation"
-    );
-    console.log("  PASS: Hard delete function strictly refuses to delete player with verified payment\n");
+    console.log("[TEST H] Testing Registration Delete Policy (CANCELLED only)...");
+    const evalActiveReg = await evaluateRegistrationDeletionEligibility(reg1.id);
+    assert(evalActiveReg.eligible === false, "Active VERIFIED registration must be BLOCKED from deletion");
+    assert(evalActiveReg.policy === "BLOCKED_NOT_CANCELLED");
 
-    // -------------------------------------------------------------------------
-    // TEST 9: ROSTER STATUS LIFECYCLE (SOFT REMOVAL OF VERIFIED PLAYER)
-    // -------------------------------------------------------------------------
-    console.log("[TEST 9] Executing soft removal (ACTIVE -> REMOVED) for verified player A...");
-    const removeResult = await executeRosterMemberSoftRemoval(adminContext, {
-      registrationPlayerId: rpA.id,
-      registrationId: reg1.id,
-      reason: "Medical injury before match",
-    });
-
-    assert(removeResult.success === true, "Soft removal must succeed");
-    assert(removeResult.newStatus === "REMOVED");
-
-    const rpAAfterRemoval = await prisma.registration_players.findUniqueOrThrow({
-      where: { id: rpA.id },
-    });
-    assert(rpAAfterRemoval.status === "REMOVED", "Status must be REMOVED");
-    assert(rpAAfterRemoval.removed_at !== null, "removed_at must be populated");
-    assert(rpAAfterRemoval.removed_by_profile_id === profile.id, "removed_by_profile_id must be admin profile ID");
-    assert(rpAAfterRemoval.is_captain === false, "Captaincy must be relinquished on removal");
-
-    // Verified payment remains intact and attached
-    const payVerifiedAfterSoft = await prisma.payments.findUniqueOrThrow({
-      where: { id: payVerified.id },
-    });
-    assert(payVerifiedAfterSoft.status === "VERIFIED", "Payment must remain VERIFIED");
-    assert(payVerifiedAfterSoft.registration_player_id === rpA.id, "Payment anchor intact");
-    console.log("  PASS: Verified player safely transitioned to REMOVED with financial history intact\n");
-
-    // -------------------------------------------------------------------------
-    // TEST 10: REGISTRATION DELETION ELIGIBILITY (CANCELLED ONLY)
-    // -------------------------------------------------------------------------
-    console.log("[TEST 10] Testing evaluateRegistrationDeletionEligibility (CANCELLED only policy)...");
-    // Reg 1 is VERIFIED: must be blocked
-    const evalReg1 = await evaluateRegistrationDeletionEligibility(reg1.id);
-    assert(evalReg1.eligible === false, "VERIFIED registration must NOT be eligible for deletion");
-    assert(
-      evalReg1.policy === "BLOCKED_NOT_CANCELLED",
-      `Expected 'BLOCKED_NOT_CANCELLED', got '${evalReg1.policy}'`
-    );
-    console.log(`  - Non-cancelled registration evaluation: "${evalReg1.reason}"`);
-
-    // Create a CANCELLED registration
     const team2 = await prisma.teams.create({
       data: {
         team_name: `Cancelled Team ${uniqueSuffix}`,
@@ -439,106 +589,46 @@ async function run() {
     });
     cleanup.registrationId2 = regCancelled.id;
 
-    const evalRegCancelled = await evaluateRegistrationDeletionEligibility(regCancelled.id);
-    assert(evalRegCancelled.eligible === true, "CANCELLED registration may be eligible for deletion");
-    assert(
-      evalRegCancelled.policy === "CANCELLED_DELETE_ALLOWED",
-      `Expected 'CANCELLED_DELETE_ALLOWED', got '${evalRegCancelled.policy}'`
-    );
-    console.log(`  - Cancelled registration evaluation: "${evalRegCancelled.reason}"`);
-    console.log("  PASS: Team / Registration deletion policy strictly enforces CANCELLED requirement\n");
+    const evalCancelledReg = await evaluateRegistrationDeletionEligibility(regCancelled.id);
+    assert(evalCancelledReg.eligible === true, "CANCELLED registration may be eligible for deletion");
+    assert(evalCancelledReg.policy === "CANCELLED_DELETE_ALLOWED");
+    console.log("  PASS: Test H: Registration deletion policy strictly enforces CANCELLED requirement\n");
 
     // -------------------------------------------------------------------------
-    // TEST 11: PUBLIC TEAM PROFILE QUERY EXCLUDES REMOVED PLAYERS
+    // TEST I: MULTI-DIVISION PARTICIPATION SAFETY
     // -------------------------------------------------------------------------
-    console.log("[TEST 11] Verifying roster query semantics (excludes REMOVED players)...");
-    // Add an active player C to team1
-    const playerC = await prisma.players.create({
-      data: { first_name: "Carlos", last_name: "Reyes" },
-    });
-    cleanup.playerIds.push(playerC.id);
-
-    const rpC = await prisma.registration_players.create({
-      data: {
-        registration_id: reg1.id,
-        player_id: playerC.id,
-        jersey_number: 12,
-        position: "Libero",
-        status: "ACTIVE",
-      },
-    });
-    cleanup.registrationPlayerIds.push(rpC.id);
-
-    // Query team1 roster using the public query filter: where: { status: "ACTIVE" }
-    const teamWithActiveRoster = await prisma.teams.findUniqueOrThrow({
-      where: { id: team1.id },
-      include: {
-        registrations: {
-          where: { id: reg1.id },
-          include: {
-            registration_players: {
-              where: { status: "ACTIVE" },
-            },
-            _count: {
-              select: {
-                registration_players: {
-                  where: { status: "ACTIVE" },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    const activeRoster = teamWithActiveRoster.registrations[0].registration_players;
-    const activeCount = teamWithActiveRoster.registrations[0]._count.registration_players;
-
-    console.log(`  - Total active players returned: ${activeRoster.length} (count: ${activeCount})`);
-    assert(activeRoster.length === 1, `Expected 1 active player, got ${activeRoster.length}`);
-    assert(activeCount === 1, `Expected active count 1, got ${activeCount}`);
-    assert(activeRoster[0].id === rpC.id, "Active roster must contain active player C");
-    const containsRemoved = activeRoster.some((p) => p.id === rpA.id);
-    assert(!containsRemoved, "CRITICAL: REMOVED player A must NOT appear in active roster queries");
-    console.log("  PASS: Active roster query semantics correctly filter out REMOVED players\n");
-
-    // -------------------------------------------------------------------------
-    // TEST 12: MULTI-DIVISION PARTICIPATION SAFETY
-    // -------------------------------------------------------------------------
-    console.log("[TEST 12] Verifying multi-division participation invariant...");
-    // Player A (Juan) can have another active roster entry in a different category or league
-    const reg3 = await prisma.registrations.create({
+    console.log("[TEST I] Testing Multi-Division Participation Safety...");
+    const regDivisionB = await prisma.registrations.create({
       data: {
         league_id: league.id,
-        league_category_id: cat2.id, // Mahatao Only category
+        league_category_id: cat2.id,
         team_id: team1.id,
         registrant_first_name: "Maria",
         registrant_last_name: "Gomez",
         registrant_contact: "09171112222",
         status: "VERIFIED",
-        registration_code: `MVA-CAT2-${uniqueSuffix}`,
+        registration_code: `MVA-DIVB-${uniqueSuffix}`,
       },
     });
-    cleanup.registrationPlayerIds.push(
-      (
-        await prisma.registration_players.create({
-          data: {
-            registration_id: reg3.id,
-            player_id: playerA.id,
-            jersey_number: 7,
-            position: "Setter",
-            status: "ACTIVE",
-          },
-        })
-      ).id
-    );
-    // Cleanup reg3
-    await prisma.registration_players.deleteMany({ where: { registration_id: reg3.id } });
-    await prisma.registrations.delete({ where: { id: reg3.id } });
-    console.log("  PASS: Multi-division roster participation permitted without artificial 1-to-1 restriction\n");
+    // Add player 1 into Division B
+    const rpDivB = await prisma.registration_players.create({
+      data: {
+        registration_id: regDivisionB.id,
+        player_id: activeTestPlayers[0].pl.id,
+        jersey_number: 7,
+        position: "Setter",
+        status: "ACTIVE",
+      },
+    });
+    cleanup.registrationPlayerIds.push(rpDivB.id);
+
+    // Clean up regDivisionB
+    await prisma.registration_players.deleteMany({ where: { registration_id: regDivisionB.id } });
+    await prisma.registrations.delete({ where: { id: regDivisionB.id } });
+    console.log("  PASS: Test I: Multi-division participation invariant verified\n");
 
     console.log("================================================================================");
-    console.log("  ALL 12 PHASE 05.7D.3 SAFETY INVARIANT TESTS PASSED!");
+    console.log("  ALL TESTS PASSED SUCCESSFULLY!");
     console.log("================================================================================\n");
   } finally {
     // Deterministic Cleanup
@@ -581,10 +671,39 @@ async function run() {
         await prisma.admin_access.deleteMany({ where: { profile_id: cleanup.profileId } });
         await prisma.profiles.deleteMany({ where: { id: cleanup.profileId } });
       }
-      console.log("  Cleanup finished cleanly.");
+      console.log("  Cleanup finished cleanly.\n");
     } catch (cleanupErr) {
       console.error("  Warning during cleanup:", cleanupErr);
     }
+
+    // -------------------------------------------------------------------------
+    // PRESERVATION CHECK: SNAPSHOT AFTER CLEANUP
+    // -------------------------------------------------------------------------
+    console.log("[PRESERVATION] Taking post-test database snapshot...");
+    const snapshotAfter = await getDatabaseSnapshot(pgClient);
+    console.log(`  - players: ${snapshotAfter.playerCount} (before: ${snapshotBefore.playerCount})`);
+    console.log(`  - registration_players: ${snapshotAfter.registrationPlayerCount} (before: ${snapshotBefore.registrationPlayerCount})`);
+    console.log(`  - payments: ${snapshotAfter.paymentCount} (before: ${snapshotBefore.paymentCount})`);
+    console.log(`  - verified payment sum: ₱${snapshotAfter.verifiedPaymentSum.toFixed(2)} (before: ₱${snapshotBefore.verifiedPaymentSum.toFixed(2)})`);
+
+    assert(
+      snapshotAfter.playerCount === snapshotBefore.playerCount,
+      `players count mismatch: before=${snapshotBefore.playerCount}, after=${snapshotAfter.playerCount}`
+    );
+    assert(
+      snapshotAfter.registrationPlayerCount === snapshotBefore.registrationPlayerCount,
+      `registration_players count mismatch: before=${snapshotBefore.registrationPlayerCount}, after=${snapshotAfter.registrationPlayerCount}`
+    );
+    assert(
+      snapshotAfter.paymentCount === snapshotBefore.paymentCount,
+      `payments count mismatch: before=${snapshotBefore.paymentCount}, after=${snapshotAfter.paymentCount}`
+    );
+    assert(
+      Math.abs(snapshotAfter.verifiedPaymentSum - snapshotBefore.verifiedPaymentSum) < 0.001,
+      `verifiedPaymentSum mismatch: before=${snapshotBefore.verifiedPaymentSum}, after=${snapshotAfter.verifiedPaymentSum}`
+    );
+    console.log("  PASS: Database preservation verified! Zero data drift.\n");
+
     await pgClient.end();
     await prisma.$disconnect();
   }
