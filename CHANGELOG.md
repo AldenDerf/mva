@@ -8,6 +8,34 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Admin Roster Management (Phase 05.7D.4)
+
+* **Guarded Unverified Player Deletion (`lib/admin/roster-safety.ts`, `roster-actions.ts`)**:
+  * Implemented guarded administrative hard-deletion of unverified roster memberships (`registration_players`).
+  * Enforced server-side transactional re-check: strictly blocks deletion if any `VERIFIED` payment exists, returning clear direction to use roster removal instead.
+  * Explicitly purges eligible `PENDING`/`REJECTED` placeholder payments within the same interactive transaction.
+  * Strictly preserves global player identity records in `players`.
+  * Protects active team captain: blocks deletion/removal if the player is designated as captain, requiring captain reassignment first.
+  * Creates immutable audit record `ROSTER_MEMBER_DELETED` capturing reason, player, team, and previous status.
+* **Verified Player Removal (`lib/admin/roster-safety.ts`, `roster-actions.ts`)**:
+  * Exposes context-aware `REMOVE FROM ROSTER` action for active players with verified payments.
+  * Transitions lifecycle status to `REMOVED`, setting `removed_at` and `removed_by_profile_id`.
+  * Preserves verified payment records, financial history, and foreign key anchors intact.
+  * Emits immutable audit log `ROSTER_MEMBER_REMOVED` with required administrative reason.
+  * Safe and idempotent against duplicate/concurrent removal attempts.
+* **Player Restoration (`lib/admin/roster-safety.ts`, `roster-actions.ts`)**:
+  * Implemented `RESTORE TO ROSTER` action transitioning `REMOVED -> ACTIVE`.
+  * Clears current removal metadata (`removed_at`, `removed_by_profile_id`).
+  * Re-incorporates existing verified payments into active roster accounting without duplicate payment creation.
+  * Preserves historical removal audit trail and writes `ROSTER_MEMBER_RESTORED` audit event.
+* **Admin UX & Modals (`components/admin/RosterMemberActions.tsx`, `/admin/registrations/[id]`)**:
+  * Integrated mobile-first context-aware actions into player cards and desktop roster table.
+  * Added dedicated accessible modal dialogs with keyboard trapping, scroll locks, and required reason inputs.
+  * Added **Removed Players** subsection displaying historical removed roster members with removed date, previous details, and the Restore trigger.
+  * Updated operational roster count to reflect `ACTIVE` players with a separate count badge for removed players.
+* **Automated Verification (`scripts/verify-phase-05-7d4.ts`)**:
+  * Authored test suite covering all 28 domain invariants, financial boundaries, race conditions, idempotency, captain protection, and database preservation with zero data drift.
+
 ### Roster Safety Foundation & Deletion Policies (Phase 05.7D.3)
 
 * **Database Schema & Foreign Key Hardening (`prisma/schema.prisma`, `scripts/migrate-roster-safety-foundation.ts`)**:

@@ -160,9 +160,11 @@ export interface AdminRegistrationDetail {
     email: string | null;
   };
   roster: AdminRegistrationDetailPlayer[];
+  removedRoster: AdminRegistrationDetailPlayer[];
   payments: AdminRegistrationDetailPayment[];
   auditHistory: AdminRegistrationAuditEntry[];
   playerCount: number;
+  removedPlayerCount: number;
   accounting: CanonicalRegistrationAccounting;
 }
 
@@ -550,45 +552,54 @@ export const getAdminRegistrationById = cache(
     record.registrant_suffix
   );
 
-  const roster: AdminRegistrationDetailPlayer[] =
-    record.registration_players.map((rp) => {
-      const playerPay = rp.payments[0];
-      return {
-        id: rp.id,
-        playerId: rp.players.id,
-        fullName: formatFullName(
-          rp.players.first_name,
-          rp.players.middle_name,
-          rp.players.last_name,
-          rp.players.suffix
-        ),
-        firstName: rp.players.first_name,
-        middleName: rp.players.middle_name,
-        lastName: rp.players.last_name,
-        suffix: rp.players.suffix,
-        jerseyNumber: rp.jersey_number,
-        position: rp.position,
-        isCaptain: rp.is_captain,
-        contactNumber: rp.players.contact_number,
-        dateOfBirth: rp.players.date_of_birth,
-        registrationCount: rp.players._count?.registration_players ?? 1,
-        status: rp.status,
-        removedAt: rp.removed_at,
-        payment: playerPay
-          ? {
-              id: playerPay.id,
-              amount: Number(playerPay.amount),
-              paymentMethod: playerPay.payment_method,
-              referenceNumber: playerPay.reference_number,
-              status: playerPay.status,
-              verifiedAt: playerPay.verified_at,
-              verifiedByProfileId: playerPay.verified_by_profile_id,
-              notes: playerPay.notes,
-              createdAt: playerPay.created_at,
-            }
-          : null,
-      };
-    });
+  const mapRosterMember = (rp: (typeof record.registration_players)[number]): AdminRegistrationDetailPlayer => {
+    const playerPay = rp.payments[0];
+    return {
+      id: rp.id,
+      playerId: rp.players.id,
+      fullName: formatFullName(
+        rp.players.first_name,
+        rp.players.middle_name,
+        rp.players.last_name,
+        rp.players.suffix
+      ),
+      firstName: rp.players.first_name,
+      middleName: rp.players.middle_name,
+      lastName: rp.players.last_name,
+      suffix: rp.players.suffix,
+      jerseyNumber: rp.jersey_number,
+      position: rp.position,
+      isCaptain: rp.is_captain,
+      contactNumber: rp.players.contact_number,
+      dateOfBirth: rp.players.date_of_birth,
+      registrationCount: rp.players._count?.registration_players ?? 1,
+      status: rp.status,
+      removedAt: rp.removed_at,
+      payment: playerPay
+        ? {
+            id: playerPay.id,
+            amount: Number(playerPay.amount),
+            paymentMethod: playerPay.payment_method,
+            referenceNumber: playerPay.reference_number,
+            status: playerPay.status,
+            verifiedAt: playerPay.verified_at,
+            verifiedByProfileId: playerPay.verified_by_profile_id,
+            notes: playerPay.notes,
+            createdAt: playerPay.created_at,
+          }
+        : null,
+    };
+  };
+
+  const activeRosterMembers = record.registration_players.filter(
+    (rp) => rp.status !== "REMOVED"
+  );
+  const removedRosterMembers = record.registration_players.filter(
+    (rp) => rp.status === "REMOVED"
+  );
+
+  const roster: AdminRegistrationDetailPlayer[] = activeRosterMembers.map(mapRosterMember);
+  const removedRoster: AdminRegistrationDetailPlayer[] = removedRosterMembers.map(mapRosterMember);
 
   const payments: AdminRegistrationDetailPayment[] = record.payments.map(
     (p) => ({
@@ -671,9 +682,11 @@ export const getAdminRegistrationById = cache(
       email: record.registrant_email,
     },
     roster,
+    removedRoster,
     payments,
     auditHistory,
     playerCount: roster.length,
+    removedPlayerCount: removedRoster.length,
     accounting: calculateRegistrationAccounting(record),
   };
 });

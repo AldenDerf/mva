@@ -6,6 +6,14 @@ import {
   addPlayerToRoster,
   AddPlayerResult,
 } from "@/lib/admin/roster-mutations";
+import {
+  executeUnverifiedRosterMemberHardDelete,
+  executeRosterMemberSoftRemoval,
+  executeRosterMemberRestore,
+  UnverifiedRosterMemberDeleteResult,
+  RosterMemberSoftRemoveResult,
+  RosterMemberRestoreResult,
+} from "@/lib/admin/roster-safety";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -116,6 +124,200 @@ export async function addPlayerToRosterAction(
     revalidatePath("/admin");
     revalidatePath("/admin/registrations");
     revalidatePath(`/admin/registrations/${registrationId}`);
+    revalidatePath("/teams");
+  }
+
+  return result;
+}
+
+function revalidateRosterPaths(registrationId: string, teamSlug?: string) {
+  revalidatePath("/admin");
+  revalidatePath("/admin/registrations");
+  revalidatePath(`/admin/registrations/${registrationId}`);
+  revalidatePath("/teams");
+  if (teamSlug && typeof teamSlug === "string" && teamSlug.trim()) {
+    revalidatePath(`/teams/${teamSlug.trim()}`);
+  }
+}
+
+export interface DeleteRosterMemberActionInput {
+  registrationId: string;
+  registrationPlayerId: string;
+  reason: string;
+  teamSlug?: string;
+}
+
+/**
+ * Server action to hard-delete an unverified player from a registration roster.
+ * Strictly blocked if any verified payment exists.
+ */
+export async function deleteRosterMemberAction(
+  input: DeleteRosterMemberActionInput
+): Promise<UnverifiedRosterMemberDeleteResult> {
+  const admin = await requireAdmin();
+
+  if (!input || typeof input !== "object") {
+    return {
+      success: false,
+      error: "VALIDATION_ERROR",
+      message: "Invalid delete request payload.",
+    };
+  }
+
+  const { registrationId, registrationPlayerId, reason, teamSlug } = input;
+
+  if (!registrationId || !UUID_REGEX.test(registrationId)) {
+    return {
+      success: false,
+      error: "VALIDATION_ERROR",
+      message: "Invalid registration record ID.",
+    };
+  }
+
+  if (!registrationPlayerId || !UUID_REGEX.test(registrationPlayerId)) {
+    return {
+      success: false,
+      error: "VALIDATION_ERROR",
+      message: "Invalid roster player ID.",
+    };
+  }
+
+  const trimmedReason = typeof reason === "string" ? reason.trim() : "";
+  if (!trimmedReason) {
+    return {
+      success: false,
+      error: "VALIDATION_ERROR",
+      message: "A reason is strictly required to delete a player from the roster.",
+    };
+  }
+
+  const result = await executeUnverifiedRosterMemberHardDelete(admin, {
+    registrationId,
+    registrationPlayerId,
+    reason: trimmedReason,
+  });
+
+  if (result.success) {
+    revalidateRosterPaths(registrationId, teamSlug);
+  }
+
+  return result;
+}
+
+export interface RemoveRosterMemberActionInput {
+  registrationId: string;
+  registrationPlayerId: string;
+  reason: string;
+  teamSlug?: string;
+}
+
+/**
+ * Server action to transition a verified player to REMOVED status.
+ * Preserves payment and audit history while hiding the player from active roster.
+ */
+export async function removeRosterMemberAction(
+  input: RemoveRosterMemberActionInput
+): Promise<RosterMemberSoftRemoveResult> {
+  const admin = await requireAdmin();
+
+  if (!input || typeof input !== "object") {
+    return {
+      success: false,
+      error: "VALIDATION_ERROR",
+      message: "Invalid remove request payload.",
+    };
+  }
+
+  const { registrationId, registrationPlayerId, reason, teamSlug } = input;
+
+  if (!registrationId || !UUID_REGEX.test(registrationId)) {
+    return {
+      success: false,
+      error: "VALIDATION_ERROR",
+      message: "Invalid registration record ID.",
+    };
+  }
+
+  if (!registrationPlayerId || !UUID_REGEX.test(registrationPlayerId)) {
+    return {
+      success: false,
+      error: "VALIDATION_ERROR",
+      message: "Invalid roster player ID.",
+    };
+  }
+
+  const trimmedReason = typeof reason === "string" ? reason.trim() : "";
+  if (!trimmedReason) {
+    return {
+      success: false,
+      error: "VALIDATION_ERROR",
+      message: "A reason is strictly required to remove a player from the roster.",
+    };
+  }
+
+  const result = await executeRosterMemberSoftRemoval(admin, {
+    registrationId,
+    registrationPlayerId,
+    reason: trimmedReason,
+  });
+
+  if (result.success) {
+    revalidateRosterPaths(registrationId, teamSlug);
+  }
+
+  return result;
+}
+
+export interface RestoreRosterMemberActionInput {
+  registrationId: string;
+  registrationPlayerId: string;
+  reason?: string;
+  teamSlug?: string;
+}
+
+/**
+ * Server action to restore a REMOVED player back to ACTIVE status.
+ * Re-incorporates existing verified payments into canonical accounting.
+ */
+export async function restoreRosterMemberAction(
+  input: RestoreRosterMemberActionInput
+): Promise<RosterMemberRestoreResult> {
+  const admin = await requireAdmin();
+
+  if (!input || typeof input !== "object") {
+    return {
+      success: false,
+      error: "VALIDATION_ERROR",
+      message: "Invalid restore request payload.",
+    };
+  }
+
+  const { registrationId, registrationPlayerId, reason, teamSlug } = input;
+
+  if (!registrationId || !UUID_REGEX.test(registrationId)) {
+    return {
+      success: false,
+      error: "VALIDATION_ERROR",
+      message: "Invalid registration record ID.",
+    };
+  }
+
+  if (!registrationPlayerId || !UUID_REGEX.test(registrationPlayerId)) {
+    return {
+      success: false,
+      error: "VALIDATION_ERROR",
+      message: "Invalid roster player ID.",
+    };
+  }
+
+  const result = await executeRosterMemberRestore(admin, {
+    registrationId,
+    registrationPlayerId,
+    reason: typeof reason === "string" ? reason.trim() : undefined,
+  });
+
+  if (result.success) {
+    revalidateRosterPaths(registrationId, teamSlug);
   }
 
   return result;

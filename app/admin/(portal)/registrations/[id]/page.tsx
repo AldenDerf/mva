@@ -14,6 +14,7 @@ import { AddPlayerModal } from "@/components/admin/AddPlayerModal";
 import { PaymentCorrectionButton } from "@/components/admin/PaymentCorrectionButton";
 import { EditPlayerButton } from "@/components/admin/EditPlayerButton";
 import { EditTeamButton } from "@/components/admin/EditTeamButton";
+import { RosterMemberActions } from "@/components/admin/RosterMemberActions";
 
 interface PageProps {
   params: Promise<{
@@ -76,6 +77,9 @@ const AUDIT_STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
   PENDING: "Pending",
   REFUNDED: "Refunded",
+  ROSTER_MEMBER_DELETED: "Player Deleted from Roster",
+  ROSTER_MEMBER_REMOVED: "Player Removed from Roster",
+  ROSTER_MEMBER_RESTORED: "Player Restored to Roster",
 };
 
 function formatAuditStatus(status: string): string {
@@ -349,7 +353,12 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
               </div>
               <div className="flex items-center gap-2.5">
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#FAFAF8] text-[#172019] border border-[#DDE3DE]">
-                  {reg.playerCount} {reg.playerCount === 1 ? "Player" : "Players"}
+                  {reg.playerCount} Active {reg.playerCount === 1 ? "Player" : "Players"}
+                  {reg.removedPlayerCount > 0 && (
+                    <span className="ml-1 text-[#5F6B61] font-normal">
+                      ({reg.removedPlayerCount} removed)
+                    </span>
+                  )}
                 </span>
                 {reg.status === "VERIFIED" && (
                   <AddPlayerModal
@@ -430,25 +439,38 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
 
                         {/* Mobile Action Row */}
                         <div className="pt-2 border-t border-[#DDE3DE]/60 flex flex-wrap items-center justify-between gap-2">
-                          <EditPlayerButton
-                            player={{
-                              registrationId: reg.id,
-                              registrationPlayerId: player.id,
-                              playerId: player.playerId,
-                              teamSlug: reg.team.slug,
-                              firstName: player.firstName,
-                              middleName: player.middleName,
-                              lastName: player.lastName,
-                              suffix: player.suffix,
-                              contactNumber: player.contactNumber,
-                              dateOfBirth: player.dateOfBirth,
-                              registrationCount: player.registrationCount,
-                              jerseyNumber: player.jerseyNumber,
-                              position: player.position,
-                              isCaptain: player.isCaptain,
-                            }}
-                            size="xs"
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <EditPlayerButton
+                              player={{
+                                registrationId: reg.id,
+                                registrationPlayerId: player.id,
+                                playerId: player.playerId,
+                                teamSlug: reg.team.slug,
+                                firstName: player.firstName,
+                                middleName: player.middleName,
+                                lastName: player.lastName,
+                                suffix: player.suffix,
+                                contactNumber: player.contactNumber,
+                                dateOfBirth: player.dateOfBirth,
+                                registrationCount: player.registrationCount,
+                                jerseyNumber: player.jerseyNumber,
+                                position: player.position,
+                                isCaptain: player.isCaptain,
+                              }}
+                              size="xs"
+                            />
+                            <RosterMemberActions
+                              registrationId={reg.id}
+                              registrationPlayerId={player.id}
+                              playerName={player.fullName}
+                              teamName={reg.team.name}
+                              teamSlug={reg.team.slug}
+                              status={player.status}
+                              hasVerifiedPayment={isPaid}
+                              isCaptain={player.isCaptain}
+                              size="xs"
+                            />
+                          </div>
                           <PlayerPaymentActionControls
                             registrationId={reg.id}
                             registrationPlayerId={player.id}
@@ -576,6 +598,17 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                 }}
                                 size="xs"
                               />
+                              <RosterMemberActions
+                                registrationId={reg.id}
+                                registrationPlayerId={player.id}
+                                playerName={player.fullName}
+                                teamName={reg.team.name}
+                                teamSlug={reg.team.slug}
+                                status={player.status}
+                                hasVerifiedPayment={player.payment?.status === "VERIFIED"}
+                                isCaptain={player.isCaptain}
+                                size="xs"
+                              />
                             </div>
                           </td>
                         </tr>
@@ -584,6 +617,76 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                   </table>
                 </div>
               </>
+            )}
+
+            {/* ============================================================ */}
+            {/* SUBSECTION: REMOVED PLAYERS (Historical Roster Members)       */}
+            {/* ============================================================ */}
+            {reg.removedRoster.length > 0 && (
+              <div className="border-t border-[#DDE3DE] bg-[#FAFAF8]/60 p-5 sm:p-6 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#172019] flex items-center gap-2">
+                      <span>Removed Players</span>
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#DDE3DE] text-[#172019]">
+                        {reg.removedPlayerCount}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-[#5F6B61] mt-0.5">
+                      Historical roster members removed from active competition. Financial and payment history is preserved.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="divide-y divide-[#DDE3DE] rounded-xl border border-[#DDE3DE] bg-white overflow-hidden shadow-2xs">
+                  {reg.removedRoster.map((player) => {
+                    const hasVerified = player.payment?.status === "VERIFIED";
+                    return (
+                      <div
+                        key={player.id}
+                        className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs hover:bg-[#FAFAF8]/50 transition-colors"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-[#172019] text-sm">
+                              {player.fullName}
+                            </span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-100 text-[#5F6B61] border border-[#DDE3DE]">
+                              Removed
+                            </span>
+                            {hasVerified && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-[#205823]/10 text-[#205823] border border-[#205823]/20">
+                                Paid ₱{player.payment?.amount.toFixed(0)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-[#5F6B61] flex flex-wrap items-center gap-2">
+                            {player.jerseyNumber !== null && <span>#{player.jerseyNumber}</span>}
+                            {player.position && <span>• {player.position}</span>}
+                            {player.removedAt && (
+                              <span>• Removed on {formatDate(player.removedAt)}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                          <RosterMemberActions
+                            registrationId={reg.id}
+                            registrationPlayerId={player.id}
+                            playerName={player.fullName}
+                            teamName={reg.team.name}
+                            teamSlug={reg.team.slug}
+                            status="REMOVED"
+                            hasVerifiedPayment={hasVerified}
+                            isCaptain={false}
+                            size="xs"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </section>
 
@@ -617,13 +720,17 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
             ) : (
               <div className="divide-y divide-[#DDE3DE]">
                 {reg.payments.map((p, idx) => {
-                  const associatedPlayer = reg.roster.find(
-                    (r) => r.payment?.id === p.id
+                  const allPlayers = [...reg.roster, ...reg.removedRoster];
+                  const associatedPlayer = allPlayers.find(
+                    (r) => r.payment?.id === p.id || (p.registrationPlayerId && r.id === p.registrationPlayerId)
                   );
                   const isUnassigned = p.registrationPlayerId === null;
+                  const isRemoved = associatedPlayer?.status === "REMOVED";
                   const playerName = isUnassigned
                     ? "Unassigned Payment"
-                    : associatedPlayer?.fullName || "Roster Player";
+                    : associatedPlayer
+                    ? `${associatedPlayer.fullName}${isRemoved ? " (Removed)" : ""}`
+                    : "Roster Player";
 
                   return (
                     <div key={p.id} className="p-5 sm:p-6 space-y-4 hover:bg-[#FAFAF8]/40 transition-colors">
