@@ -8,6 +8,20 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Roster Safety Foundation & Deletion Policies (Phase 05.7D.3)
+
+* **Database Schema & Foreign Key Hardening (`prisma/schema.prisma`, `scripts/migrate-roster-safety-foundation.ts`)**:
+  * **Removed Generic Payment Cascade**: Replaced the dangerous `ON DELETE CASCADE` on `payments.fk_payments_registration_player` with `ON DELETE RESTRICT` (PostgreSQL `confdeltype = 'r'`). Database now rejects physical deletion of any roster member linked to payment history.
+  * **Roster Lifecycle Model (`roster_status`)**: Introduced `roster_status` enum (`ACTIVE`, `REMOVED`) and added `status`, `removed_at`, and `removed_by_profile_id` columns to `registration_players`.
+* **Authoritative Deletion & Removal Policies (`lib/admin/roster-safety.ts`)**:
+  * **Player Roster Deletion vs Verified Payment Boundary**: Established the fundamental rule that roster members with VERIFIED payments are strictly blocked from hard deletion and must follow the `ACTIVE -> REMOVED` lifecycle.
+  * **Guarded Hard Deletion for Unverified Players**: Unverified roster members (accidental registrations) are eligible for guarded deletion; linked unverified `PENDING` placeholders are explicitly purged inside the controlled transaction rather than relying on automatic FK cascade.
+  * **Global Player Identity Preservation**: Ensured deleting an unverified roster membership strictly preserves the global `players` table record.
+  * **Registration Deletion Restriction**: Restricts team registration deletion eligibility strictly to registrations with `status = 'CANCELLED'`. Non-cancelled registrations are prohibited from deletion.
+* **Status-Aware Query Semantics (`lib/public/teams.ts`, `lib/admin/registrations.ts`, `lib/admin/accounting.ts`)**:
+  * Filtered public tournament team rosters and counts to display only `ACTIVE` roster members.
+  * Augmented administrative registration details with roster status and removal metadata.
+
 ### Safe Player, Roster & Team Metadata Corrections (Phase 05.7D.2)
 
 * **Domain Services & Concurrency Safety (`lib/admin/player-corrections.ts`, `lib/admin/team-corrections.ts`)**:

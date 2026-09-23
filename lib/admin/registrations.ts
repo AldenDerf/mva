@@ -4,6 +4,7 @@ import {
   registration_status,
   payment_status,
   payment_method,
+  roster_status,
   Prisma,
 } from "@prisma/client";
 import {
@@ -90,6 +91,8 @@ export interface AdminRegistrationDetailPlayer {
   contactNumber: string | null;
   dateOfBirth: Date | null;
   registrationCount: number;
+  status: roster_status;
+  removedAt: Date | null;
   payment: AdminPlayerPaymentInfo | null;
 }
 
@@ -298,6 +301,7 @@ export async function getAdminRegistrations(
             jersey_number: true,
             position: true,
             is_captain: true,
+            status: true,
             players: {
               select: {
                 id: true,
@@ -462,6 +466,8 @@ export const getAdminRegistrationById = cache(
             jersey_number: true,
             position: true,
             is_captain: true,
+            status: true,
+            removed_at: true,
             players: {
               select: {
                 id: true,
@@ -566,6 +572,8 @@ export const getAdminRegistrationById = cache(
         contactNumber: rp.players.contact_number,
         dateOfBirth: rp.players.date_of_birth,
         registrationCount: rp.players._count?.registration_players ?? 1,
+        status: rp.status,
+        removedAt: rp.removed_at,
         payment: playerPay
           ? {
               id: playerPay.id,

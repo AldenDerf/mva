@@ -189,7 +189,11 @@ export async function getPublicTeams(): Promise<{
       },
       _count: {
         select: {
-          registration_players: true,
+          registration_players: {
+            where: {
+              status: "ACTIVE",
+            },
+          },
         },
       },
     },
@@ -305,6 +309,9 @@ export const getPublicTeamBySlug = cache(
             },
           },
           registration_players: {
+            where: {
+              status: "ACTIVE",
+            },
             select: {
               id: true,
               jersey_number: true,

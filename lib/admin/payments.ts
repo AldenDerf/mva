@@ -135,6 +135,7 @@ export async function getBatchRegistrationAccounting(
           jersey_number: true,
           position: true,
           is_captain: true,
+          status: true,
           players: {
             select: {
               id: true,

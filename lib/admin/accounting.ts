@@ -4,6 +4,7 @@ import {
   payment_status,
   payment_method,
   league_status,
+  roster_status,
 } from "@prisma/client";
 import { getActivePublicLeague } from "@/lib/public/teams";
 
@@ -84,13 +85,17 @@ export interface CanonicalRegistrationAccounting {
   // Player Breakdowns
   rosterPayments: RegistrationPlayerPaymentSummary[];
 
+  // Historical / Removed Roster Accounting
+  historicalRemovedVerifiedAmount: number;
+  removedRosterCount: number;
+
   // Legacy / Unallocated Payments (registration_player_id = null)
   unallocatedVerifiedAmount: number;
   unallocatedPendingAmount: number;
   legacyPayments: LegacyUnallocatedPaymentSummary[];
   hasLegacyPayments: boolean;
 
-  // Total Verified Cash Collected across all records (per-player + legacy)
+  // Total Verified Cash Collected across all records (active per-player + removed per-player + legacy)
   totalVerifiedCollected: number;
 
   // Financial Anomaly Guard
@@ -120,8 +125,9 @@ export interface TournamentAccountingSummary {
   verifiedPaymentCompleteTeams: number;
   verifiedPaymentIncompleteTeams: number;
 
-  // Unallocated / Legacy
+  // Unallocated / Legacy / Historical
   totalUnallocatedVerifiedAmount: number;
+  totalHistoricalRemovedVerifiedAmount: number;
   totalCombinedVerifiedAmount: number;
 }
 
@@ -151,6 +157,7 @@ export interface RawRegistrationAccountingInput {
     jersey_number?: number | null;
     position?: string | null;
     is_captain?: boolean;
+    status?: roster_status;
     players?: {
       id: string;
       first_name: string;
@@ -218,7 +225,17 @@ export function calculateRegistrationAccounting(
   const rawFee = category ? Number(category.registration_fee) : 0;
   const feePerPlayer = rawFee > 0 ? rawFee : DEFAULT_PLAYER_REGISTRATION_FEE;
 
-  const rosterCount = input.registration_players.length;
+  // Separate ACTIVE roster members from REMOVED historical members
+  // Backward compatibility: if status is omitted/undefined, treat as ACTIVE
+  const activeRosterPlayers = input.registration_players.filter(
+    (rp) => rp.status === undefined || rp.status === "ACTIVE"
+  );
+  const removedRosterPlayers = input.registration_players.filter(
+    (rp) => rp.status === "REMOVED"
+  );
+
+  const rosterCount = activeRosterPlayers.length;
+  const removedRosterCount = removedRosterPlayers.length;
   const expectedAmount = rosterCount * feePerPlayer;
 
   let verifiedPaidAmount = 0;
@@ -226,7 +243,7 @@ export function calculateRegistrationAccounting(
 
   const rosterPayments: RegistrationPlayerPaymentSummary[] = [];
 
-  for (const rp of input.registration_players) {
+  for (const rp of activeRosterPlayers) {
     const playerName = rp.players
       ? formatFullName(
           rp.players.first_name,
@@ -284,6 +301,16 @@ export function calculateRegistrationAccounting(
     });
   }
 
+  // Calculate historical VERIFIED payments attached to REMOVED roster members
+  let historicalRemovedVerifiedAmount = 0;
+  for (const rp of removedRosterPlayers) {
+    for (const p of rp.payments) {
+      if (p.status === "VERIFIED") {
+        historicalRemovedVerifiedAmount += Number(p.amount);
+      }
+    }
+  }
+
   const unpaidPlayerCount = Math.max(0, rosterCount - paidPlayerCount);
   const balance = expectedAmount - verifiedPaidAmount;
 
@@ -323,7 +350,8 @@ export function calculateRegistrationAccounting(
   }
 
   const hasLegacyPayments = legacyPayments.length > 0;
-  const totalVerifiedCollected = verifiedPaidAmount + unallocatedVerifiedAmount;
+  const totalVerifiedCollected =
+    verifiedPaidAmount + historicalRemovedVerifiedAmount + unallocatedVerifiedAmount;
 
   // Financial Anomaly Detection
   const anomalyNotes: string[] = [];
@@ -332,7 +360,7 @@ export function calculateRegistrationAccounting(
   if (verifiedPaidAmount > expectedAmount) {
     hasFinancialAnomaly = true;
     anomalyNotes.push(
-      `Verified per-player payments (₱${verifiedPaidAmount.toFixed(
+      `Verified active per-player payments (₱${verifiedPaidAmount.toFixed(
         2
       )}) exceed expected fees (₱${expectedAmount.toFixed(2)}) by ₱${(
         verifiedPaidAmount - expectedAmount
@@ -346,6 +374,15 @@ export function calculateRegistrationAccounting(
       `Contains ₱${unallocatedVerifiedAmount.toFixed(
         2
       )} in legacy/unallocated verified payments requiring administrative reconciliation.`
+    );
+  }
+
+  if (historicalRemovedVerifiedAmount > 0) {
+    hasFinancialAnomaly = true;
+    anomalyNotes.push(
+      `Contains ₱${historicalRemovedVerifiedAmount.toFixed(
+        2
+      )} in verified payment(s) associated with removed roster members requiring administrative review.`
     );
   }
 
@@ -374,6 +411,9 @@ export function calculateRegistrationAccounting(
     paymentCompletionStatus,
 
     rosterPayments,
+
+    historicalRemovedVerifiedAmount,
+    removedRosterCount,
 
     unallocatedVerifiedAmount,
     unallocatedPendingAmount,
@@ -449,6 +489,7 @@ export async function getTournamentAccountingSummary(
           jersey_number: true,
           position: true,
           is_captain: true,
+          status: true,
           players: {
             select: {
               id: true,
@@ -510,6 +551,7 @@ export async function getTournamentAccountingSummary(
   let verifiedPaymentIncompleteTeams = 0;
 
   let totalUnallocatedVerifiedAmount = 0;
+  let totalHistoricalRemovedVerifiedAmount = 0;
 
   for (const reg of registrations) {
     const acct = calculateRegistrationAccounting(reg);
@@ -523,6 +565,7 @@ export async function getTournamentAccountingSummary(
     totalUnpaidPlayers += acct.unpaidPlayerCount;
 
     totalUnallocatedVerifiedAmount += acct.unallocatedVerifiedAmount;
+    totalHistoricalRemovedVerifiedAmount += acct.historicalRemovedVerifiedAmount;
 
     if (acct.registrationStatus === "VERIFIED") {
       verifiedTeams += 1;
@@ -558,7 +601,11 @@ export async function getTournamentAccountingSummary(
     verifiedPaymentIncompleteTeams,
 
     totalUnallocatedVerifiedAmount,
-    totalCombinedVerifiedAmount: totalVerifiedPaidAmount + totalUnallocatedVerifiedAmount,
+    totalHistoricalRemovedVerifiedAmount,
+    totalCombinedVerifiedAmount:
+      totalVerifiedPaidAmount +
+      totalUnallocatedVerifiedAmount +
+      totalHistoricalRemovedVerifiedAmount,
   };
 }
 
