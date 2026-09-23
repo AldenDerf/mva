@@ -64,7 +64,7 @@ model payments {
   created_at             DateTime              @default(now()) @db.Timestamptz(6)
   updated_at             DateTime              @default(now()) @db.Timestamptz(6)
   registrations          registrations         @relation(fields: [registration_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_payments_registration")
-  registration_players   registration_players? @relation(fields: [registration_player_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_payments_registration_player")
+  registration_players   registration_players? @relation(fields: [registration_player_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_payments_registration_player")
   verified_by_profile    profiles?             @relation("payments_verified_by", fields: [verified_by_profile_id], references: [id], onUpdate: NoAction, map: "fk_payments_verified_by_profile")
 
   @@index([registration_id], map: "idx_payments_registration")
@@ -98,15 +98,21 @@ model registration_players {
   player_id       String        @db.Uuid
   jersey_number   Int?
   position        String?       @db.VarChar(50)
-  is_captain      Boolean       @default(false)
-  created_at      DateTime      @default(now()) @db.Timestamptz(6)
-  players         players       @relation(fields: [player_id], references: [id], onUpdate: NoAction, map: "fk_registration_players_player")
-  registrations   registrations @relation(fields: [registration_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_registration_players_registration")
-  payments        payments[]
+  is_captain            Boolean                @default(false)
+  status                roster_status          @default(ACTIVE)
+  removed_at            DateTime?              @db.Timestamptz(6)
+  removed_by_profile_id String?                @db.Uuid
+  created_at            DateTime               @default(now()) @db.Timestamptz(6)
+  players               players                @relation(fields: [player_id], references: [id], onUpdate: NoAction, map: "fk_registration_players_player")
+  registrations         registrations          @relation(fields: [registration_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_registration_players_registration")
+  removed_by_profile    profiles?              @relation("roster_removed_by", fields: [removed_by_profile_id], references: [id], onUpdate: NoAction, map: "fk_registration_players_removed_by")
+  payments              payments[]
 
   @@unique([registration_id, player_id], map: "uq_registration_player")
   @@index([player_id], map: "idx_registration_players_player")
   @@index([registration_id], map: "idx_registration_players_registration")
+  @@index([status], map: "idx_registration_players_status")
+  @@index([removed_by_profile_id], map: "idx_registration_players_removed_by")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -197,8 +203,9 @@ model profiles {
   created_at        DateTime           @default(now()) @db.Timestamptz(6)
   updated_at        DateTime           @default(now()) @db.Timestamptz(6)
   admin_access      admin_access?
-  admin_audit_logs  admin_audit_logs[]
-  verified_payments payments[]         @relation("payments_verified_by")
+  admin_audit_logs       admin_audit_logs[]
+  verified_payments      payments[]             @relation("payments_verified_by")
+  removed_roster_members registration_players[] @relation("roster_removed_by")
 
   @@index([email], map: "idx_profiles_email")
 }
@@ -231,4 +238,9 @@ enum registration_status {
   VERIFIED
   REJECTED
   CANCELLED
+}
+
+enum roster_status {
+  ACTIVE
+  REMOVED
 }

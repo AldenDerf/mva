@@ -4,6 +4,7 @@ import {
   payment_status,
   payment_method,
   league_status,
+  roster_status,
 } from "@prisma/client";
 import { getActivePublicLeague } from "@/lib/public/teams";
 
@@ -151,6 +152,7 @@ export interface RawRegistrationAccountingInput {
     jersey_number?: number | null;
     position?: string | null;
     is_captain?: boolean;
+    status?: roster_status;
     players?: {
       id: string;
       first_name: string;
