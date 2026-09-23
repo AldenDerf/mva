@@ -87,6 +87,9 @@ export interface AdminRegistrationDetailPlayer {
   jerseyNumber: number | null;
   position: string | null;
   isCaptain: boolean;
+  contactNumber: string | null;
+  dateOfBirth: Date | null;
+  registrationCount: number;
   payment: AdminPlayerPaymentInfo | null;
 }
 
@@ -466,6 +469,13 @@ export const getAdminRegistrationById = cache(
                 middle_name: true,
                 last_name: true,
                 suffix: true,
+                contact_number: true,
+                date_of_birth: true,
+                _count: {
+                  select: {
+                    registration_players: true,
+                  },
+                },
               },
             },
             payments: {
@@ -553,6 +563,9 @@ export const getAdminRegistrationById = cache(
         jerseyNumber: rp.jersey_number,
         position: rp.position,
         isCaptain: rp.is_captain,
+        contactNumber: rp.players.contact_number,
+        dateOfBirth: rp.players.date_of_birth,
+        registrationCount: rp.players._count?.registration_players ?? 1,
         payment: playerPay
           ? {
               id: playerPay.id,
