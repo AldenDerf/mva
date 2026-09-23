@@ -12,6 +12,8 @@ import { RegistrationActionControls } from "@/components/admin/RegistrationActio
 import { PlayerPaymentActionControls } from "@/components/admin/PlayerPaymentActionControls";
 import { AddPlayerModal } from "@/components/admin/AddPlayerModal";
 import { PaymentCorrectionButton } from "@/components/admin/PaymentCorrectionButton";
+import { EditPlayerButton } from "@/components/admin/EditPlayerButton";
+import { EditTeamButton } from "@/components/admin/EditTeamButton";
 
 interface PageProps {
   params: Promise<{
@@ -117,9 +119,19 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
       <div className="bg-white rounded-2xl border border-[#DDE3DE] p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-start justify-between gap-6">
         <div className="space-y-2">
           {/* Primary Visual Anchor: Team Name */}
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#172019]">
-            {reg.team.name}
-          </h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#172019]">
+              {reg.team.name}
+            </h1>
+            <EditTeamButton
+              team={{
+                id: reg.team.id,
+                name: reg.team.name,
+                slug: reg.team.slug,
+                registrationId: reg.id,
+              }}
+            />
+          </div>
 
           {/* Context: Division & Tournament */}
           <p className="text-sm sm:text-base text-[#5F6B61] flex flex-wrap items-center gap-1.5">
@@ -417,10 +429,26 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                         </div>
 
                         {/* Mobile Action Row */}
-                        <div className="pt-2 border-t border-[#DDE3DE]/60 flex items-center justify-between gap-2">
-                          <span className="text-[11px] text-[#5F6B61]">
-                            Fee: {formatCurrency(reg.category.registrationFee)}
-                          </span>
+                        <div className="pt-2 border-t border-[#DDE3DE]/60 flex flex-wrap items-center justify-between gap-2">
+                          <EditPlayerButton
+                            player={{
+                              registrationId: reg.id,
+                              registrationPlayerId: player.id,
+                              playerId: player.playerId,
+                              teamSlug: reg.team.slug,
+                              firstName: player.firstName,
+                              middleName: player.middleName,
+                              lastName: player.lastName,
+                              suffix: player.suffix,
+                              contactNumber: player.contactNumber,
+                              dateOfBirth: player.dateOfBirth,
+                              registrationCount: player.registrationCount,
+                              jerseyNumber: player.jerseyNumber,
+                              position: player.position,
+                              isCaptain: player.isCaptain,
+                            }}
+                            size="xs"
+                          />
                           <PlayerPaymentActionControls
                             registrationId={reg.id}
                             registrationPlayerId={player.id}
@@ -517,17 +545,38 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                             )}
                           </td>
                           <td className="py-3.5 px-6">
-                            <PlayerPaymentActionControls
-                              registrationId={reg.id}
-                              registrationPlayerId={player.id}
-                              paymentId={player.payment?.id}
-                              playerName={player.fullName}
-                              paymentStatus={player.payment ? player.payment.status : "UNPAID"}
-                              amount={player.payment ? player.payment.amount : reg.category.registrationFee}
-                              paymentMethod={player.payment?.paymentMethod}
-                              referenceNumber={player.payment?.referenceNumber}
-                              verifiedAt={player.payment?.verifiedAt}
-                            />
+                            <div className="flex items-center gap-2">
+                              <PlayerPaymentActionControls
+                                registrationId={reg.id}
+                                registrationPlayerId={player.id}
+                                paymentId={player.payment?.id}
+                                playerName={player.fullName}
+                                paymentStatus={player.payment ? player.payment.status : "UNPAID"}
+                                amount={player.payment ? player.payment.amount : reg.category.registrationFee}
+                                paymentMethod={player.payment?.paymentMethod}
+                                referenceNumber={player.payment?.referenceNumber}
+                                verifiedAt={player.payment?.verifiedAt}
+                              />
+                              <EditPlayerButton
+                                player={{
+                                  registrationId: reg.id,
+                                  registrationPlayerId: player.id,
+                                  playerId: player.playerId,
+                                  teamSlug: reg.team.slug,
+                                  firstName: player.firstName,
+                                  middleName: player.middleName,
+                                  lastName: player.lastName,
+                                  suffix: player.suffix,
+                                  contactNumber: player.contactNumber,
+                                  dateOfBirth: player.dateOfBirth,
+                                  registrationCount: player.registrationCount,
+                                  jerseyNumber: player.jerseyNumber,
+                                  position: player.position,
+                                  isCaptain: player.isCaptain,
+                                }}
+                                size="xs"
+                              />
+                            </div>
                           </td>
                         </tr>
                       ))}

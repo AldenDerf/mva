@@ -8,6 +8,19 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Safe Player, Roster & Team Metadata Corrections (Phase 05.7D.2)
+
+* **Domain Services & Concurrency Safety (`lib/admin/player-corrections.ts`, `lib/admin/team-corrections.ts`)**:
+  * **Safe Player Identity Corrections**: Enables authorized editing of player personal attributes (`first_name`, `middle_name`, `last_name`, `suffix`, `contact_number`, `date_of_birth`) without schema alterations or data loss.
+  * **Roster Metadata Corrections**: Supports safe updates to `jersey_number`, `position`, and `is_captain`. Captaincy reassignments are executed atomically within the same interactive transaction to enforce a single team captain invariant.
+  * **Team Display Name Corrections**: Enables updating team display names with case-insensitive uniqueness checks while strictly preserving immutable system identifiers (`team.id` and URL routing `slug`).
+  * **Immutable Invariants**: Fully preserves roster counts, registration IDs, expected fees, verified paid amounts, player balances, and payment completeness. No player deletions, movements, or payment reallocations occur.
+  * **Audit Logging**: Emits atomic, structured audit log entries (`PLAYER_PROFILE_UPDATED`, `ROSTER_MEMBER_UPDATED`, `TEAM_PROFILE_UPDATED`) recording changed fields, before/after values, and registration context.
+* **Admin UX & Modals (`components/admin/EditPlayerModal.tsx`, `components/admin/EditTeamModal.tsx`)**:
+  * **Accessible Mobile-First Modals**: Clean dialogs with keyboard accessibility (`Escape` key dismissal), background scroll locking, loading indicators, and field-level validation.
+  * **Multi-Registration Profile Notice**: Visual warning banner in player edit dialog informing administrators if the player profile is shared across multiple registrations.
+  * **Desktop Table & Mobile Card Integration**: Integrated edit triggers seamlessly into the registration detail header and roster list.
+
 ### Admin Registration Accessibility & UX Audit Polish (Phase 05.7C.5)
 
 * **Accessibility & Keyboard Usability (`RegistrationActionControls`, `PlayerPaymentActionControls`, `AddPlayerModal`)**:
