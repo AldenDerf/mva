@@ -15,6 +15,8 @@ import { PaymentCorrectionButton } from "@/components/admin/PaymentCorrectionBut
 import { EditPlayerButton } from "@/components/admin/EditPlayerButton";
 import { EditTeamButton } from "@/components/admin/EditTeamButton";
 import { RosterMemberActions } from "@/components/admin/RosterMemberActions";
+import { LegacyPaymentCard } from "@/components/admin/LegacyPaymentCard";
+import { RosterCandidateForAllocation } from "@/components/admin/AllocatePaymentModal";
 
 interface PageProps {
   params: Promise<{
@@ -80,6 +82,8 @@ const AUDIT_STATUS_LABELS: Record<string, string> = {
   ROSTER_MEMBER_DELETED: "Player Deleted from Roster",
   ROSTER_MEMBER_REMOVED: "Player Removed from Roster",
   ROSTER_MEMBER_RESTORED: "Player Restored to Roster",
+  PAYMENT_ALLOCATED: "Payment Allocated to Player",
+  PAYMENT_ALLOCATION_REVERSED: "Payment Allocation Reversed",
 };
 
 function formatAuditStatus(status: string): string {
@@ -95,6 +99,45 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
   }
 
   const latestPayment = reg.payments[0];
+
+  const allRosterForAllocation: RosterCandidateForAllocation[] = [
+    ...reg.roster.map((player) => {
+      const plAcct = reg.accounting.playerPayments.find(
+        (p) => p.registrationPlayerId === player.id
+      );
+      const existingCredit = plAcct ? plAcct.verifiedCredit : 0;
+      const fee = reg.category.registrationFee;
+      const outstanding = Math.max(0, fee - existingCredit);
+      return {
+        registrationPlayerId: player.id,
+        fullName: player.fullName,
+        jerseyNumber: player.jerseyNumber,
+        status: player.status,
+        existingCredit,
+        outstanding,
+        fee,
+        isFullyCredited: outstanding <= 0,
+      };
+    }),
+    ...reg.removedRoster.map((player) => {
+      const plAcct = reg.accounting.playerPayments.find(
+        (p) => p.registrationPlayerId === player.id
+      );
+      const existingCredit = plAcct ? plAcct.verifiedCredit : 0;
+      const fee = reg.category.registrationFee;
+      const outstanding = Math.max(0, fee - existingCredit);
+      return {
+        registrationPlayerId: player.id,
+        fullName: player.fullName,
+        jerseyNumber: player.jerseyNumber,
+        status: player.status,
+        existingCredit,
+        outstanding,
+        fee,
+        isFullyCredited: outstanding <= 0,
+      };
+    }),
+  ];
 
   return (
     <div className="space-y-6 pb-16">
@@ -569,17 +612,53 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                           </td>
                           <td className="py-3.5 px-6">
                             <div className="flex items-center gap-2">
-                              <PlayerPaymentActionControls
-                                registrationId={reg.id}
-                                registrationPlayerId={player.id}
-                                paymentId={player.payment?.id}
-                                playerName={player.fullName}
-                                paymentStatus={player.payment ? player.payment.status : "UNPAID"}
-                                amount={player.payment ? player.payment.amount : reg.category.registrationFee}
-                                paymentMethod={player.payment?.paymentMethod}
-                                referenceNumber={player.payment?.referenceNumber}
-                                verifiedAt={player.payment?.verifiedAt}
-                              />
+                              {(() => {
+                                const playerAcct = reg.accounting.playerPayments.find(
+                                  (pa) => pa.registrationPlayerId === player.id
+                                );
+                                const isAllocatedPaid =
+                                  !player.payment &&
+                                  (playerAcct?.allocatedCredit ?? 0) > 0 &&
+                                  (playerAcct?.isPaid ?? false);
+
+                                if (isAllocatedPaid) {
+                                  return (
+                                    <div className="flex items-center gap-1.5">
+                                      <span
+                                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#205823]/10 text-[#205823] border border-[#205823]/20"
+                                        title="Covered by legacy payment allocation"
+                                      >
+                                        <svg className="w-3 h-3 text-[#205823]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        <span>Paid via Allocation (₱{playerAcct!.verifiedCredit.toFixed(0)})</span>
+                                      </span>
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <PlayerPaymentActionControls
+                                    registrationId={reg.id}
+                                    registrationPlayerId={player.id}
+                                    paymentId={player.payment?.id}
+                                    playerName={player.fullName}
+                                    paymentStatus={
+                                      player.payment
+                                        ? player.payment.status
+                                        : (playerAcct?.isPaid ? "VERIFIED" : "UNPAID")
+                                    }
+                                    amount={
+                                      player.payment
+                                        ? player.payment.amount
+                                        : reg.category.registrationFee
+                                    }
+                                    paymentMethod={player.payment?.paymentMethod}
+                                    referenceNumber={player.payment?.referenceNumber}
+                                    verifiedAt={player.payment?.verifiedAt}
+                                  />
+                                );
+                              })()}
                               <EditPlayerButton
                                 player={{
                                   registrationId: reg.id,
@@ -656,11 +735,21 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-100 text-[#5F6B61] border border-[#DDE3DE]">
                               Removed
                             </span>
-                            {hasVerified && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-[#205823]/10 text-[#205823] border border-[#205823]/20">
-                                Paid ₱{player.payment?.amount.toFixed(0)}
-                              </span>
-                            )}
+                            {(() => {
+                              const playerAcct = reg.accounting.playerPayments.find(
+                                (pa) => pa.registrationPlayerId === player.id
+                              );
+                              const credit = playerAcct ? playerAcct.verifiedCredit : (player.payment?.amount ?? 0);
+                              if (hasVerified || credit > 0) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-[#205823]/10 text-[#205823] border border-[#205823]/20">
+                                    Paid ₱{credit.toFixed(0)}
+                                    {playerAcct && playerAcct.allocatedCredit > 0 && !hasVerified && " (Allocated)"}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                           <div className="text-[11px] text-[#5F6B61] flex flex-wrap items-center gap-2">
                             {player.jerseyNumber !== null && <span>#{player.jerseyNumber}</span>}
@@ -723,6 +812,20 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
             ) : (
               <div className="divide-y divide-[#DDE3DE]">
                 {reg.payments.map((p, idx) => {
+                  if (p.isLegacyEligible) {
+                    return (
+                      <LegacyPaymentCard
+                        key={p.id}
+                        payment={p}
+                        paymentIndex={idx}
+                        registrationId={reg.id}
+                        registrationCode={reg.registrationCode}
+                        teamName={reg.team.name}
+                        rosterCandidates={allRosterForAllocation}
+                      />
+                    );
+                  }
+
                   const allPlayers = [...reg.roster, ...reg.removedRoster];
                   const associatedPlayer = allPlayers.find(
                     (r) => r.payment?.id === p.id || (p.registrationPlayerId && r.id === p.registrationPlayerId)
@@ -730,7 +833,11 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                   const isUnassigned = p.registrationPlayerId === null;
                   const isRemoved = associatedPlayer?.status === "REMOVED";
                   const playerName = isUnassigned
-                    ? "Unassigned Payment"
+                    ? p.status === "PENDING"
+                      ? "Unassigned Pending Payment"
+                      : p.status === "REJECTED"
+                      ? "Unassigned Rejected Payment"
+                      : "Unassigned Payment"
                     : associatedPlayer
                     ? `${associatedPlayer.fullName}${isRemoved ? " (Removed)" : ""}`
                     : "Roster Player";
@@ -744,8 +851,18 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                           </span>
                           <PaymentStatusBadge status={p.status} />
                           {isUnassigned && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
-                              Payment needs review
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                p.status === "PENDING"
+                                  ? "bg-amber-50 text-amber-800 border border-amber-300"
+                                  : "bg-neutral-100 text-[#5F6B61] border border-[#DDE3DE]"
+                              }`}
+                            >
+                              {p.status === "PENDING"
+                                ? "Unassigned Pending Payment"
+                                : p.status === "REJECTED"
+                                ? "Unassigned Rejected Payment"
+                                : "Unassigned Payment"}
                             </span>
                           )}
                           <span className="text-xs text-[#5F6B61]">
@@ -780,10 +897,14 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                           </svg>
                           <div className="space-y-0.5">
                             <span className="font-bold text-amber-900 block">
-                              Unassigned Payment
+                              {p.status === "PENDING"
+                                ? "Unassigned Pending Payment"
+                                : "Unassigned Payment"}
                             </span>
                             <p className="text-[11px] leading-relaxed text-amber-900">
-                              This registration has an older payment that isn&apos;t assigned to a specific player. Use the action button to review or correct its method and reference details.
+                              {p.status === "PENDING"
+                                ? "This registration has a pending payment that isn't assigned to a specific player. Use the action button to review or correct its method and reference details."
+                                : "This registration has an older unassigned payment record. Use the action button to review or correct its method and reference details."}
                             </p>
                           </div>
                         </div>

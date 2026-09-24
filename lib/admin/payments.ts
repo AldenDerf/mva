@@ -172,6 +172,14 @@ export async function getBatchRegistrationAccounting(
           verified_at: true,
           created_at: true,
           notes: true,
+          payment_allocations: {
+            select: {
+              id: true,
+              registration_player_id: true,
+              amount: true,
+              reversed_at: true,
+            },
+          },
         },
       },
     },
@@ -502,7 +510,14 @@ export async function getAdminPaymentsList(
       reg.league_categories_registrations_league_category_idToleague_categories;
     const accounting = accountingMap.get(p.registration_id);
 
-    let fullName = "Legacy / Unallocated Payment";
+    let fullName =
+      p.status === "VERIFIED"
+        ? "Legacy Unallocated Payment"
+        : p.status === "PENDING"
+        ? "Unassigned Pending Payment"
+        : p.status === "REJECTED"
+        ? "Unassigned Rejected Payment"
+        : "Unassigned Payment";
     let playerId: string | null = null;
     let registrationPlayerId: string | null = null;
     let jerseyNumber: number | null = null;
@@ -550,7 +565,7 @@ export async function getAdminPaymentsList(
       fullName,
       jerseyNumber,
 
-      isLegacyUnallocated: isLegacy,
+      isLegacyUnallocated: isLegacy && p.status === "VERIFIED",
 
       rosterCount: accounting?.rosterCount ?? 0,
       paidPlayerCount: accounting?.paidPlayerCount ?? 0,

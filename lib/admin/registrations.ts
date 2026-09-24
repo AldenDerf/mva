@@ -96,6 +96,27 @@ export interface AdminRegistrationDetailPlayer {
   payment: AdminPlayerPaymentInfo | null;
 }
 
+export interface AdminPaymentAllocationItem {
+  id: string;
+  paymentId: string;
+  registrationPlayerId: string;
+  amount: number;
+  allocatedByProfileId: string;
+  allocatedByName: string;
+  reconciliationNote: string;
+  createdAt: Date;
+  reversedAt: Date | null;
+  reversedByProfileId: string | null;
+  reversedByName: string | null;
+  reversalReason: string | null;
+  player: {
+    id: string;
+    fullName: string;
+    status: roster_status;
+    jerseyNumber: number | null;
+  };
+}
+
 export interface AdminRegistrationDetailPayment {
   id: string;
   registrationPlayerId: string | null;
@@ -108,6 +129,10 @@ export interface AdminRegistrationDetailPayment {
   verifiedByProfileId: string | null;
   notes: string | null;
   createdAt: Date;
+  allocations: AdminPaymentAllocationItem[];
+  allocatedAmount: number;
+  remainingUnallocated: number;
+  isLegacyEligible: boolean;
 }
 
 export interface AdminRegistrationAuditEntry {
@@ -340,6 +365,14 @@ export async function getAdminRegistrations(
             verified_at: true,
             created_at: true,
             notes: true,
+            payment_allocations: {
+              select: {
+                id: true,
+                registration_player_id: true,
+                amount: true,
+                reversed_at: true,
+              },
+            },
           },
         },
       },
@@ -517,6 +550,49 @@ export const getAdminRegistrationById = cache(
             verified_by_profile_id: true,
             notes: true,
             created_at: true,
+            payment_allocations: {
+              orderBy: { created_at: "desc" },
+              select: {
+                id: true,
+                payment_id: true,
+                registration_player_id: true,
+                amount: true,
+                allocated_by_profile_id: true,
+                reconciliation_note: true,
+                created_at: true,
+                reversed_at: true,
+                reversed_by_profile_id: true,
+                reversal_reason: true,
+                allocated_by_profile: {
+                  select: {
+                    display_name: true,
+                    email: true,
+                  },
+                },
+                reversed_by_profile: {
+                  select: {
+                    display_name: true,
+                    email: true,
+                  },
+                },
+                registration_players: {
+                  select: {
+                    id: true,
+                    status: true,
+                    jersey_number: true,
+                    players: {
+                      select: {
+                        id: true,
+                        first_name: true,
+                        middle_name: true,
+                        last_name: true,
+                        suffix: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -527,6 +603,7 @@ export const getAdminRegistrationById = cache(
           { entity_type: "REGISTRATION", entity_id: id },
           { entity_type: "PAYMENT", metadata: { path: ["registration_id"], equals: id } },
           { entity_type: "REGISTRATION_PLAYER", metadata: { path: ["registration_id"], equals: id } },
+          { entity_type: "PAYMENT_ALLOCATION", metadata: { path: ["registration_id"], equals: id } },
         ],
       },
       orderBy: { created_at: "desc" },
@@ -602,19 +679,73 @@ export const getAdminRegistrationById = cache(
   const removedRoster: AdminRegistrationDetailPlayer[] = removedRosterMembers.map(mapRosterMember);
 
   const payments: AdminRegistrationDetailPayment[] = record.payments.map(
-    (p) => ({
-      id: p.id,
-      registrationPlayerId: p.registration_player_id,
-      paymentMethod: p.payment_method,
-      amount: Number(p.amount),
-      referenceNumber: p.reference_number,
-      receiptUrl: p.receipt_url,
-      status: p.status,
-      verifiedAt: p.verified_at,
-      verifiedByProfileId: p.verified_by_profile_id,
-      notes: p.notes,
-      createdAt: p.created_at,
-    })
+    (p) => {
+      let allocatedAmount = 0;
+      const allocations: AdminPaymentAllocationItem[] = (
+        p.payment_allocations || []
+      ).map((alloc) => {
+        const amt = Number(alloc.amount);
+        if (alloc.reversed_at === null) {
+          allocatedAmount += amt;
+        }
+        const pl = alloc.registration_players.players;
+        const playerName = formatFullName(
+          pl.first_name,
+          pl.middle_name,
+          pl.last_name,
+          pl.suffix
+        );
+        return {
+          id: alloc.id,
+          paymentId: alloc.payment_id,
+          registrationPlayerId: alloc.registration_player_id,
+          amount: amt,
+          allocatedByProfileId: alloc.allocated_by_profile_id,
+          allocatedByName:
+            alloc.allocated_by_profile.display_name ||
+            alloc.allocated_by_profile.email ||
+            "Administrator",
+          reconciliationNote: alloc.reconciliation_note,
+          createdAt: alloc.created_at,
+          reversedAt: alloc.reversed_at,
+          reversedByProfileId: alloc.reversed_by_profile_id,
+          reversedByName:
+            alloc.reversed_by_profile?.display_name ||
+            alloc.reversed_by_profile?.email ||
+            null,
+          reversalReason: alloc.reversal_reason,
+          player: {
+            id: alloc.registration_players.id,
+            fullName: playerName,
+            status: alloc.registration_players.status,
+            jerseyNumber: alloc.registration_players.jersey_number,
+          },
+        };
+      });
+
+      const pAmount = Number(p.amount);
+      const remainingUnallocated = Math.max(0, pAmount - allocatedAmount);
+      const isLegacyEligible =
+        p.status === "VERIFIED" && p.registration_player_id === null;
+
+      return {
+        id: p.id,
+        registrationPlayerId: p.registration_player_id,
+        paymentMethod: p.payment_method,
+        amount: pAmount,
+        referenceNumber: p.reference_number,
+        receiptUrl: p.receipt_url,
+        status: p.status,
+        verifiedAt: p.verified_at,
+        verifiedByProfileId: p.verified_by_profile_id,
+        notes: p.notes,
+        createdAt: p.created_at,
+        allocations,
+        allocatedAmount,
+        remainingUnallocated,
+        isLegacyEligible,
+      };
+    }
   );
 
   const auditHistory: AdminRegistrationAuditEntry[] = auditLogs.map((log) => {

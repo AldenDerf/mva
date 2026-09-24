@@ -8,6 +8,35 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Legacy Verified Payment Reconciliation (Phase 05.7D.5)
+
+* **Historical Payment Allocation Data Model (`prisma/schema.prisma`, `prisma/migrations/20260924_legacy_payment_allocation/migration.sql`)**:
+  * Created dedicated `payment_allocations` table storing attribution of historical verified payments to roster members.
+  * Fields: `id`, `payment_id`, `registration_player_id`, `amount`, `allocated_by_profile_id`, `reconciliation_note`, `created_at`, `reversed_at`, `reversed_by_profile_id`, `reversal_reason`.
+  * Foreign keys use `ON DELETE RESTRICT` to protect financial audit history and historical roster memberships.
+  * Active allocation partial unique constraint `uq_payment_allocations_active_player ON payment_allocations (payment_id, registration_player_id) WHERE reversed_at IS NULL` guarantees that no player has duplicate active allocations on the same payment while allowing re-allocation if an earlier allocation was reversed.
+* **Authoritative Domain Service (`lib/admin/payment-allocations.ts`)**:
+  * `allocateLegacyPayment()`: Transactionally allocates verified legacy payment (`status === 'VERIFIED'` and `registration_player_id === null`) across one or more roster members.
+  * Concurrency safety using `SELECT ... FOR UPDATE` row locking on the parent payment row.
+  * Payment over-allocation guard: guarantees `SUM(active allocations) <= payment.amount`.
+  * Player over-credit guard: guarantees a player cannot receive more verified credit than their registration category fee.
+  * Same-registration enforcement: target players must strictly belong to the payment's registration.
+  * Supports attributing historical credit to both `ACTIVE` and `REMOVED` roster members without restoring removed players or manipulating active team obligations.
+  * `reverseLegacyPaymentAllocation()`: Reverses an active allocation with required administrative reason without deleting historical rows.
+  * Emits structured audit events `PAYMENT_ALLOCATED` and `PAYMENT_ALLOCATION_REVERSED`.
+* **Canonical Accounting Integration (`lib/admin/accounting.ts`)**:
+  * Enforced fundamental invariant: allocation is financial attribution, NOT a new cash receipt. Gross verified collections remain constant (`totalVerifiedCollected = grossVerifiedCollections = SUM(payments.amount WHERE status = 'VERIFIED')`).
+  * Player verified credit accounts for direct verified payments plus active legacy allocations (`verifiedCredit = directVerifiedCredit + allocatedCredit`).
+  * Distinguishes `legacyAllocatedVerifiedAmount` and `unallocatedVerifiedAmount` (`remainingUnallocated = payment.amount - SUM(active allocations)`).
+  * Payment completeness requires all active roster players to be fully credited.
+* **Admin UI & Mobile-First Reconciliation (`components/admin/AllocatePaymentModal.tsx`, `ReverseAllocationModal.tsx`, `LegacyPaymentCard.tsx`, `/admin/registrations/[id]`)**:
+  * Registration Detail UI renders dedicated `LegacyPaymentCard` for eligible legacy verified payments with allocation summary (Original, Allocated, Remaining), `[ Allocate to Players ]` button, and expandable history.
+  * Built mobile-first accessible `AllocatePaymentModal` with roster checkboxes, suggested amounts, outstanding balance calculation, mandatory reconciliation note, and explicit confirmation warnings for historical `REMOVED` players.
+  * Accurate terminology: strictly separates `Legacy Unallocated Payment` (`VERIFIED` + `NULL`) from `Unassigned Pending Payment` (`PENDING` + `NULL`) and `Unassigned Rejected Payment` (`REJECTED` + `NULL`).
+  * Active roster table indicates players covered via legacy allocation (`Paid via Allocation`).
+* **Automated Verification Suite (`scripts/verify-phase-05-7d5.ts`)**:
+  * Authored 30-point automated test suite proving eligibility rules, over-allocation/over-credit guards, partial allocations, removed player handling, reversal semantics, concurrency protection under parallel execution, accounting regression invariants, and zero database drift.
+
 ### Admin Roster Management (Phase 05.7D.4 — Verification-Boundary Historical Roster History)
 
 * **Registration Verification is the Authoritative Historical Boundary (`lib/admin/roster-safety.ts`, `roster-actions.ts`)**:

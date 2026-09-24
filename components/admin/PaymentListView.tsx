@@ -123,9 +123,23 @@ export function PaymentListView({
                 {/* Header: Player Name or Legacy demarcation */}
                 <div className="flex items-start justify-between gap-2 border-b border-[#DDE3DE]/60 pb-3">
                   <div className="min-w-0">
-                    {item.isLegacyUnallocated ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                        Legacy / Unallocated Payment
+                    {item.registrationPlayerId === null ? (
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                          item.status === "VERIFIED"
+                            ? "bg-emerald-50 text-[#205823] border border-emerald-200"
+                            : item.status === "PENDING"
+                            ? "bg-amber-50 text-amber-800 border border-amber-200"
+                            : "bg-neutral-100 text-[#5F6B61] border border-[#DDE3DE]"
+                        }`}
+                      >
+                        {item.status === "VERIFIED"
+                          ? "Legacy Unallocated Payment"
+                          : item.status === "PENDING"
+                          ? "Unassigned Pending Payment"
+                          : item.status === "REJECTED"
+                          ? "Unassigned Rejected Payment"
+                          : "Unassigned Payment"}
                       </span>
                     ) : (
                       <div className="flex items-center gap-1.5">
@@ -324,9 +338,23 @@ export function PaymentListView({
                     >
                       {/* Player Column */}
                       <td className="py-3 px-4">
-                        {item.isLegacyUnallocated ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                            Legacy / Unallocated
+                        {item.registrationPlayerId === null ? (
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                              item.status === "VERIFIED"
+                                ? "bg-emerald-50 text-[#205823] border border-emerald-200"
+                                : item.status === "PENDING"
+                                ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                : "bg-neutral-100 text-[#5F6B61] border border-[#DDE3DE]"
+                            }`}
+                          >
+                            {item.status === "VERIFIED"
+                              ? "Legacy Unallocated"
+                              : item.status === "PENDING"
+                              ? "Unassigned Pending"
+                              : item.status === "REJECTED"
+                              ? "Unassigned Rejected"
+                              : "Unassigned"}
                           </span>
                         ) : (
                           <div>

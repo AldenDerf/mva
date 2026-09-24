@@ -66,6 +66,7 @@ model payments {
   registrations          registrations         @relation(fields: [registration_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_payments_registration")
   registration_players   registration_players? @relation(fields: [registration_player_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_payments_registration_player")
   verified_by_profile    profiles?             @relation("payments_verified_by", fields: [verified_by_profile_id], references: [id], onUpdate: NoAction, map: "fk_payments_verified_by_profile")
+  payment_allocations    payment_allocations[]
 
   @@index([registration_id], map: "idx_payments_registration")
   @@index([registration_player_id], map: "idx_payments_registration_player")
@@ -107,6 +108,7 @@ model registration_players {
   registrations         registrations          @relation(fields: [registration_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_registration_players_registration")
   removed_by_profile    profiles?              @relation("roster_removed_by", fields: [removed_by_profile_id], references: [id], onUpdate: NoAction, map: "fk_registration_players_removed_by")
   payments              payments[]
+  payment_allocations   payment_allocations[]
 
   @@unique([registration_id, player_id], map: "uq_registration_player")
   @@index([player_id], map: "idx_registration_players_player")
@@ -203,11 +205,37 @@ model profiles {
   created_at        DateTime           @default(now()) @db.Timestamptz(6)
   updated_at        DateTime           @default(now()) @db.Timestamptz(6)
   admin_access      admin_access?
-  admin_audit_logs       admin_audit_logs[]
-  verified_payments      payments[]             @relation("payments_verified_by")
-  removed_roster_members registration_players[] @relation("roster_removed_by")
+  admin_audit_logs              admin_audit_logs[]
+  verified_payments             payments[]             @relation("payments_verified_by")
+  removed_roster_members        registration_players[] @relation("roster_removed_by")
+  allocated_payment_allocations payment_allocations[]  @relation("allocations_allocated_by")
+  reversed_payment_allocations  payment_allocations[]  @relation("allocations_reversed_by")
 
   @@index([email], map: "idx_profiles_email")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model payment_allocations {
+  id                      String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payment_id              String               @db.Uuid
+  registration_player_id  String               @db.Uuid
+  amount                  Decimal              @db.Decimal(10, 2)
+  allocated_by_profile_id String               @db.Uuid
+  reconciliation_note     String
+  created_at              DateTime             @default(now()) @db.Timestamptz(6)
+  reversed_at             DateTime?            @db.Timestamptz(6)
+  reversed_by_profile_id  String?              @db.Uuid
+  reversal_reason         String?
+  payments                payments             @relation(fields: [payment_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_payment_allocations_payment")
+  registration_players    registration_players @relation(fields: [registration_player_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_payment_allocations_registration_player")
+  allocated_by_profile    profiles             @relation("allocations_allocated_by", fields: [allocated_by_profile_id], references: [id], onUpdate: NoAction, map: "fk_payment_allocations_allocated_by")
+  reversed_by_profile     profiles?            @relation("allocations_reversed_by", fields: [reversed_by_profile_id], references: [id], onUpdate: NoAction, map: "fk_payment_allocations_reversed_by")
+
+  @@index([payment_id], map: "idx_payment_allocations_payment")
+  @@index([registration_player_id], map: "idx_payment_allocations_registration_player")
+  @@index([allocated_by_profile_id], map: "idx_payment_allocations_allocated_by")
+  @@index([reversed_by_profile_id], map: "idx_payment_allocations_reversed_by")
 }
 
 enum league_status {

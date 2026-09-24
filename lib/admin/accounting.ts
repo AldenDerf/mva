@@ -42,6 +42,8 @@ export interface RegistrationPlayerPaymentSummary {
   position: string | null;
   isCaptain: boolean;
   isPaid: boolean;
+  verifiedCredit: number;
+  allocatedCredit: number;
   activePayment: ActivePlayerPaymentDetail | null;
 }
 
@@ -54,6 +56,9 @@ export interface LegacyUnallocatedPaymentSummary {
   verifiedAt: Date | null;
   createdAt: Date;
   notes: string | null;
+  allocatedAmount: number;
+  remainingUnallocated: number;
+  isFullyAllocated: boolean;
 }
 
 export interface CanonicalRegistrationAccounting {
@@ -84,6 +89,7 @@ export interface CanonicalRegistrationAccounting {
 
   // Player Breakdowns
   rosterPayments: RegistrationPlayerPaymentSummary[];
+  playerPayments: RegistrationPlayerPaymentSummary[];
 
   // Historical / Removed Roster Accounting
   historicalRemovedVerifiedAmount: number;
@@ -92,11 +98,13 @@ export interface CanonicalRegistrationAccounting {
   // Legacy / Unallocated Payments (registration_player_id = null)
   unallocatedVerifiedAmount: number;
   unallocatedPendingAmount: number;
+  legacyAllocatedVerifiedAmount: number;
   legacyPayments: LegacyUnallocatedPaymentSummary[];
   hasLegacyPayments: boolean;
 
-  // Total Verified Cash Collected across all records (active per-player + removed per-player + legacy)
+  // Total Verified Cash Collected across all records (parent cash receipts, never multiplied)
   totalVerifiedCollected: number;
+  grossVerifiedCollections: number;
 
   // Financial Anomaly Guard
   hasFinancialAnomaly: boolean;
@@ -174,6 +182,15 @@ export interface RawRegistrationAccountingInput {
       verified_at?: Date | null;
       created_at?: Date;
     }>;
+    payment_allocations?: Array<{
+      id: string;
+      amount: unknown;
+      reversed_at?: Date | null;
+      payments?: {
+        id?: string;
+        status: payment_status;
+      };
+    }>;
   }>;
   payments?: Array<{
     id: string;
@@ -185,6 +202,12 @@ export interface RawRegistrationAccountingInput {
     verified_at?: Date | null;
     created_at?: Date;
     notes?: string | null;
+    payment_allocations?: Array<{
+      id: string;
+      registration_player_id: string;
+      amount: unknown;
+      reversed_at?: Date | null;
+    }>;
   }>;
 }
 
@@ -207,13 +230,14 @@ function formatFullName(
  *
  * Invariants:
  * 1. expectedAmount = rosterCount * feePerPlayer (based on actual roster; NO 12-player cap).
- * 2. Paid Player: member has a per-player payment with status = "VERIFIED".
+ * 2. Paid Player: member has verified credit (direct verified payment + active verified allocations) >= feePerPlayer.
  * 3. PENDING, REJECTED, REFUNDED do not satisfy a player payment.
  * 4. registration_player_id = null payments are treated as legacy/unallocated;
- *    they do NOT make individual players paid or mark the team complete.
+ *    they do NOT make individual players paid until allocated.
  * 5. paymentComplete is true iff rosterCount > 0 and paidPlayerCount === rosterCount.
- * 6. balance = expectedAmount - verifiedPaidAmount.
+ * 6. balance = Math.max(0, expectedAmount - verifiedPaidAmount).
  * 7. Abnormalities (overpayment, unallocated payments) trigger anomaly flags without data clamping.
+ * 8. Allocations NEVER create additional cash receipts; totalVerifiedCollected is invariant.
  */
 export function calculateRegistrationAccounting(
   input: RawRegistrationAccountingInput
@@ -225,8 +249,31 @@ export function calculateRegistrationAccounting(
   const rawFee = category ? Number(category.registration_fee) : 0;
   const feePerPlayer = rawFee > 0 ? rawFee : DEFAULT_PLAYER_REGISTRATION_FEE;
 
+  // Build a map of verified active allocations per registration_player_id from input.payments
+  const allocationsByRpId = new Map<string, number>();
+  const allocationsByPaymentId = new Map<string, number>();
+
+  if (input.payments && input.payments.length > 0) {
+    for (const p of input.payments) {
+      if (p.payment_allocations && p.payment_allocations.length > 0) {
+        let paymentAllocSum = 0;
+        for (const alloc of p.payment_allocations) {
+          if (alloc.reversed_at === null || alloc.reversed_at === undefined) {
+            const allocAmt = Number(alloc.amount);
+            paymentAllocSum += allocAmt;
+            // Only attribute verified credit if the parent payment is VERIFIED
+            if (p.status === "VERIFIED") {
+              const current = allocationsByRpId.get(alloc.registration_player_id) || 0;
+              allocationsByRpId.set(alloc.registration_player_id, current + allocAmt);
+            }
+          }
+        }
+        allocationsByPaymentId.set(p.id, paymentAllocSum);
+      }
+    }
+  }
+
   // Separate ACTIVE roster members from REMOVED historical members
-  // Backward compatibility: if status is omitted/undefined, treat as ACTIVE
   const activeRosterPlayers = input.registration_players.filter(
     (rp) => rp.status === undefined || rp.status === "ACTIVE"
   );
@@ -253,29 +300,44 @@ export function calculateRegistrationAccounting(
         )
       : "Roster Player";
 
-    // Active VERIFIED payment for this player
-    // Database unique index uq_payments_active_verified_player guarantees at most 1 active VERIFIED per player
+    // Direct active VERIFIED payment for this player
     const verifiedPayment = rp.payments.find((p) => p.status === "VERIFIED");
+    const directPaidAmt = verifiedPayment ? Number(verifiedPayment.amount) : 0;
 
-    let isPaid = false;
-    let activePayment: ActivePlayerPaymentDetail | null = null;
+    // Allocated verified credit from legacy payments
+    // Check both allocationsByRpId (from input.payments) and rp.payment_allocations (if directly provided on rp)
+    let allocatedCredit = allocationsByRpId.get(rp.id) || 0;
+    if (allocatedCredit === 0 && rp.payment_allocations && rp.payment_allocations.length > 0) {
+      for (const a of rp.payment_allocations) {
+        if (
+          (a.reversed_at === null || a.reversed_at === undefined) &&
+          (a.payments === undefined || a.payments.status === "VERIFIED")
+        ) {
+          allocatedCredit += Number(a.amount);
+        }
+      }
+    }
 
-    if (verifiedPayment) {
-      isPaid = true;
+    const totalPlayerVerifiedCredit = directPaidAmt + allocatedCredit;
+    const isPaid = totalPlayerVerifiedCredit >= feePerPlayer - 0.001;
+
+    if (isPaid) {
       paidPlayerCount += 1;
-      const payAmt = Number(verifiedPayment.amount);
-      verifiedPaidAmount += payAmt;
+    }
 
+    verifiedPaidAmount += totalPlayerVerifiedCredit;
+
+    let activePayment: ActivePlayerPaymentDetail | null = null;
+    if (verifiedPayment) {
       activePayment = {
         id: verifiedPayment.id,
-        amount: payAmt,
+        amount: directPaidAmt,
         status: verifiedPayment.status,
         paymentMethod: verifiedPayment.payment_method,
         referenceNumber: verifiedPayment.reference_number || null,
         verifiedAt: verifiedPayment.verified_at || null,
       };
     } else {
-      // Find latest non-verified payment if present for detail display
       const latestPay = rp.payments[0];
       if (latestPay) {
         activePayment = {
@@ -297,6 +359,8 @@ export function calculateRegistrationAccounting(
       position: rp.position ?? null,
       isCaptain: Boolean(rp.is_captain),
       isPaid,
+      verifiedCredit: totalPlayerVerifiedCredit,
+      allocatedCredit,
       activePayment,
     });
   }
@@ -309,10 +373,13 @@ export function calculateRegistrationAccounting(
         historicalRemovedVerifiedAmount += Number(p.amount);
       }
     }
+    // Also include verified allocations made to removed players
+    const removedAllocAmt = allocationsByRpId.get(rp.id) || 0;
+    historicalRemovedVerifiedAmount += removedAllocAmt;
   }
 
   const unpaidPlayerCount = Math.max(0, rosterCount - paidPlayerCount);
-  const balance = expectedAmount - verifiedPaidAmount;
+  const balance = Math.max(0, expectedAmount - verifiedPaidAmount);
 
   // Payment is complete if and only if there is at least 1 roster player and all players are verified paid
   const paymentComplete = rosterCount > 0 && paidPlayerCount === rosterCount;
@@ -323,14 +390,34 @@ export function calculateRegistrationAccounting(
   // Reconcile legacy / unallocated payments (registration_player_id = null)
   let unallocatedVerifiedAmount = 0;
   let unallocatedPendingAmount = 0;
+  let legacyAllocatedVerifiedAmount = 0;
+  let grossVerifiedCollections = 0;
   const legacyPayments: LegacyUnallocatedPaymentSummary[] = [];
 
   if (input.payments && input.payments.length > 0) {
     for (const p of input.payments) {
+      const amt = Number(p.amount);
+
+      if (p.status === "VERIFIED") {
+        grossVerifiedCollections += amt;
+      }
+
       if (p.registration_player_id === null) {
-        const amt = Number(p.amount);
+        // Calculate allocations on this specific payment
+        let paymentAllocSum = allocationsByPaymentId.get(p.id) || 0;
+        if (paymentAllocSum === 0 && p.payment_allocations) {
+          for (const a of p.payment_allocations) {
+            if (a.reversed_at === null || a.reversed_at === undefined) {
+              paymentAllocSum += Number(a.amount);
+            }
+          }
+        }
+
+        const remainingOnThisPayment = Math.max(0, amt - paymentAllocSum);
+
         if (p.status === "VERIFIED") {
-          unallocatedVerifiedAmount += amt;
+          legacyAllocatedVerifiedAmount += paymentAllocSum;
+          unallocatedVerifiedAmount += remainingOnThisPayment;
         } else if (p.status === "PENDING") {
           unallocatedPendingAmount += amt;
         }
@@ -344,20 +431,26 @@ export function calculateRegistrationAccounting(
           verifiedAt: p.verified_at || null,
           createdAt: p.created_at || new Date(),
           notes: p.notes || null,
+          allocatedAmount: paymentAllocSum,
+          remainingUnallocated: remainingOnThisPayment,
+          isFullyAllocated: remainingOnThisPayment <= 0.001,
         });
       }
     }
   }
 
   const hasLegacyPayments = legacyPayments.length > 0;
+  // Fallback if input.payments was not provided
   const totalVerifiedCollected =
-    verifiedPaidAmount + historicalRemovedVerifiedAmount + unallocatedVerifiedAmount;
+    grossVerifiedCollections > 0
+      ? grossVerifiedCollections
+      : verifiedPaidAmount + historicalRemovedVerifiedAmount + unallocatedVerifiedAmount;
 
   // Financial Anomaly Detection
   const anomalyNotes: string[] = [];
   let hasFinancialAnomaly = false;
 
-  if (verifiedPaidAmount > expectedAmount) {
+  if (verifiedPaidAmount > expectedAmount + 0.001) {
     hasFinancialAnomaly = true;
     anomalyNotes.push(
       `Verified active per-player payments (₱${verifiedPaidAmount.toFixed(
@@ -368,7 +461,7 @@ export function calculateRegistrationAccounting(
     );
   }
 
-  if (unallocatedVerifiedAmount > 0) {
+  if (unallocatedVerifiedAmount > 0.001) {
     hasFinancialAnomaly = true;
     anomalyNotes.push(
       `Contains ₱${unallocatedVerifiedAmount.toFixed(
@@ -377,7 +470,7 @@ export function calculateRegistrationAccounting(
     );
   }
 
-  if (historicalRemovedVerifiedAmount > 0) {
+  if (historicalRemovedVerifiedAmount > 0.001) {
     hasFinancialAnomaly = true;
     anomalyNotes.push(
       `Contains ₱${historicalRemovedVerifiedAmount.toFixed(
@@ -411,16 +504,19 @@ export function calculateRegistrationAccounting(
     paymentCompletionStatus,
 
     rosterPayments,
+    playerPayments: rosterPayments,
 
     historicalRemovedVerifiedAmount,
     removedRosterCount,
 
     unallocatedVerifiedAmount,
     unallocatedPendingAmount,
+    legacyAllocatedVerifiedAmount,
     legacyPayments,
     hasLegacyPayments,
 
     totalVerifiedCollected,
+    grossVerifiedCollections,
 
     hasFinancialAnomaly,
     anomalyNotes,
