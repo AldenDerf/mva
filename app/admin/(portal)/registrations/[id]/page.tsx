@@ -466,6 +466,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                               teamName={reg.team.name}
                               teamSlug={reg.team.slug}
                               status={player.status}
+                              registrationStatus={reg.status}
                               hasVerifiedPayment={isPaid}
                               isCaptain={player.isCaptain}
                               size="xs"
@@ -605,6 +606,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                 teamName={reg.team.name}
                                 teamSlug={reg.team.slug}
                                 status={player.status}
+                                registrationStatus={reg.status}
                                 hasVerifiedPayment={player.payment?.status === "VERIFIED"}
                                 isCaptain={player.isCaptain}
                                 size="xs"
@@ -677,6 +679,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                             teamName={reg.team.name}
                             teamSlug={reg.team.slug}
                             status="REMOVED"
+                            registrationStatus={reg.status}
                             hasVerifiedPayment={hasVerified}
                             isCaptain={false}
                             size="xs"

@@ -8,13 +8,18 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
-### Admin Roster Management (Phase 05.7D.4 — Remove Before Delete Lifecycle)
+### Admin Roster Management (Phase 05.7D.4 — Verification-Boundary Historical Roster History)
 
-* **Authoritative "Remove Before Delete" Roster Lifecycle (`lib/admin/roster-safety.ts`, `roster-actions.ts`)**:
-  * Enforced authoritative rule that an `ACTIVE` roster member can **never** be hard-deleted directly, regardless of payment status (`ACTIVE -> DELETE` is strictly blocked on the server inside the database transaction with `BLOCKED_ACTIVE_STATUS`).
-  * Required lifecycle: `ACTIVE` → `REMOVE FROM ROSTER` (`REMOVED`) → evaluate deletion eligibility.
-  * For `REMOVED` members with never-verified payments: administrative hard deletion is permitted, explicitly purging eligible non-financial `PENDING`/`REJECTED` placeholders while strictly preserving the global `players` identity record.
-  * For `REMOVED` members with verified payments: hard deletion remains blocked (`"Refund this player's verified payment before deleting."`) until full auditable refund architecture is approved.
+* **Registration Verification is the Authoritative Historical Boundary (`lib/admin/roster-safety.ts`, `roster-actions.ts`)**:
+  * **Verified Registrations (`registration.status === 'VERIFIED'`)**:
+    * The registration and its entire roster become historical, accountable records.
+    * **Hard deletion is permanently blocked** (`BLOCKED_VERIFIED_REGISTRATION`) for all roster members, whether active, removed, unpaid, verified-paid, or future fully refunded.
+    * Only lifecycle actions are permitted: **Remove from Roster** and **Restore to Roster** (with future Move Player and future Refund).
+    * Server-side transaction re-verifies `registration.status` to prevent concurrent verification race conditions.
+  * **Pre-Verification Stage (`PENDING_PAYMENT`, `REJECTED`, `CANCELLED`)**:
+    * Administrative correction and guarded hard deletion are available for unverified roster memberships without verified financial records (`UNVERIFIED_HARD_DELETE_ALLOWED`).
+    * Linked non-financial `PENDING`/`REJECTED` placeholders are explicitly purged inside the controlled transaction, strictly preserving the global `players` identity record.
+    * Active team captain deletion/removal remains strictly guarded until captaincy is reassigned.
 * **Roster Member Removal (`lib/admin/roster-safety.ts`, `roster-actions.ts`)**:
   * Made "Remove from Roster" available for all `ACTIVE` members (both unpaid and verified).
   * Transitions status to `REMOVED`, setting `removed_at` and `removed_by_profile_id`, and clearing captaincy.
@@ -28,13 +33,15 @@ Git commits remain the authoritative technical history. This file records meanin
   * Emits immutable audit event `ROSTER_MEMBER_RESTORED`.
 * **Canonical Accounting Invariance (`lib/admin/accounting.ts`)**:
   * Active accounting obligations adjust strictly at `ACTIVE -> REMOVED` (active count and expected fees decrease).
-  * Subsequent hard deletion of an already-`REMOVED` player causes **zero** double-adjustment to active roster count, expected amount, paid count, or balance.
+  * No post-verification hard deletion can ever manipulate current financial totals.
 * **Admin UX & Modals (`components/admin/RosterMemberActions.tsx`, `/admin/registrations/[id]`)**:
-  * Active players: displays only **Edit** and **Remove** actions (no Delete button shown).
-  * Removed players: displays **Restore**, plus **Delete** (for unverified members) or a disabled Delete button with explanatory tooltip (`"Refund this player's verified payment before deleting."`).
-  * Added distinct confirmation modals: Remove modal requires reason and explains roster detachment; Delete modal requires reason and explains permanent deletion of roster entry with global identity and audit preservation.
+  * Verified registrations:
+    * Active players: shows **Edit** and **Remove** only (Delete is NEVER rendered).
+    * Removed players: shows **Restore** only (Delete is NEVER rendered; eliminated confusing disabled "Refund before deleting" buttons).
+    * Remove confirmation modal clearly explains that removing a player preserves their registration and financial history.
+  * Pre-verification registrations: exposes guarded administrative correction/deletion actions.
 * **Automated Verification (`scripts/verify-phase-05-7d4.ts`)**:
-  * Authored comprehensive test suite proving all 14 lifecycle points, accounting non-double-deduction, separate audit events, race condition guards, and database preservation with zero data drift.
+  * Authored comprehensive test suite proving all 20 verification-boundary business rules, concurrency race protection, accounting obligation reversal, captain guards, and database preservation with zero data drift.
 
 ### Roster Safety Foundation & Deletion Policies (Phase 05.7D.3)
 

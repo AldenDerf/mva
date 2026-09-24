@@ -10,6 +10,7 @@ import {
 
 export interface RosterMemberActionsProps {
   registrationId: string;
+  registrationStatus: "PENDING_PAYMENT" | "VERIFIED" | "REJECTED" | "CANCELLED";
   registrationPlayerId: string;
   playerName: string;
   teamName: string;
@@ -24,6 +25,7 @@ type ModalType = "DELETE" | "REMOVE" | "RESTORE" | "CAPTAIN_WARNING" | null;
 
 export function RosterMemberActions({
   registrationId,
+  registrationStatus,
   registrationPlayerId,
   playerName,
   teamName,
@@ -84,6 +86,10 @@ export function RosterMemberActions({
   const handleOpenDelete = () => {
     setErrorMsg(null);
     setReason("");
+    if (isCaptain) {
+      setActiveModal("CAPTAIN_WARNING");
+      return;
+    }
     setActiveModal("DELETE");
   };
 
@@ -161,45 +167,58 @@ export function RosterMemberActions({
   return (
     <>
       {/* Action Trigger Buttons */}
-      {status === "ACTIVE" ? (
-        <button
-          type="button"
-          onClick={handleOpenRemove}
-          disabled={isPending}
-          aria-label={`Remove ${playerName} from active roster`}
-          className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-[#DDE3DE] bg-white text-[#5F6B61] hover:text-amber-800 hover:border-amber-300 hover:bg-amber-50/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 cursor-pointer shadow-2xs ${
-            isXs
-              ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
-              : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
-          }`}
-          title="Remove player from active roster"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
-          </svg>
-          <span>Remove</span>
-        </button>
-      ) : (
-        <div className="flex items-center gap-1.5">
+      {registrationStatus === "VERIFIED" ? (
+        /* ======================================================== */
+        /* VERIFIED REGISTRATION: Historical Roster Boundary        */
+        /* Active -> Remove only. Removed -> Restore only.          */
+        /* Hard Delete is strictly NEVER shown for verified teams.  */
+        /* ======================================================== */
+        status === "ACTIVE" ? (
           <button
             type="button"
-            onClick={handleOpenRestore}
+            onClick={handleOpenRemove}
             disabled={isPending}
-            aria-label={`Restore ${playerName} to active roster`}
-            className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-[#205823]/30 bg-white text-[#205823] hover:bg-[#eef5ef] hover:border-[#205823] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] cursor-pointer shadow-2xs ${
+            aria-label={`Remove ${playerName} from active roster`}
+            className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-[#DDE3DE] bg-white text-[#5F6B61] hover:text-amber-800 hover:border-amber-300 hover:bg-amber-50/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 cursor-pointer shadow-2xs ${
               isXs
                 ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
                 : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
             }`}
-            title="Restore player to active roster"
+            title="Remove player from active roster (preserves historical record)"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
             </svg>
-            <span>Restore</span>
+            <span>Remove</span>
           </button>
-
-          {!hasVerifiedPayment ? (
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleOpenRestore}
+              disabled={isPending}
+              aria-label={`Restore ${playerName} to active roster`}
+              className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-[#205823]/30 bg-white text-[#205823] hover:bg-[#eef5ef] hover:border-[#205823] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] cursor-pointer shadow-2xs ${
+                isXs
+                  ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
+                  : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
+              }`}
+              title="Restore player to active roster"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Restore</span>
+            </button>
+          </div>
+        )
+      ) : (
+        /* ======================================================== */
+        /* PRE-VERIFICATION REGISTRATION: Correction Stage           */
+        /* Guarded deletion is available for unverified members.     */
+        /* ======================================================== */
+        status === "ACTIVE" ? (
+          !hasVerifiedPayment ? (
             <button
               type="button"
               onClick={handleOpenDelete}
@@ -210,7 +229,7 @@ export function RosterMemberActions({
                   ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
                   : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
               }`}
-              title="Permanently delete removed roster membership"
+              title="Delete player from pre-verification roster"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -220,23 +239,62 @@ export function RosterMemberActions({
           ) : (
             <button
               type="button"
-              disabled
-              aria-disabled="true"
-              aria-label={`Delete disabled: Refund ${playerName}'s verified payment before deleting`}
-              className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-[#DDE3DE] bg-[#FAFAF8] text-[#5F6B61]/50 cursor-not-allowed opacity-60 shadow-2xs ${
+              onClick={handleOpenRemove}
+              disabled={isPending}
+              aria-label={`Remove ${playerName} from active roster`}
+              className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-[#DDE3DE] bg-white text-[#5F6B61] hover:text-amber-800 hover:border-amber-300 hover:bg-amber-50/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 cursor-pointer shadow-2xs ${
                 isXs
                   ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
                   : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
               }`}
-              title="Refund this player's verified payment before deleting."
+              title="Remove player from active roster"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
               </svg>
-              <span>Delete</span>
+              <span>Remove</span>
             </button>
-          )}
-        </div>
+          )
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleOpenRestore}
+              disabled={isPending}
+              aria-label={`Restore ${playerName} to active roster`}
+              className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-[#205823]/30 bg-white text-[#205823] hover:bg-[#eef5ef] hover:border-[#205823] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] cursor-pointer shadow-2xs ${
+                isXs
+                  ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
+                  : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
+              }`}
+              title="Restore player to active roster"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Restore</span>
+            </button>
+            {!hasVerifiedPayment && (
+              <button
+                type="button"
+                onClick={handleOpenDelete}
+                disabled={isPending}
+                aria-label={`Delete ${playerName} from roster`}
+                className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 hover:border-red-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 cursor-pointer shadow-2xs ${
+                  isXs
+                    ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
+                    : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
+                }`}
+                title="Permanently delete unverified roster membership"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Delete</span>
+              </button>
+            )}
+          </div>
+        )
       )}
 
       {/* ========================================================================= */}
@@ -395,7 +453,19 @@ export function RosterMemberActions({
             </div>
 
             <div className="p-3 bg-amber-50/80 border border-amber-300 rounded-xl text-xs text-amber-950 leading-relaxed space-y-1">
-              {hasVerifiedPayment ? (
+              {registrationStatus === "VERIFIED" ? (
+                <>
+                  <p className="font-bold">Historical Roster Record Preservation</p>
+                  <p className="text-[11px] text-amber-900">
+                    Removing this player will remove them from the active roster while preserving their registration and financial history.
+                  </p>
+                  {hasVerifiedPayment && (
+                    <p className="text-[11px] text-amber-900 font-medium">
+                      Their verified payment remains preserved.
+                    </p>
+                  )}
+                </>
+              ) : hasVerifiedPayment ? (
                 <>
                   <p className="font-bold">This player has a verified payment.</p>
                   <p className="text-[11px] text-amber-900">
