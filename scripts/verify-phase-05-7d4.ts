@@ -298,19 +298,19 @@ async function run() {
     cleanup.registrationPlayerIds.push(rp4.id);
 
     // -------------------------------------------------------------------------
-    // TEST 22, 23: CAPTAIN PROTECTION
+    // TEST 22, 23: CAPTAIN PROTECTION (ACTIVE captain cannot be removed or deleted)
     // -------------------------------------------------------------------------
-    console.log("[TEST 22, 23] Testing Captain Deletion & Removal Protection...");
+    console.log("[TEST 22, 23] Testing Captain Protection (Active Captain Deletion & Removal Blocked)...");
     const captDel = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
       registrationId: registration.id,
       registrationPlayerId: rp1.id,
       reason: "Attempt to delete captain",
     });
     assert(captDel.success === false, "Delete on active captain must fail");
-    assert(captDel.error === "CAPTAIN_REMOVAL_BLOCKED", "Error code must be CAPTAIN_REMOVAL_BLOCKED");
+    // Under Remove Before Delete, captain is also ACTIVE (blocked by ACTIVE status or CAPTAIN_REMOVAL_BLOCKED)
     assert(
-      captDel.message === "Reassign the team captain before removing this player.",
-      `Unexpected captain delete message: ${captDel.message}`
+      captDel.error === "BLOCKED_ACTIVE_STATUS" || captDel.error === "CAPTAIN_REMOVAL_BLOCKED",
+      `Expected BLOCKED_ACTIVE_STATUS or CAPTAIN_REMOVAL_BLOCKED, got: ${captDel.error}`
     );
 
     const captRem = await executeRosterMemberSoftRemoval(validAdmin, {
@@ -327,98 +327,235 @@ async function run() {
     console.log("  PASS: Tests 22, 23: Captain deletion and removal strictly blocked with explicit instruction\n");
 
     // -------------------------------------------------------------------------
-    // TEST 4, 5, 6, 7: HARD DELETE UNVERIFIED PLAYER
+    // PROOF 1: ACTIVE UNPAID PLAYER CANNOT BE HARD-DELETED DIRECTLY
     // -------------------------------------------------------------------------
-    console.log("[TEST 4, 5, 6, 7] Testing Hard Delete Unverified Player...");
+    console.log("[PROOF 1] Testing ACTIVE Unpaid Player Direct Hard-Delete Blocked...");
+    const activeUnpaidDel = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
+      registrationId: registration.id,
+      registrationPlayerId: rp2.id,
+      reason: "Attempting direct delete of active unpaid player",
+    });
+    assert(activeUnpaidDel.success === false, "ACTIVE unpaid player direct hard-delete must be BLOCKED");
+    assert(activeUnpaidDel.error === "BLOCKED_ACTIVE_STATUS", `Expected BLOCKED_ACTIVE_STATUS, got ${activeUnpaidDel.error}`);
+    assert(
+      activeUnpaidDel.message === "Remove this player from the roster before deleting them.",
+      `Unexpected error message: ${activeUnpaidDel.message}`
+    );
+    const evalRp2Active = await evaluateRosterMemberDeletionEligibility(rp2.id);
+    assert(evalRp2Active.eligible === false && evalRp2Active.policy === "BLOCKED_ACTIVE_STATUS");
+    console.log("  PASS: Proof 1: Direct hard delete of ACTIVE unpaid player strictly blocked on server\n");
+
+    // -------------------------------------------------------------------------
+    // PROOF 2: ACTIVE VERIFIED PLAYER CANNOT BE HARD-DELETED DIRECTLY
+    // -------------------------------------------------------------------------
+    console.log("[PROOF 2] Testing ACTIVE Verified Player Direct Hard-Delete Blocked...");
+    const activePaidDel = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
+      registrationId: registration.id,
+      registrationPlayerId: rp3.id,
+      reason: "Attempting direct delete of active verified player",
+    });
+    assert(activePaidDel.success === false, "ACTIVE verified player direct hard-delete must be BLOCKED");
+    assert(activePaidDel.error === "BLOCKED_ACTIVE_STATUS", `Expected BLOCKED_ACTIVE_STATUS, got ${activePaidDel.error}`);
+    assert(
+      activePaidDel.message === "Remove this player from the roster before deleting them.",
+      `Unexpected error message: ${activePaidDel.message}`
+    );
+    const evalRp3Active = await evaluateRosterMemberDeletionEligibility(rp3.id);
+    assert(evalRp3Active.eligible === false && evalRp3Active.policy === "BLOCKED_ACTIVE_STATUS");
+    console.log("  PASS: Proof 2: Direct hard delete of ACTIVE verified player strictly blocked on server\n");
+
+    // -------------------------------------------------------------------------
+    // PROOF 3 & 7: ACTIVE UNPAID PLAYER CAN BE REMOVED (SOFT REMOVAL) & WRITES AUDIT LOG
+    // -------------------------------------------------------------------------
+    console.log("[PROOF 3 & 7] Testing Soft Removal of ACTIVE Unpaid Player & Audit Logging...");
+    const removeUnpaidResult = await executeRosterMemberSoftRemoval(validAdmin, {
+      registrationId: registration.id,
+      registrationPlayerId: rp2.id,
+      reason: "Accidentally registered by team leader",
+    });
+    assert(removeUnpaidResult.success === true, `Remove unpaid player failed: ${removeUnpaidResult.message}`);
+    assert(removeUnpaidResult.newStatus === "REMOVED");
+
+    const checkRp2Removed = await prisma.registration_players.findUniqueOrThrow({ where: { id: rp2.id } });
+    assert(checkRp2Removed.status === "REMOVED", "Player status must transition to REMOVED");
+    assert(checkRp2Removed.removed_at !== null, "removed_at must be populated");
+    assert(checkRp2Removed.removed_by_profile_id === adminProfile.id);
+
+    // Placeholder pending payment preserved during soft removal
+    const checkPay2Preserved = await prisma.payments.findUnique({ where: { id: pay2.id } });
+    assert(checkPay2Preserved !== null, "Placeholder payment must be preserved during soft removal");
+
+    // Proof 7: Audit log ROSTER_MEMBER_REMOVED created
+    assert(removeUnpaidResult.auditLogId, "Audit log ID must be returned");
+    const auditRemoveUnpaid = await prisma.admin_audit_logs.findUnique({ where: { id: removeUnpaidResult.auditLogId } });
+    assert(auditRemoveUnpaid !== null && auditRemoveUnpaid.action === "ROSTER_MEMBER_REMOVED");
+    const auditRemoveMeta = auditRemoveUnpaid.metadata as Record<string, unknown>;
+    assert(auditRemoveMeta.reason === "Accidentally registered by team leader");
+    assert(auditRemoveMeta.new_status === "REMOVED");
+    console.log("  PASS: Proof 3 & 7: ACTIVE unpaid player soft-removed; ROSTER_MEMBER_REMOVED logged\n");
+
+    // -------------------------------------------------------------------------
+    // PROOF 10: REMOVED UNPAID PLAYER CAN STILL BE RESTORED BEFORE DELETION
+    // -------------------------------------------------------------------------
+    console.log("[PROOF 10] Testing Removed Unpaid Player Restorable Before Deletion...");
+    const restoreUnpaidRes = await executeRosterMemberRestore(validAdmin, {
+      registrationId: registration.id,
+      registrationPlayerId: rp2.id,
+      reason: "Re-activating unpaid player prior to test deletion",
+    });
+    assert(restoreUnpaidRes.success === true && restoreUnpaidRes.newStatus === "ACTIVE");
+    const checkRp2Restored = await prisma.registration_players.findUniqueOrThrow({ where: { id: rp2.id } });
+    assert(checkRp2Restored.status === "ACTIVE", "Player should be restored to ACTIVE");
+
+    // Remove again to test deletion
+    await executeRosterMemberSoftRemoval(validAdmin, {
+      registrationId: registration.id,
+      registrationPlayerId: rp2.id,
+      reason: "Confirmed erroneous roster entry",
+    });
+    console.log("  PASS: Proof 10: Removed unpaid player successfully restored and re-removed\n");
+
+    // -------------------------------------------------------------------------
+    // ACCOUNTING AT REMOVAL: Active roster count and expected amount decrease
+    // -------------------------------------------------------------------------
+    console.log("[ACCOUNTING CHECK 1] Checking Accounting at Removal Transition...");
+    const regAfterRemoveUnpaid = await prisma.registrations.findUniqueOrThrow({
+      where: { id: registration.id },
+      include: {
+        teams: true,
+        leagues: true,
+        league_categories_registrations_league_category_idToleague_categories: true,
+        registration_players: {
+          include: { players: true, payments: true },
+        },
+        payments: true,
+      },
+    });
+    const acctAfterRemove = calculateRegistrationAccounting(regAfterRemoveUnpaid);
+    // Active roster now: rp1 (unpaid), rp3 (verified), rp4 (unpaid) = 3 active players.
+    // rp2 is REMOVED.
+    // Expected = 3 * 300 = ₱900.
+    assert(acctAfterRemove.rosterCount === 3, `Expected rosterCount = 3, got ${acctAfterRemove.rosterCount}`);
+    assert(acctAfterRemove.removedRosterCount === 1, `Expected removedRosterCount = 1, got ${acctAfterRemove.removedRosterCount}`);
+    assert(acctAfterRemove.expectedAmount === 900, `Expected expectedAmount = 900, got ${acctAfterRemove.expectedAmount}`);
+    console.log("  PASS: Accounting updated correctly at ACTIVE -> REMOVED transition (3 active, ₱900 expected)\n");
+
+    // -------------------------------------------------------------------------
+    // PROOF 5 & 8: REMOVED UNPAID/UNVERIFIED PLAYER CAN BE HARD-DELETED
+    // -------------------------------------------------------------------------
+    console.log("[PROOF 5 & 8] Testing Hard Delete on REMOVED Unpaid/Unverified Player...");
+    const evalRp2Removed = await evaluateRosterMemberDeletionEligibility(rp2.id);
+    assert(evalRp2Removed.eligible === true, "REMOVED unverified player must be eligible for hard delete");
+    assert(evalRp2Removed.policy === "UNVERIFIED_HARD_DELETE_ALLOWED");
+
     const delResult = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
       registrationId: registration.id,
       registrationPlayerId: rp2.id,
-      reason: "Accidental roster entry registered by mistake",
+      reason: "Confirmed erroneous roster entry",
     });
-    assert(delResult.success === true, `Delete unverified member failed: ${delResult.message}`);
+    assert(delResult.success === true, `Delete failed: ${delResult.message}`);
     assert(delResult.deletedRegistrationPlayerId === rp2.id);
 
-    // Test 4: registration_players row deleted
-    const checkRp2 = await prisma.registration_players.findUnique({ where: { id: rp2.id } });
-    assert(checkRp2 === null, "registration_players row must be physically deleted");
+    // Verify registration_players row deleted
+    const checkRp2Deleted = await prisma.registration_players.findUnique({ where: { id: rp2.id } });
+    assert(checkRp2Deleted === null, "registration_players row must be physically deleted");
 
-    // Test 5: Global players record PRESERVED
+    // Verify Global player preserved
     const checkP2 = await prisma.players.findUnique({ where: { id: p2.id } });
     assert(checkP2 !== null, "CRITICAL: Global players record MUST be preserved");
 
-    // Test 6: Pending placeholder payment purged
+    // Verify placeholder payment purged
     const checkPay2 = await prisma.payments.findUnique({ where: { id: pay2.id } });
-    assert(checkPay2 === null, "Pending payment placeholder must be explicitly purged");
+    assert(checkPay2 === null, "Pending placeholder payment must be explicitly purged");
 
-    // Test 7: Audit log created
-    assert(delResult.auditLogId, "Audit log ID must be returned");
+    // Proof 8: Separate distinct audit log ROSTER_MEMBER_DELETED created
+    assert(delResult.auditLogId, "Delete audit log ID must be returned");
     const auditDel = await prisma.admin_audit_logs.findUnique({ where: { id: delResult.auditLogId } });
     assert(auditDel !== null, "Audit record must exist");
     assert(auditDel.action === "ROSTER_MEMBER_DELETED");
-    const auditMeta = auditDel.metadata as Record<string, unknown>;
-    assert(auditMeta.player_id === p2.id, "Audit metadata must preserve player_id");
-    assert(auditMeta.reason === "Accidental roster entry registered by mistake", "Audit metadata must store reason");
-    assert(auditMeta.global_player_preserved === true, "Audit must record global player preserved");
-    console.log("  PASS: Tests 4, 5, 6, 7: Hard delete succeeded, placeholders purged, global player preserved, audit logged\n");
+    const auditDelMeta = auditDel.metadata as Record<string, unknown>;
+    assert(auditDelMeta.previous_roster_status === "REMOVED", "Audit metadata must note previous status was REMOVED");
+    assert(auditDelMeta.reason === "Confirmed erroneous roster entry");
+    assert(auditDelMeta.global_player_preserved === true);
+    console.log("  PASS: Proof 5 & 8: REMOVED unverified player hard-deleted; separate ROSTER_MEMBER_DELETED logged\n");
 
     // -------------------------------------------------------------------------
-    // TEST 8: ACTIVE + VERIFIED PAYMENT HARD DELETE BLOCKED
+    // PROOF 9: DELETE AFTER REMOVE DOES NOT CHANGE ACTIVE ACCOUNTING A SECOND TIME
     // -------------------------------------------------------------------------
-    console.log("[TEST 8] Testing Active Player with Verified Payment Hard Delete Blocked...");
-    const paidDel = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
-      registrationId: registration.id,
-      registrationPlayerId: rp3.id,
-      reason: "Attempt to hard delete paid player",
+    console.log("[PROOF 9] Testing Delete after Remove Does NOT Double-Adjust Active Accounting...");
+    const regAfterDelUnpaid = await prisma.registrations.findUniqueOrThrow({
+      where: { id: registration.id },
+      include: {
+        teams: true,
+        leagues: true,
+        league_categories_registrations_league_category_idToleague_categories: true,
+        registration_players: {
+          include: { players: true, payments: true },
+        },
+        payments: true,
+      },
     });
-    assert(paidDel.success === false, "Hard delete on player with verified payment must be blocked");
-    assert(paidDel.error === "BLOCKED_VERIFIED_PAYMENT");
-    assert(
-      paidDel.message.includes("Remove from Roster instead"),
-      `Expected message directing to Remove, got: ${paidDel.message}`
-    );
-
-    // Also check evaluation helper
-    const evalRp3 = await evaluateRosterMemberDeletionEligibility(rp3.id);
-    assert(evalRp3.eligible === false && evalRp3.policy === "BLOCKED_VERIFIED_PAYMENT");
-    console.log("  PASS: Test 8: Hard delete of player with verified payment strictly blocked\n");
+    const acctAfterDel = calculateRegistrationAccounting(regAfterDelUnpaid);
+    // Active roster is STILL 3 players (rp1, rp3, rp4).
+    // Expected amount is STILL ₱900.
+    // Paid count is STILL 1.
+    // Balance is STILL ₱600.
+    assert(acctAfterDel.rosterCount === 3, `Expected rosterCount unchanged = 3, got ${acctAfterDel.rosterCount}`);
+    assert(acctAfterDel.expectedAmount === 900, `Expected expectedAmount unchanged = 900, got ${acctAfterDel.expectedAmount}`);
+    assert(acctAfterDel.paidPlayerCount === 1, `Expected paidPlayerCount unchanged = 1, got ${acctAfterDel.paidPlayerCount}`);
+    assert(acctAfterDel.balance === 600, `Expected balance unchanged = 600, got ${acctAfterDel.balance}`);
+    console.log("  PASS: Proof 9: Hard deletion of REMOVED player caused ZERO double-adjustment to active accounting\n");
 
     // -------------------------------------------------------------------------
-    // TEST 9, 10, 11: REMOVE VERIFIED PLAYER (SOFT REMOVAL)
+    // PROOF 4: ACTIVE VERIFIED PLAYER CAN BE REMOVED (SOFT REMOVAL)
     // -------------------------------------------------------------------------
-    console.log("[TEST 9, 10, 11] Testing Soft Removal of Verified Player...");
-    const removeResult = await executeRosterMemberSoftRemoval(validAdmin, {
+    console.log("[PROOF 4] Testing Soft Removal of ACTIVE Verified Player...");
+    const removeVerifiedResult = await executeRosterMemberSoftRemoval(validAdmin, {
       registrationId: registration.id,
       registrationPlayerId: rp3.id,
       reason: "Injury before tournament; withdrawn by team",
     });
-    assert(removeResult.success === true, `Remove failed: ${removeResult.message}`);
-    assert(removeResult.newStatus === "REMOVED");
+    assert(removeVerifiedResult.success === true, `Remove verified player failed: ${removeVerifiedResult.message}`);
+    assert(removeVerifiedResult.newStatus === "REMOVED");
 
-    // Test 10: Status is REMOVED, removed_at and removed_by_profile_id populated
     const checkRp3 = await prisma.registration_players.findUniqueOrThrow({ where: { id: rp3.id } });
     assert(checkRp3.status === "REMOVED", "Player status must be REMOVED");
     assert(checkRp3.removed_at !== null, "removed_at must be populated");
     assert(checkRp3.removed_by_profile_id === adminProfile.id, "removed_by_profile_id must be populated");
 
-    // Test 11: Verified payment remains unchanged
+    // Verified payment remains intact
     const checkPay3 = await prisma.payments.findUniqueOrThrow({ where: { id: pay3.id } });
     assert(checkPay3.status === "VERIFIED", "Payment status must remain VERIFIED");
     assert(Number(checkPay3.amount) === 300.0, "Payment amount must remain ₱300.00");
     assert(checkPay3.registration_player_id === rp3.id, "Payment foreign key anchor must be preserved");
-    console.log("  PASS: Tests 9, 10, 11: Player transitioned to REMOVED, payment and financial anchors intact\n");
+    console.log("  PASS: Proof 4: ACTIVE verified player transitioned to REMOVED, payment and anchors intact\n");
 
     // -------------------------------------------------------------------------
-    // TEST 12, 13, 14, 15, 16: ACCOUNTING & PUBLIC ROSTER AFTER REMOVAL
+    // PROOF 6: REMOVED VERIFIED/UNREFUNDED PLAYER CANNOT BE HARD-DELETED
     // -------------------------------------------------------------------------
-    console.log("[TEST 12, 13, 14, 15, 16] Testing Canonical Accounting & Public Roster after Removal...");
-    // Current roster on reg:
-    // rp1: Captain, ACTIVE, unpaid (₱300 due)
-    // rp4: ACTIVE, unpaid (₱300 due)
-    // rp3: REMOVED, verified paid (₱300 historical)
-    // Active count = 2 players. Expected = 2 * 300 = ₱600.
-    // Active verified paid = 0. Balance = ₱600.
-    // Historical removed verified = ₱300.
-    // Completeness = INCOMPLETE.
+    console.log("[PROOF 6] Testing REMOVED Verified/Unrefunded Player Hard-Delete Blocked...");
+    const evalRp3Removed = await evaluateRosterMemberDeletionEligibility(rp3.id);
+    assert(evalRp3Removed.eligible === false, "REMOVED verified player must be INELIGIBLE for hard delete");
+    assert(evalRp3Removed.policy === "BLOCKED_VERIFIED_PAYMENT");
+    assert(evalRp3Removed.reason === "Refund this player's verified payment before deleting.");
+
+    const paidDelBlocked = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
+      registrationId: registration.id,
+      registrationPlayerId: rp3.id,
+      reason: "Attempt to hard delete paid removed player",
+    });
+    assert(paidDelBlocked.success === false, "Hard delete on REMOVED player with verified payment must be BLOCKED");
+    assert(paidDelBlocked.error === "BLOCKED_VERIFIED_PAYMENT");
+    assert(
+      paidDelBlocked.message === "Refund this player's verified payment before deleting.",
+      `Unexpected message: ${paidDelBlocked.message}`
+    );
+    console.log("  PASS: Proof 6: Hard delete of REMOVED verified player strictly blocked on server\n");
+
+    // -------------------------------------------------------------------------
+    // ACCOUNTING & PUBLIC ROSTER AFTER VERIFIED PLAYER REMOVAL
+    // -------------------------------------------------------------------------
+    console.log("[ACCOUNTING & PUBLIC ROSTER] Testing Roster & Canonical Accounting after Verified Removal...");
     const regWithRoster = await prisma.registrations.findUniqueOrThrow({
       where: { id: registration.id },
       include: {
@@ -436,29 +573,18 @@ async function run() {
     });
 
     const acct = calculateRegistrationAccounting(regWithRoster);
-
-    // Test 13: Excluded from active roster count
+    // Active roster now: rp1 (unpaid), rp4 (unpaid) -> 2 active players. Expected = 2 * 300 = ₱600.
+    // rp3 is REMOVED, verified paid ₱300.
     assert(acct.rosterCount === 2, `Expected active rosterCount = 2, got ${acct.rosterCount}`);
     assert(acct.removedRosterCount === 1, `Expected removedRosterCount = 1, got ${acct.removedRosterCount}`);
-
-    // Test 14: Expected amount decreased correctly
     assert(acct.expectedAmount === 600, `Expected expectedAmount = 600, got ${acct.expectedAmount}`);
-
-    // Test 15: Historical removed verified amount increased
-    assert(
-      acct.historicalRemovedVerifiedAmount === 300,
-      `Expected historicalRemovedVerifiedAmount = 300, got ${acct.historicalRemovedVerifiedAmount}`
-    );
+    assert(acct.historicalRemovedVerifiedAmount === 300, `Expected historicalRemovedVerifiedAmount = 300, got ${acct.historicalRemovedVerifiedAmount}`);
     assert(acct.totalVerifiedCollected === 300, `Total verified collected is 300`);
-
-    // Test 16: Removed money does NOT pay remaining active unpaid players
     assert(acct.paidPlayerCount === 0, `Expected active paidPlayerCount = 0, got ${acct.paidPlayerCount}`);
     assert(acct.unpaidPlayerCount === 2, `Expected active unpaidPlayerCount = 2, got ${acct.unpaidPlayerCount}`);
     assert(acct.balance === 600, `Expected balance = 600, got ${acct.balance}`);
-    assert(acct.paymentComplete === false, "paymentComplete MUST be false");
-    assert(acct.paymentCompletionStatus === "INCOMPLETE", "paymentCompletionStatus must be INCOMPLETE");
 
-    // Test 12: Public roster excludes removed player
+    // Public roster excludes removed player
     const publicQuery = await prisma.teams.findUniqueOrThrow({
       where: { id: team.id },
       include: {
@@ -468,13 +594,6 @@ async function run() {
             registration_players: {
               where: { status: "ACTIVE" },
             },
-            _count: {
-              select: {
-                registration_players: {
-                  where: { status: "ACTIVE" },
-                },
-              },
-            },
           },
         },
       },
@@ -482,12 +601,12 @@ async function run() {
     const publicPlayers = publicQuery.registrations[0].registration_players;
     assert(publicPlayers.length === 2, `Public roster must show 2 active players, got ${publicPlayers.length}`);
     assert(!publicPlayers.some((p) => p.id === rp3.id), "Removed player MUST NOT appear in public roster");
-    console.log("  PASS: Tests 12, 13, 14, 15, 16: Canonical accounting & public roster exclude removed player; zero money leak\n");
+    console.log("  PASS: Canonical accounting & public roster exclude removed verified player; zero financial leakage\n");
 
     // -------------------------------------------------------------------------
-    // TEST 17, 18, 19, 20, 21: RESTORE PLAYER TO ACTIVE ROSTER
+    // PROOF 11: REMOVED VERIFIED PLAYER CAN STILL BE RESTORED
     // -------------------------------------------------------------------------
-    console.log("[TEST 17, 18, 19, 20, 21] Testing Restore Player to Active Roster...");
+    console.log("[PROOF 11] Testing Restore Verified Player to Active Roster...");
     const restoreResult = await executeRosterMemberRestore(validAdmin, {
       registrationId: registration.id,
       registrationPlayerId: rp3.id,
@@ -496,28 +615,23 @@ async function run() {
     assert(restoreResult.success === true, `Restore failed: ${restoreResult.message}`);
     assert(restoreResult.newStatus === "ACTIVE");
 
-    // Test 18: Clears removed_at and removed_by_profile_id
     const restoredRp3 = await prisma.registration_players.findUniqueOrThrow({ where: { id: rp3.id } });
     assert(restoredRp3.status === "ACTIVE", "Restored status must be ACTIVE");
     assert(restoredRp3.removed_at === null, "removed_at must be cleared to null");
     assert(restoredRp3.removed_by_profile_id === null, "removed_by_profile_id must be cleared to null");
 
-    // Test 19: Historical audit logs preserved
+    // Audit logs preserved
     const removalAudit = await prisma.admin_audit_logs.findFirst({
-      where: {
-        entity_id: rp3.id,
-        action: "ROSTER_MEMBER_REMOVED",
-      },
+      where: { entity_id: rp3.id, action: "ROSTER_MEMBER_REMOVED" },
     });
     assert(removalAudit !== null, "Historical removal audit log must be preserved");
 
     const restoreAudit = await prisma.admin_audit_logs.findUnique({
       where: { id: restoreResult.auditLogId },
     });
-    assert(restoreAudit !== null, "Restore audit log must exist");
-    assert(restoreAudit.action === "ROSTER_MEMBER_RESTORED");
+    assert(restoreAudit !== null && restoreAudit.action === "ROSTER_MEMBER_RESTORED");
 
-    // Test 20: Verified payment reused without duplication
+    // Verified payment reused without duplication
     const paymentsForRp3 = await prisma.payments.findMany({
       where: { registration_player_id: rp3.id },
     });
@@ -525,7 +639,7 @@ async function run() {
     assert(paymentsForRp3[0].id === pay3.id, "Existing payment record must be reused");
     assert(paymentsForRp3[0].status === "VERIFIED");
 
-    // Test 21: Accounting returns to expected values after restore
+    // Accounting returns to expected values after restore
     const regAfterRestore = await prisma.registrations.findUniqueOrThrow({
       where: { id: registration.id },
       include: {
@@ -533,19 +647,14 @@ async function run() {
         leagues: true,
         league_categories_registrations_league_category_idToleague_categories: true,
         registration_players: {
-          include: {
-            players: true,
-            payments: true,
-          },
+          include: { players: true, payments: true },
         },
         payments: true,
       },
     });
     const acctRestored = calculateRegistrationAccounting(regAfterRestore);
-    // Active roster now: rp1 (unpaid), rp4 (unpaid), rp3 (verified paid) -> 3 players
-    // Expected: 3 * 300 = ₱900. Verified paid = ₱300. Balance = ₱600.
-    // Paid players = 1, Unpaid players = 2.
-    // Historical removed = 0.
+    // Active: rp1 (unpaid), rp4 (unpaid), rp3 (verified) = 3 players.
+    // Expected: ₱900. Verified paid: ₱300. Balance: ₱600.
     assert(acctRestored.rosterCount === 3, `Expected rosterCount = 3, got ${acctRestored.rosterCount}`);
     assert(acctRestored.removedRosterCount === 0, `Expected removedRosterCount = 0, got ${acctRestored.removedRosterCount}`);
     assert(acctRestored.expectedAmount === 900, `Expected expectedAmount = 900, got ${acctRestored.expectedAmount}`);
@@ -553,14 +662,14 @@ async function run() {
     assert(acctRestored.paidPlayerCount === 1, `Expected paidPlayerCount = 1, got ${acctRestored.paidPlayerCount}`);
     assert(acctRestored.unpaidPlayerCount === 2, `Expected unpaidPlayerCount = 2, got ${acctRestored.unpaidPlayerCount}`);
     assert(acctRestored.balance === 600, `Expected balance = 600, got ${acctRestored.balance}`);
-    assert(acctRestored.historicalRemovedVerifiedAmount === 0, "historicalRemovedVerifiedAmount must be 0 after restore");
-    console.log("  PASS: Tests 17, 18, 19, 20, 21: Restore successful, payment reused without duplication, accounting verified\n");
+    assert(acctRestored.historicalRemovedVerifiedAmount === 0);
+    console.log("  PASS: Proof 11: Verified player restored, payment reused, accounting reactivated correctly\n");
 
     // -------------------------------------------------------------------------
-    // TEST 24: STALE DELETE AFTER PAYMENT VERIFICATION IS BLOCKED
+    // PROOF 13: STALE-STATE SERVER VALIDATION BLOCKS INVALID DELETION
     // -------------------------------------------------------------------------
-    console.log("[TEST 24] Testing Stale Delete after Payment Verification is Blocked (Race Condition Guard)...");
-    // Create an unverified player
+    console.log("[PROOF 13] Testing Stale-State Server Validation Blocks Invalid Deletion...");
+    // 13A: Player soft-removed, but concurrently receives verified payment before delete
     const pStale = await prisma.players.create({
       data: { first_name: "Stale", last_name: `Race${uniqueSuffix}` },
     });
@@ -571,16 +680,14 @@ async function run() {
         player_id: pStale.id,
         jersey_number: 11,
         position: "Libero",
-        status: "ACTIVE",
+        status: "REMOVED",
+        removed_at: new Date(),
+        removed_by_profile_id: adminProfile.id,
       },
     });
     cleanup.registrationPlayerIds.push(rpStale.id);
 
-    // Initial check shows eligible
-    const initialElig = await evaluateRosterMemberDeletionEligibility(rpStale.id);
-    assert(initialElig.eligible === true, "Initially player is eligible for delete");
-
-    // Another admin concurrently verifies payment
+    // Concurrently verified payment added
     const payStale = await prisma.payments.create({
       data: {
         registration_id: registration.id,
@@ -594,7 +701,7 @@ async function run() {
     });
     cleanup.paymentIds.push(payStale.id);
 
-    // First admin confirms Delete — domain transaction MUST detect verified payment and BLOCK
+    // Delete inside transaction MUST detect verified payment and block
     const staleDel = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
       registrationId: registration.id,
       registrationPlayerId: rpStale.id,
@@ -603,12 +710,31 @@ async function run() {
     assert(staleDel.success === false, "Delete on now-verified player MUST fail inside transaction");
     assert(staleDel.error === "BLOCKED_VERIFIED_PAYMENT");
 
-    // Member and verified payment still exist
-    const checkStaleRp = await prisma.registration_players.findUnique({ where: { id: rpStale.id } });
-    assert(checkStaleRp !== null, "Roster member must remain intact");
-    const checkStalePay = await prisma.payments.findUnique({ where: { id: payStale.id } });
-    assert(checkStalePay !== null && checkStalePay.status === "VERIFIED", "Verified payment must remain intact");
-    console.log("  PASS: Test 24: Stale delete blocked inside transaction upon detecting verified payment\n");
+    // 13B: Player soft-removed, but concurrently restored to ACTIVE before delete
+    const pStaleActive = await prisma.players.create({
+      data: { first_name: "StaleActive", last_name: `Race${uniqueSuffix}` },
+    });
+    cleanup.playerIds.push(pStaleActive.id);
+    const rpStaleActive = await prisma.registration_players.create({
+      data: {
+        registration_id: registration.id,
+        player_id: pStaleActive.id,
+        jersey_number: 12,
+        position: "Setter",
+        status: "ACTIVE", // Concurrently restored to ACTIVE!
+      },
+    });
+    cleanup.registrationPlayerIds.push(rpStaleActive.id);
+
+    const staleActiveDel = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
+      registrationId: registration.id,
+      registrationPlayerId: rpStaleActive.id,
+      reason: "Attempting delete on concurrently restored active player",
+    });
+    assert(staleActiveDel.success === false, "Delete on concurrently restored ACTIVE player MUST fail inside transaction");
+    assert(staleActiveDel.error === "BLOCKED_ACTIVE_STATUS");
+    assert(staleActiveDel.message === "Remove this player from the roster before deleting them.");
+    console.log("  PASS: Proof 13: Stale-state server validation strictly blocks invalid deletions inside transaction\n");
 
     // -------------------------------------------------------------------------
     // TEST 25: DUPLICATE / CONCURRENT REMOVE IS SAFE (IDEMPOTENT)

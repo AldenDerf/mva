@@ -3,6 +3,7 @@ import { AdminContext } from "@/lib/auth/admin";
 import { Prisma, registration_status, roster_status } from "@prisma/client";
 
 export type RosterDeletionPolicy =
+  | "BLOCKED_ACTIVE_STATUS"
   | "BLOCKED_VERIFIED_PAYMENT"
   | "UNVERIFIED_HARD_DELETE_ALLOWED"
   | "NOT_FOUND";
@@ -59,13 +60,16 @@ export interface RosterMemberSoftRemoveResult {
 /**
  * Evaluates whether an individual roster membership is eligible for hard deletion.
  * 
- * AUTHORITATIVE BUSINESS RULES (Phase 05.7D.3):
- * 1. Financial boundary: VERIFIED payment.
- *    - IF roster member has any VERIFIED payments: HARD DELETE = STRICTLY BLOCKED.
- *    - IF roster member has NO VERIFIED payments: HARD DELETE MAY BE ALLOWED after validation.
- * 2. PENDING payment placeholders do not represent collected money and may be purged inside
+ * AUTHORITATIVE BUSINESS RULES (Phase 05.7D.4 — REMOVE BEFORE DELETE):
+ * 1. Lifecycle boundary: Roster member MUST FIRST be REMOVED before hard deletion can occur.
+ *    - IF roster member is ACTIVE: HARD DELETE = ALWAYS BLOCKED.
+ *      Required: Remove from roster first (ACTIVE -> REMOVED).
+ * 2. Financial boundary on REMOVED member:
+ *    - IF REMOVED + VERIFIED payment exists: HARD DELETE = BLOCKED (requires refund before delete).
+ *    - IF REMOVED + NO verified payments: HARD DELETE = ALLOWED.
+ * 3. PENDING payment placeholders do not represent collected money and may be purged inside
  *    the same explicit transaction, but NEVER via automatic generic FK cascade.
- * 3. Global player identity (players table) is preserved independently of roster membership.
+ * 4. Global player identity (players table) is preserved independently of roster membership.
  */
 export async function evaluateRosterMemberDeletionEligibility(
   registrationPlayerId: string
@@ -116,11 +120,29 @@ export async function evaluateRosterMemberDeletionEligibility(
   const verifiedPayments = rp.payments.filter((p) => p.status === "VERIFIED");
   const pendingPayments = rp.payments.filter((p) => p.status === "PENDING" || p.status === "REJECTED");
 
+  // Rule 1: ACTIVE roster members cannot be hard-deleted directly. Must be soft-removed first.
+  if (rp.status !== "REMOVED") {
+    return {
+      eligible: false,
+      policy: "BLOCKED_ACTIVE_STATUS",
+      reason: "Remove this player from the roster before deleting them.",
+      registrationPlayerId: rp.id,
+      registrationId: rp.registration_id,
+      playerId: rp.player_id,
+      currentStatus: rp.status,
+      verifiedPaymentCount: verifiedPayments.length,
+      pendingPaymentCount: pendingPayments.length,
+      pendingPaymentIds: pendingPayments.map((p) => p.id),
+      hasOtherRegistrations: (rp.players._count.registration_players ?? 1) > 1,
+    };
+  }
+
+  // Rule 2: REMOVED player with verified payment cannot be hard-deleted without refund.
   if (verifiedPayments.length > 0) {
     return {
       eligible: false,
       policy: "BLOCKED_VERIFIED_PAYMENT",
-      reason: `Roster member has ${verifiedPayments.length} verified payment record(s). Financial anchors and history cannot be deleted. Must use guarded roster removal lifecycle.`,
+      reason: "Refund this player's verified payment before deleting.",
       registrationPlayerId: rp.id,
       registrationId: rp.registration_id,
       playerId: rp.player_id,
@@ -135,7 +157,7 @@ export async function evaluateRosterMemberDeletionEligibility(
   return {
     eligible: true,
     policy: "UNVERIFIED_HARD_DELETE_ALLOWED",
-    reason: "Roster member has no verified payments and is eligible for guarded administrative hard deletion.",
+    reason: "Roster member is removed and has no verified payments. Eligible for administrative deletion.",
     registrationPlayerId: rp.id,
     registrationId: rp.registration_id,
     playerId: rp.player_id,
@@ -316,7 +338,16 @@ export async function executeUnverifiedRosterMemberHardDelete(
         };
       }
 
-      // 2. Captain Guard: Do NOT allow deleting active captain
+      // 2. Lifecycle Check: Player MUST FIRST be REMOVED before hard deletion
+      if (rp.status !== "REMOVED") {
+        return {
+          success: false,
+          error: "BLOCKED_ACTIVE_STATUS",
+          message: "Remove this player from the roster before deleting them.",
+        };
+      }
+
+      // 3. Captain Guard: Do NOT allow deleting active captain
       if (rp.is_captain) {
         return {
           success: false,
@@ -325,17 +356,17 @@ export async function executeUnverifiedRosterMemberHardDelete(
         };
       }
 
-      // 3. Financial Boundary Check: ZERO verified payments allowed
+      // 4. Financial Boundary Check: ZERO verified payments allowed
       const verifiedPayments = rp.payments.filter((p) => p.status === "VERIFIED");
       if (verifiedPayments.length > 0) {
         return {
           success: false,
           error: "BLOCKED_VERIFIED_PAYMENT",
-          message: "This player now has a verified payment and can no longer be deleted. Use Remove from Roster instead.",
+          message: "Refund this player's verified payment before deleting.",
         };
       }
 
-      // 4. Purge unverified PENDING/REJECTED payment placeholders
+      // 5. Purge unverified PENDING/REJECTED payment placeholders
       const pendingPaymentIds = rp.payments
         .filter((p) => p.status === "PENDING" || p.status === "REJECTED")
         .map((p) => p.id);
@@ -350,12 +381,12 @@ export async function executeUnverifiedRosterMemberHardDelete(
         });
       }
 
-      // 5. Delete the roster member (registration_players)
+      // 6. Delete the roster member (registration_players)
       await tx.registration_players.delete({
         where: { id: rp.id },
       });
 
-      // 6. Note: Global players record is intentionally PRESERVED
+      // 7. Note: Global players record is intentionally PRESERVED
 
       const fullName = formatFullName(
         rp.players.first_name,
@@ -364,7 +395,7 @@ export async function executeUnverifiedRosterMemberHardDelete(
         rp.players.suffix
       );
 
-      // 7. Record immutable audit log
+      // 8. Record immutable audit log
       const auditLog = await tx.admin_audit_logs.create({
         data: {
           admin_profile_id: admin.profileId,
@@ -408,7 +439,7 @@ export async function executeUnverifiedRosterMemberHardDelete(
       return {
         success: false,
         error: "BLOCKED_VERIFIED_PAYMENT",
-        message: "This player has payment records preventing hard deletion. Use Remove from Roster instead.",
+        message: "Refund this player's verified payment before deleting.",
       };
     }
     return {
@@ -538,7 +569,10 @@ export async function executeRosterMemberSoftRemoval(
             previous_status: rp.status,
             new_status: "REMOVED",
             reason: trimmedReason,
-            verified_payment_summary: `${verifiedPayments.length} verified payment(s) totaling ₱${verifiedTotal.toFixed(2)} preserved`,
+            verified_payment_summary:
+              verifiedPayments.length > 0
+                ? `${verifiedPayments.length} verified payment(s) totaling ₱${verifiedTotal.toFixed(2)} preserved`
+                : "No verified payments; player moved to removed roster",
             actor_profile_id: admin.profileId,
             actor_name: admin.displayName,
             actor_email: admin.email,
