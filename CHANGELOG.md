@@ -37,6 +37,15 @@ Git commits remain the authoritative technical history. This file records meanin
   * Active roster table indicates players covered via legacy allocation (`Paid via Allocation`).
 * **Automated Verification Suite (`scripts/verify-phase-05-7d5.ts`)**:
   * Authored 32-point automated test suite proving eligibility rules, over-allocation/over-credit guards, partial allocations, removed player handling, reversal semantics, concurrency protection under parallel execution, Valugan Tides-like pending assessment regression, verified legacy reconciliation lifecycle, and zero database drift.
+* **Development Manual Testing Seed Utility (`scripts/seed-phase-05-7d5-manual-test.ts`, `package.json`)**:
+  * Authored idempotent seed script (`pnpm seed:05-7d5`) creating 5 deterministic test teams in `mva_dev` for manual browser verification:
+    * `TEST D5 Pending Assessment`: 7 direct verified payments + 1 pending assessment note (proves no warning banner, complete roster, gross collections ₱2,100).
+    * `TEST D5 Legacy Unallocated`: 1 verified ₱2,100 unallocated payment (proves "Payment needs review" warning, "Allocate to Players" button, 0/7 paid).
+    * `TEST D5 Partial Reconcile`: 1 verified ₱2,100 payment with ₱900 allocated across 3 players (proves 3/7 paid, ₱1,200 remaining).
+    * `TEST D5 Fully Reconciled`: 1 verified ₱2,100 payment with all 7 players allocated (proves warning banner clears, allocate button hidden, 7/7 paid).
+    * `TEST D5 Reversed Allocation`: 1 verified ₱2,100 payment with 1 active and 1 reversed allocation (proves reversed allocations do not count as active credit).
+  * Strict environment safety probe guards against running on production Supabase or non-`mva_dev` databases.
+  * Outputs clear manual browser testing instructions, route URLs, and expected UI states for each scenario.
 
 ### Admin Roster Management (Phase 05.7D.4 — Verification-Boundary Historical Roster History)
 
