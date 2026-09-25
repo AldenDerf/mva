@@ -40,7 +40,12 @@ export interface AdminPaymentListItem {
   fullName: string;
   jerseyNumber: number | null;
 
-  // Legacy
+  // Legacy & Allocation Context
+  originalAmount: number;
+  allocatedAmount: number;
+  remainingUnallocated: number;
+  isVerifiedLegacyUnallocated: boolean;
+  isFullyReconciledLegacy: boolean;
   isLegacyUnallocated: boolean;
 
   // Accounting Context
@@ -449,6 +454,12 @@ export async function getAdminPaymentsList(
         verified_at: true,
         registration_id: true,
         registration_player_id: true,
+        payment_allocations: {
+          select: {
+            amount: true,
+            reversed_at: true,
+          },
+        },
         verified_by_profile: {
           select: {
             id: true,
@@ -509,15 +520,40 @@ export async function getAdminPaymentsList(
     const category =
       reg.league_categories_registrations_league_category_idToleague_categories;
     const accounting = accountingMap.get(p.registration_id);
+    const originalAmount = Number(p.amount);
 
-    let fullName =
-      p.status === "VERIFIED"
-        ? "Legacy Unallocated Payment"
-        : p.status === "PENDING"
-        ? "Unassigned Pending Payment"
-        : p.status === "REJECTED"
-        ? "Unassigned Rejected Payment"
-        : "Unassigned Payment";
+    let allocatedAmount = 0;
+    if (p.payment_allocations && p.payment_allocations.length > 0) {
+      for (const alloc of p.payment_allocations) {
+        if (alloc.reversed_at === null || alloc.reversed_at === undefined) {
+          allocatedAmount += Number(alloc.amount);
+        }
+      }
+    } else if (accounting) {
+      const legacySummary = accounting.legacyPayments.find((lp) => lp.id === p.id);
+      if (legacySummary) {
+        allocatedAmount = legacySummary.allocatedAmount;
+      }
+    }
+
+    const remainingUnallocated = Math.max(0, originalAmount - allocatedAmount);
+    const isVerifiedLegacy = isLegacy && p.status === "VERIFIED";
+    const isVerifiedLegacyUnallocated = isVerifiedLegacy && remainingUnallocated > 0.001;
+    const isFullyReconciledLegacy = isVerifiedLegacy && remainingUnallocated <= 0.001;
+
+    let fullName = "Unassigned Payment";
+    if (isLegacy) {
+      if (p.status === "PENDING") {
+        fullName = "Unassigned Pending Payment";
+      } else if (p.status === "REJECTED") {
+        fullName = "Unassigned Rejected Payment";
+      } else if (p.status === "VERIFIED") {
+        fullName = isVerifiedLegacyUnallocated
+          ? "Legacy Unallocated Payment"
+          : "Legacy Payment — Fully Reconciled";
+      }
+    }
+
     let playerId: string | null = null;
     let registrationPlayerId: string | null = null;
     let jerseyNumber: number | null = null;
@@ -542,7 +578,10 @@ export async function getAdminPaymentsList(
 
     return {
       id: p.id,
-      amount: Number(p.amount),
+      amount: originalAmount,
+      originalAmount,
+      allocatedAmount,
+      remainingUnallocated,
       status: p.status,
       paymentMethod: p.payment_method,
       referenceNumber: p.reference_number,
@@ -565,7 +604,9 @@ export async function getAdminPaymentsList(
       fullName,
       jerseyNumber,
 
-      isLegacyUnallocated: isLegacy && p.status === "VERIFIED",
+      isLegacyUnallocated: isVerifiedLegacyUnallocated,
+      isVerifiedLegacyUnallocated,
+      isFullyReconciledLegacy,
 
       rosterCount: accounting?.rosterCount ?? 0,
       paidPlayerCount: accounting?.paidPlayerCount ?? 0,
@@ -617,3 +658,5 @@ export async function getAdminPaymentFilterCategories(): Promise<
     leagueName: c.leagues.name,
   }));
 }
+
+export const getAdminPayments = getAdminPaymentsList;

@@ -32,6 +32,7 @@ export interface AdminRegistrationListItem {
   paymentComplete: boolean;
   paymentCompletionStatus: PaymentCompletionStatus;
   hasLegacyPayments: boolean;
+  hasUnallocatedVerifiedLegacyPayments: boolean;
   unallocatedVerifiedAmount: number;
 
   // Historical/compatibility fields
@@ -411,6 +412,7 @@ export async function getAdminRegistrations(
       paymentComplete: acct.paymentComplete,
       paymentCompletionStatus: acct.paymentCompletionStatus,
       hasLegacyPayments: acct.hasLegacyPayments,
+      hasUnallocatedVerifiedLegacyPayments: acct.hasUnallocatedVerifiedLegacyPayments,
       unallocatedVerifiedAmount: acct.unallocatedVerifiedAmount,
 
       // Historical compatibility

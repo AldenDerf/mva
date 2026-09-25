@@ -1,3 +1,4 @@
+import "./load-env";
 import { prisma } from "../lib/prisma";
 import pg from "pg";
 import assert from "assert";
@@ -14,6 +15,7 @@ import {
   executeRosterMemberSoftRemoval,
   executeRosterMemberRestore,
 } from "../lib/admin/roster-safety";
+import { getAdminPayments } from "../lib/admin/payments";
 import { AdminContext } from "../lib/auth/admin";
 
 if (typeof process.loadEnvFile === "function") {
@@ -891,6 +893,378 @@ async function run() {
     assert.strictEqual(restoredDb.status, "ACTIVE");
     console.log("  PASS: Test 29: Restore functionality functions as expected.\n");
 
+    // -------------------------------------------------------------------------
+    // TEST 31: Valugan Tides-like Manual Test Scenario (Section 10)
+    // - Registration is VERIFIED
+    // - Active roster = 7 players, Category fee = ₱300
+    // - Direct VERIFIED payments for all 7 players (₱300 each = ₱2,100 total)
+    // - Old NULL-player PENDING payment (₱2,100, note: "Registration fee assessment: 7 players × ₱300.")
+    // - No VERIFIED unallocated legacy parent payment
+    // Verification invariants:
+    // 1. paymentComplete === true
+    // 2. unallocatedVerifiedAmount === 0
+    // 3. hasUnallocatedVerifiedLegacyPayments === false (No review banner)
+    // 4. hasFinancialAnomaly === false (no anomaly caused by the pending assessment)
+    // 5. grossVerifiedCollections === 2100 (never doubled to 4200)
+    // 6. allocateLegacyPayment on the PENDING payment is BLOCKED (INVALID_PAYMENT_STATUS)
+    // 7. /admin/payments derived labels: PENDING payment has label "Unassigned Pending Payment",
+    //    isVerifiedLegacyUnallocated === false, isFullyReconciledLegacy === false.
+    // -------------------------------------------------------------------------
+    console.log("[TEST 31] Verifying Valugan Tides-like scenario (PENDING assessment + direct verified payments)...");
+
+    // Create Team C
+    const teamC = await prisma.teams.create({
+      data: {
+        team_name: `Team Valugan Tides ${uniqueSuffix}`,
+        slug: `team-valugan-${uniqueSuffix}`,
+      },
+    });
+    cleanup.teamIds.push(teamC.id);
+
+    const regC = await prisma.registrations.create({
+      data: {
+        league_id: league.id,
+        league_category_id: category.id,
+        team_id: teamC.id,
+        registration_code: `MVA-VALUGAN-${uniqueSuffix}`,
+        status: "VERIFIED",
+        registrant_first_name: "Captain",
+        registrant_last_name: "Valugan",
+        registrant_contact: "09170000003",
+        verified_at: new Date(),
+      },
+    });
+    cleanup.registrationIds.push(regC.id);
+
+    // Create 7 active players on Team C
+    const playerMembersC: Array<{ id: string; rpId: string; name: string }> = [];
+    for (let i = 1; i <= 7; i++) {
+      const p = await prisma.players.create({
+        data: {
+          first_name: `ValPlayer${i}`,
+          last_name: `Valugan${uniqueSuffix}`,
+        },
+      });
+      cleanup.playerIds.push(p.id);
+
+      const rp = await prisma.registration_players.create({
+        data: {
+          registration_id: regC.id,
+          player_id: p.id,
+          jersey_number: i,
+          position: "Spiker",
+          status: "ACTIVE",
+        },
+      });
+      cleanup.registrationPlayerIds.push(rp.id);
+      playerMembersC.push({ id: p.id, rpId: rp.id, name: `ValPlayer${i} Valugan${uniqueSuffix}` });
+
+      // Direct verified payment of ₱300 for each player
+      const pay = await prisma.payments.create({
+        data: {
+          registration_id: regC.id,
+          registration_player_id: rp.id,
+          amount: new Prisma.Decimal(300.0),
+          payment_method: "CASH",
+          status: "VERIFIED",
+          verified_at: new Date(),
+          verified_by_profile_id: adminProfile.id,
+        },
+      });
+      cleanup.paymentIds.push(pay.id);
+    }
+
+    // Old NULL-player PENDING assessment payment
+    const pendingAssessmentC = await prisma.payments.create({
+      data: {
+        registration_id: regC.id,
+        registration_player_id: null,
+        amount: new Prisma.Decimal(2100.0),
+        payment_method: "CASH",
+        status: "PENDING",
+        notes: "Registration fee assessment: 7 players × ₱300.",
+      },
+    });
+    cleanup.paymentIds.push(pendingAssessmentC.id);
+
+    // Fetch Registration C accounting
+    const regDetailC = await prisma.registrations.findUniqueOrThrow({
+      where: { id: regC.id },
+      include: {
+        teams: true,
+        leagues: true,
+        league_categories_registrations_league_category_idToleague_categories: true,
+        registration_players: {
+          include: {
+            players: true,
+            payments: true,
+            payment_allocations: {
+              include: { payments: true },
+            },
+          },
+        },
+        payments: {
+          include: {
+            payment_allocations: true,
+          },
+        },
+      },
+    });
+    const acctC = calculateRegistrationAccounting(regDetailC);
+
+    assert.strictEqual(acctC.rosterCount, 7, "Roster count must be 7");
+    assert.strictEqual(acctC.paidPlayerCount, 7, "All 7 players must be paid");
+    assert.strictEqual(acctC.paymentComplete, true, "Payment Complete must be true");
+    assert.strictEqual(acctC.expectedAmount, 2100.0, "Expected amount must be 2100");
+    assert.strictEqual(acctC.verifiedPaidAmount, 2100.0, "Verified paid amount must be 2100");
+    assert.strictEqual(acctC.balance, 0, "Balance must be 0");
+    assert.strictEqual(acctC.unallocatedVerifiedAmount, 0, "Unallocated verified amount must be 0");
+    assert.strictEqual(acctC.unallocatedPendingAmount, 2100.0, "Unallocated pending amount must be 2100");
+    assert.strictEqual(
+      acctC.hasUnallocatedVerifiedLegacyPayments,
+      false,
+      "hasUnallocatedVerifiedLegacyPayments must be FALSE so warning banner is NOT shown"
+    );
+    assert.strictEqual(
+      acctC.hasFinancialAnomaly,
+      false,
+      "Pending assessment must NOT cause financial anomaly"
+    );
+    assert.strictEqual(
+      acctC.grossVerifiedCollections,
+      2100.0,
+      "Gross verified collections must remain 2100 and NOT double to 4200"
+    );
+
+    // Verify allocation of pending assessment is blocked
+    const allocPendingAttempt = await allocateLegacyPayment(adminCtx, {
+      paymentId: pendingAssessmentC.id,
+      allocations: [{ registrationPlayerId: playerMembersC[0].rpId, amount: 300.0 }],
+      reconciliationNote: "Attempting to allocate pending assessment",
+    });
+    assert.strictEqual(allocPendingAttempt.success, false);
+    assert.strictEqual(allocPendingAttempt.error, "INVALID_PAYMENT_STATUS");
+
+    // Verify /admin/payments derived list output for Registration C
+    const paymentsListC = await getAdminPayments({ categoryId: category.id, pageSize: 50 });
+    const pendingItemC = paymentsListC.items.find((item) => item.id === pendingAssessmentC.id);
+    assert(pendingItemC !== undefined, "Pending assessment payment must be in payments list");
+    assert.strictEqual(
+      pendingItemC.fullName,
+      "Unassigned Pending Payment",
+      "PENDING + NULL player label must be 'Unassigned Pending Payment'"
+    );
+    assert.strictEqual(pendingItemC.isVerifiedLegacyUnallocated, false);
+    assert.strictEqual(pendingItemC.isFullyReconciledLegacy, false);
+    assert.strictEqual(pendingItemC.isLegacyUnallocated, false);
+
+    console.log("  PASS: Test 31: Valugan Tides-like scenario verified with zero warning, zero double-counting, and blocked allocation.\n");
+
+    // -------------------------------------------------------------------------
+    // TEST 32: Verified Legacy Parent Payment Lifecycle & Warning Verification (Section 11)
+    // - Parent payment: NULL player, VERIFIED, ₱2,100, no allocations
+    // - Verify warning condition: hasUnallocatedVerifiedLegacyPayments === true
+    // - Allocate ₱2,100: warning condition becomes false, label becomes 'Legacy Payment — Fully Reconciled'
+    // - Reverse ₱300: warning condition returns to true, label becomes 'Legacy Unallocated Payment'
+    // -------------------------------------------------------------------------
+    console.log("[TEST 32] Verifying VERIFIED legacy payment allocation, full reconciliation, and reversal lifecycle...");
+
+    // Create Team D
+    const teamD = await prisma.teams.create({
+      data: {
+        team_name: `Team Delta ${uniqueSuffix}`,
+        slug: `team-delta-${uniqueSuffix}`,
+      },
+    });
+    cleanup.teamIds.push(teamD.id);
+
+    const regD = await prisma.registrations.create({
+      data: {
+        league_id: league.id,
+        league_category_id: category.id,
+        team_id: teamD.id,
+        registration_code: `MVA-DELTA-${uniqueSuffix}`,
+        status: "VERIFIED",
+        registrant_first_name: "Leader",
+        registrant_last_name: "Delta",
+        registrant_contact: "09170000004",
+        verified_at: new Date(),
+      },
+    });
+    cleanup.registrationIds.push(regD.id);
+
+    // Create 7 active players on Team D
+    const playerMembersD: Array<{ id: string; rpId: string; name: string }> = [];
+    for (let i = 1; i <= 7; i++) {
+      const p = await prisma.players.create({
+        data: {
+          first_name: `DeltaPlayer${i}`,
+          last_name: `Delta${uniqueSuffix}`,
+        },
+      });
+      cleanup.playerIds.push(p.id);
+
+      const rp = await prisma.registration_players.create({
+        data: {
+          registration_id: regD.id,
+          player_id: p.id,
+          jersey_number: i,
+          position: "Hitter",
+          status: "ACTIVE",
+        },
+      });
+      cleanup.registrationPlayerIds.push(rp.id);
+      playerMembersD.push({ id: p.id, rpId: rp.id, name: `DeltaPlayer${i} Delta${uniqueSuffix}` });
+    }
+
+    // Create VERIFIED legacy parent payment of ₱2,100 with no allocations
+    const legacyPaymentD = await prisma.payments.create({
+      data: {
+        registration_id: regD.id,
+        registration_player_id: null,
+        amount: new Prisma.Decimal(2100.0),
+        payment_method: "CASH",
+        status: "VERIFIED",
+        verified_at: new Date(),
+        verified_by_profile_id: adminProfile.id,
+      },
+    });
+    cleanup.paymentIds.push(legacyPaymentD.id);
+
+    // Step 1: Initial state (unallocated VERIFIED payment)
+    const fetchRegD = async () => {
+      return await prisma.registrations.findUniqueOrThrow({
+        where: { id: regD.id },
+        include: {
+          teams: true,
+          leagues: true,
+          league_categories_registrations_league_category_idToleague_categories: true,
+          registration_players: {
+            include: {
+              players: true,
+              payments: true,
+              payment_allocations: {
+                include: { payments: true },
+              },
+            },
+          },
+          payments: {
+            include: {
+              payment_allocations: true,
+            },
+          },
+        },
+      });
+    };
+
+    let acctD = calculateRegistrationAccounting(await fetchRegD());
+    assert.strictEqual(acctD.unallocatedVerifiedAmount, 2100.0);
+    assert.strictEqual(
+      acctD.hasUnallocatedVerifiedLegacyPayments,
+      true,
+      "Review banner MUST be visible when unallocatedVerifiedAmount > 0"
+    );
+    assert.strictEqual(acctD.paidPlayerCount, 0);
+    assert.strictEqual(acctD.paymentComplete, false);
+    assert.strictEqual(acctD.hasFinancialAnomaly, true, "Must flag anomaly for unallocated verified legacy cash");
+
+    // Check payment list derived properties in unallocated state
+    let payListD = await getAdminPayments({ categoryId: category.id, pageSize: 50 });
+    let payItemD = payListD.items.find((item) => item.id === legacyPaymentD.id);
+    assert(payItemD !== undefined);
+    assert.strictEqual(
+      payItemD.fullName,
+      "Legacy Unallocated Payment",
+      "VERIFIED + NULL player + remaining > 0 must be 'Legacy Unallocated Payment'"
+    );
+    assert.strictEqual(payItemD.isVerifiedLegacyUnallocated, true);
+    assert.strictEqual(payItemD.isFullyReconciledLegacy, false);
+    assert.strictEqual(payItemD.remainingUnallocated, 2100.0);
+    assert.strictEqual(payItemD.allocatedAmount, 0);
+
+    // Step 2: Fully allocate ₱2,100 to all 7 players (₱300 each)
+    const allocResD = await allocateLegacyPayment(adminCtx, {
+      paymentId: legacyPaymentD.id,
+      allocations: playerMembersD.map((pm) => ({
+        registrationPlayerId: pm.rpId,
+        amount: 300.0,
+      })),
+      reconciliationNote: "Reconciling legacy receipt for all 7 players",
+    });
+    assert.strictEqual(allocResD.success, true);
+    if (allocResD.allocationIds) {
+      cleanup.paymentAllocationIds.push(...allocResD.allocationIds);
+    }
+
+    acctD = calculateRegistrationAccounting(await fetchRegD());
+    assert.strictEqual(acctD.unallocatedVerifiedAmount, 0, "Unallocated verified amount must be 0 after full allocation");
+    assert.strictEqual(
+      acctD.hasUnallocatedVerifiedLegacyPayments,
+      false,
+      "Review banner MUST BE HIDDEN when all legacy cash is fully reconciled"
+    );
+    assert.strictEqual(acctD.paidPlayerCount, 7, "All 7 players must now have verified credit");
+    assert.strictEqual(acctD.paymentComplete, true, "Payment Complete must be true");
+    assert.strictEqual(acctD.grossVerifiedCollections, 2100.0, "Gross verified collections must remain 2100 (never doubled)");
+    assert.strictEqual(acctD.hasFinancialAnomaly, false, "Anomaly must clear once fully reconciled");
+
+    // Check payment list derived properties in fully reconciled state
+    payListD = await getAdminPayments({ categoryId: category.id, pageSize: 50 });
+    payItemD = payListD.items.find((item) => item.id === legacyPaymentD.id);
+    assert(payItemD !== undefined);
+    assert.strictEqual(
+      payItemD.fullName,
+      "Legacy Payment — Fully Reconciled",
+      "VERIFIED + NULL player + remaining <= 0 must be 'Legacy Payment — Fully Reconciled'"
+    );
+    assert.strictEqual(payItemD.isVerifiedLegacyUnallocated, false);
+    assert.strictEqual(payItemD.isFullyReconciledLegacy, true);
+    assert.strictEqual(payItemD.remainingUnallocated, 0);
+    assert.strictEqual(payItemD.allocatedAmount, 2100.0);
+
+    // Step 3: Reverse ₱300 allocation from Player 7
+    const allocToReverseD = await prisma.payment_allocations.findFirstOrThrow({
+      where: {
+        payment_id: legacyPaymentD.id,
+        registration_player_id: playerMembersD[6].rpId,
+        reversed_at: null,
+      },
+    });
+
+    const revResD = await reverseLegacyPaymentAllocation(adminCtx, {
+      allocationId: allocToReverseD.id,
+      reversalReason: "Reversing Player 7 allocation to verify warning returns",
+    });
+    assert.strictEqual(revResD.success, true);
+
+    acctD = calculateRegistrationAccounting(await fetchRegD());
+    assert.strictEqual(acctD.unallocatedVerifiedAmount, 300.0, "Remaining unallocated must be 300 after reversal");
+    assert.strictEqual(
+      acctD.hasUnallocatedVerifiedLegacyPayments,
+      true,
+      "Review banner MUST RETURN when reversal creates remaining unallocated verified funds"
+    );
+    assert.strictEqual(acctD.paidPlayerCount, 6, "Player 7 must no longer be paid");
+    assert.strictEqual(acctD.paymentComplete, false);
+    assert.strictEqual(acctD.grossVerifiedCollections, 2100.0, "Gross collections remain 2100");
+    assert.strictEqual(acctD.hasFinancialAnomaly, true, "Anomaly must be flagged when ₱300 remains unallocated");
+
+    // Check payment list derived properties after reversal
+    payListD = await getAdminPayments({ categoryId: category.id, pageSize: 50 });
+    payItemD = payListD.items.find((item) => item.id === legacyPaymentD.id);
+    assert(payItemD !== undefined);
+    assert.strictEqual(
+      payItemD.fullName,
+      "Legacy Unallocated Payment",
+      "After reversal, label must return to 'Legacy Unallocated Payment'"
+    );
+    assert.strictEqual(payItemD.isVerifiedLegacyUnallocated, true);
+    assert.strictEqual(payItemD.isFullyReconciledLegacy, false);
+    assert.strictEqual(payItemD.remainingUnallocated, 300.0);
+    assert.strictEqual(payItemD.allocatedAmount, 1800.0);
+
+    console.log("  PASS: Test 32: Full reconciliation clears warning, and reversal properly restores warning and recalculates player credit.\n");
+
   } finally {
     // -------------------------------------------------------------------------
     // CLEANUP & PRESERVATION (Test 30)
@@ -917,6 +1291,11 @@ async function run() {
     }
 
     // Delete payment allocations
+    if (cleanup.paymentIds.length > 0) {
+      await prisma.payment_allocations.deleteMany({
+        where: { payment_id: { in: cleanup.paymentIds } },
+      });
+    }
     if (cleanup.paymentAllocationIds.length > 0) {
       await prisma.payment_allocations.deleteMany({
         where: { id: { in: cleanup.paymentAllocationIds } },
@@ -1027,7 +1406,7 @@ async function run() {
   }
 
   console.log("================================================================================");
-  console.log("  ALL 30 VERIFICATION TESTS & ACCOUNTING REGRESSION TESTS PASSED!");
+  console.log("  ALL 32 VERIFICATION TESTS & ACCOUNTING REGRESSION TESTS PASSED!");
   console.log("================================================================================");
 }
 

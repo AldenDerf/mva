@@ -281,7 +281,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                           <span className="text-[11px] font-medium text-[#5F6B61]">
                             {item.paidPlayerCount} of {item.playerCount} Paid
                           </span>
-                          {item.hasLegacyPayments && (
+                          {item.hasUnallocatedVerifiedLegacyPayments && (
                             <div className="mt-1 flex flex-col items-center">
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
                                 Payment needs review
@@ -449,7 +449,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                   </div>
 
                   {/* Legacy Payment Review Notice */}
-                  {item.hasLegacyPayments && (
+                  {item.hasUnallocatedVerifiedLegacyPayments && (
                     <div className="rounded-xl bg-amber-50 border border-amber-300 p-3 text-xs text-amber-900 space-y-1.5">
                       <div className="flex items-center gap-1.5 font-bold text-amber-900">
                         <svg

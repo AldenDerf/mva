@@ -94,8 +94,16 @@ export function LegacyPaymentCard({
             Payment #{paymentIndex + 1}
           </span>
           <PaymentStatusBadge status={payment.status} />
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-[#205823] border border-emerald-200">
-            Legacy Unallocated Payment
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
+              payment.remainingUnallocated > 0.001
+                ? "bg-emerald-50 text-[#205823] border border-emerald-200"
+                : "bg-neutral-100 text-[#205823] border border-emerald-200"
+            }`}
+          >
+            {payment.remainingUnallocated > 0.001
+              ? "Legacy Unallocated Payment"
+              : "Legacy Payment — Fully Reconciled"}
           </span>
         </div>
 
@@ -103,7 +111,7 @@ export function LegacyPaymentCard({
           <span className="text-base font-extrabold text-[#172019]">
             {formatCurrency(payment.amount)}
           </span>
-          {payment.remainingUnallocated > 0 && (
+          {payment.remainingUnallocated > 0.001 && (
             <button
               type="button"
               onClick={() => setIsAllocateOpen(true)}
@@ -118,7 +126,10 @@ export function LegacyPaymentCard({
               registrationId,
               registrationCode,
               teamName,
-              playerName: "Legacy Unallocated Payment",
+              playerName:
+                payment.remainingUnallocated > 0.001
+                  ? "Legacy Unallocated Payment"
+                  : "Legacy Payment — Fully Reconciled",
               amount: payment.amount,
               status: payment.status,
               paymentMethod: payment.paymentMethod,
@@ -153,10 +164,10 @@ export function LegacyPaymentCard({
           </span>
           <span
             className={`font-mono font-extrabold text-sm ${
-              payment.remainingUnallocated > 0 ? "text-amber-800" : "text-emerald-800"
+              payment.remainingUnallocated > 0.001 ? "text-amber-800" : "text-emerald-800"
             }`}
           >
-            {formatCurrency(payment.remainingUnallocated)}
+            {formatCurrency(payment.remainingUnallocated <= 0.001 ? 0 : payment.remainingUnallocated)}
           </span>
         </div>
       </div>

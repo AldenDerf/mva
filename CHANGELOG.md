@@ -29,13 +29,14 @@ Git commits remain the authoritative technical history. This file records meanin
   * Player verified credit accounts for direct verified payments plus active legacy allocations (`verifiedCredit = directVerifiedCredit + allocatedCredit`).
   * Distinguishes `legacyAllocatedVerifiedAmount` and `unallocatedVerifiedAmount` (`remainingUnallocated = payment.amount - SUM(active allocations)`).
   * Payment completeness requires all active roster players to be fully credited.
-* **Admin UI & Mobile-First Reconciliation (`components/admin/AllocatePaymentModal.tsx`, `ReverseAllocationModal.tsx`, `LegacyPaymentCard.tsx`, `/admin/registrations/[id]`)**:
+* **Admin UI & Mobile-First Reconciliation (`components/admin/AllocatePaymentModal.tsx`, `ReverseAllocationModal.tsx`, `LegacyPaymentCard.tsx`, `/admin/registrations/[id]`, `/admin/payments`)**:
   * Registration Detail UI renders dedicated `LegacyPaymentCard` for eligible legacy verified payments with allocation summary (Original, Allocated, Remaining), `[ Allocate to Players ]` button, and expandable history.
   * Built mobile-first accessible `AllocatePaymentModal` with roster checkboxes, suggested amounts, outstanding balance calculation, mandatory reconciliation note, and explicit confirmation warnings for historical `REMOVED` players.
-  * Accurate terminology: strictly separates `Legacy Unallocated Payment` (`VERIFIED` + `NULL`) from `Unassigned Pending Payment` (`PENDING` + `NULL`) and `Unassigned Rejected Payment` (`REJECTED` + `NULL`).
+  * Accurate terminology: strictly separates `Legacy Unallocated Payment` (`VERIFIED` + `NULL` + remaining > 0), `Legacy Payment — Fully Reconciled` (`VERIFIED` + `NULL` + remaining = 0), `Unassigned Pending Payment` (`PENDING` + `NULL`), and `Unassigned Rejected Payment` (`REJECTED` + `NULL`).
+  * "Payment needs review" warning banner on registration detail and registration list is strictly conditioned on `unallocatedVerifiedAmount > 0.001` (`hasUnallocatedVerifiedLegacyPayments`), eliminating false warnings on registrations with pending assessment records or fully reconciled legacy payments.
   * Active roster table indicates players covered via legacy allocation (`Paid via Allocation`).
 * **Automated Verification Suite (`scripts/verify-phase-05-7d5.ts`)**:
-  * Authored 30-point automated test suite proving eligibility rules, over-allocation/over-credit guards, partial allocations, removed player handling, reversal semantics, concurrency protection under parallel execution, accounting regression invariants, and zero database drift.
+  * Authored 32-point automated test suite proving eligibility rules, over-allocation/over-credit guards, partial allocations, removed player handling, reversal semantics, concurrency protection under parallel execution, Valugan Tides-like pending assessment regression, verified legacy reconciliation lifecycle, and zero database drift.
 
 ### Admin Roster Management (Phase 05.7D.4 — Verification-Boundary Historical Roster History)
 

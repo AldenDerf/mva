@@ -31,6 +31,8 @@ export interface RecentRegistrationItem {
   paymentComplete: boolean;
   paymentCompletionStatus: PaymentCompletionStatus;
   hasLegacyPayments: boolean;
+  hasUnallocatedVerifiedLegacyPayments: boolean;
+  unallocatedVerifiedAmount: number;
 
   // Compatibility fields
   paymentStatus: string;
@@ -197,6 +199,8 @@ export async function getRecentRegistrations(
       paymentComplete: acct.paymentComplete,
       paymentCompletionStatus: acct.paymentCompletionStatus,
       hasLegacyPayments: acct.hasLegacyPayments,
+      hasUnallocatedVerifiedLegacyPayments: acct.hasUnallocatedVerifiedLegacyPayments,
+      unallocatedVerifiedAmount: acct.unallocatedVerifiedAmount,
 
       // Historical compatibility
       paymentStatus:

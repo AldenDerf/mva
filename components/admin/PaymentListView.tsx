@@ -126,20 +126,16 @@ export function PaymentListView({
                     {item.registrationPlayerId === null ? (
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold ${
-                          item.status === "VERIFIED"
+                          item.isFullyReconciledLegacy
+                            ? "bg-neutral-100 text-[#205823] border border-emerald-200"
+                            : item.status === "VERIFIED"
                             ? "bg-emerald-50 text-[#205823] border border-emerald-200"
                             : item.status === "PENDING"
                             ? "bg-amber-50 text-amber-800 border border-amber-200"
                             : "bg-neutral-100 text-[#5F6B61] border border-[#DDE3DE]"
                         }`}
                       >
-                        {item.status === "VERIFIED"
-                          ? "Legacy Unallocated Payment"
-                          : item.status === "PENDING"
-                          ? "Unassigned Pending Payment"
-                          : item.status === "REJECTED"
-                          ? "Unassigned Rejected Payment"
-                          : "Unassigned Payment"}
+                        {item.fullName}
                       </span>
                     ) : (
                       <div className="flex items-center gap-1.5">
@@ -341,20 +337,16 @@ export function PaymentListView({
                         {item.registrationPlayerId === null ? (
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                              item.status === "VERIFIED"
+                              item.isFullyReconciledLegacy
+                                ? "bg-neutral-100 text-[#205823] border border-emerald-200"
+                                : item.status === "VERIFIED"
                                 ? "bg-emerald-50 text-[#205823] border border-emerald-200"
                                 : item.status === "PENDING"
                                 ? "bg-amber-50 text-amber-800 border border-amber-200"
                                 : "bg-neutral-100 text-[#5F6B61] border border-[#DDE3DE]"
                             }`}
                           >
-                            {item.status === "VERIFIED"
-                              ? "Legacy Unallocated"
-                              : item.status === "PENDING"
-                              ? "Unassigned Pending"
-                              : item.status === "REJECTED"
-                              ? "Unassigned Rejected"
-                              : "Unassigned"}
+                            {item.fullName}
                           </span>
                         ) : (
                           <div>

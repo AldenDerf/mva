@@ -238,7 +238,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
       {/* ============================================================ */}
       {/* ATTENTION BANNER: PAYMENT NEEDS REVIEW */}
       {/* ============================================================ */}
-      {(reg.accounting.hasLegacyPayments || reg.accounting.unallocatedVerifiedAmount > 0) && (
+      {reg.accounting.unallocatedVerifiedAmount > 0.001 && (
         <aside
           aria-label="Payment review required"
           className="rounded-2xl bg-amber-50/90 border border-amber-300 p-4 sm:p-5 text-amber-950 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4"
@@ -254,7 +254,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                 Payment needs review
               </h2>
               <p className="text-amber-900 leading-relaxed text-xs">
-                This registration has an older payment{reg.accounting.unallocatedVerifiedAmount > 0 ? ` (${formatCurrency(reg.accounting.unallocatedVerifiedAmount)})` : ""} that isn&apos;t assigned to a specific player.
+                This registration has an older payment ({formatCurrency(reg.accounting.unallocatedVerifiedAmount)}) that isn&apos;t assigned to a specific player.
                 Please review the payment records below to confirm or correct details.
               </p>
             </div>

@@ -101,6 +101,7 @@ export interface CanonicalRegistrationAccounting {
   legacyAllocatedVerifiedAmount: number;
   legacyPayments: LegacyUnallocatedPaymentSummary[];
   hasLegacyPayments: boolean;
+  hasUnallocatedVerifiedLegacyPayments: boolean;
 
   // Total Verified Cash Collected across all records (parent cash receipts, never multiplied)
   totalVerifiedCollected: number;
@@ -440,6 +441,7 @@ export function calculateRegistrationAccounting(
   }
 
   const hasLegacyPayments = legacyPayments.length > 0;
+  const hasUnallocatedVerifiedLegacyPayments = unallocatedVerifiedAmount > 0.001;
   // Fallback if input.payments was not provided
   const totalVerifiedCollected =
     grossVerifiedCollections > 0
@@ -514,6 +516,7 @@ export function calculateRegistrationAccounting(
     legacyAllocatedVerifiedAmount,
     legacyPayments,
     hasLegacyPayments,
+    hasUnallocatedVerifiedLegacyPayments,
 
     totalVerifiedCollected,
     grossVerifiedCollections,
