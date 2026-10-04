@@ -16,6 +16,7 @@ import { EditPlayerButton } from "@/components/admin/EditPlayerButton";
 import { playerSexLabel } from "@/lib/player-sex";
 import { EditTeamButton } from "@/components/admin/EditTeamButton";
 import { RosterMemberActions } from "@/components/admin/RosterMemberActions";
+import { MovePlayerButton } from "@/components/admin/MovePlayerButton";
 import { LegacyPaymentCard } from "@/components/admin/LegacyPaymentCard";
 import { RosterCandidateForAllocation } from "@/components/admin/AllocatePaymentModal";
 
@@ -83,6 +84,7 @@ const AUDIT_STATUS_LABELS: Record<string, string> = {
   ROSTER_MEMBER_DELETED: "Player Deleted from Roster",
   ROSTER_MEMBER_REMOVED: "Player Removed from Roster",
   ROSTER_MEMBER_RESTORED: "Player Restored to Roster",
+  PLAYER_MOVED_BETWEEN_TEAMS: "Player Moved Between Teams",
   PAYMENT_ALLOCATED: "Payment Allocated to Player",
   PAYMENT_ALLOCATION_REVERSED: "Payment Allocation Reversed",
 };
@@ -526,6 +528,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                               isCaptain={player.isCaptain}
                               size="xs"
                             />
+                            {reg.status === "VERIFIED" && <MovePlayerButton registrationPlayerId={player.id} playerId={player.playerId} playerName={player.fullName} sourceRegistrationId={reg.id} sourceTeamName={reg.team.name} tournamentName={reg.league.name} divisionName={reg.category.name} hasVerifiedPayment={isPaid} isCaptain={player.isCaptain} />}
                           </div>
                           <PlayerPaymentActionControls
                             registrationId={reg.id}
@@ -704,6 +707,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                 isCaptain={player.isCaptain}
                                 size="xs"
                               />
+                              {reg.status === "VERIFIED" && <MovePlayerButton registrationPlayerId={player.id} playerId={player.playerId} playerName={player.fullName} sourceRegistrationId={reg.id} sourceTeamName={reg.team.name} tournamentName={reg.league.name} divisionName={reg.category.name} hasVerifiedPayment={player.payment?.status === "VERIFIED"} isCaptain={player.isCaptain} />}
                             </div>
                           </td>
                         </tr>

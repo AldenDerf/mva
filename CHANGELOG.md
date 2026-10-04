@@ -8,6 +8,13 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Same Tournament and Division Player Transfer (Phase 06.2A)
+
+* Admins can move active players between verified registrations only when tournament and division IDs match. Captains must be reassigned first; removed members must be restored first.
+* The move preserves player, roster membership, and payment IDs and histories. Direct payment ownership follows the player in one transaction, without a new fee assessment.
+* Active legacy allocations block transfer pending review; reversed allocations do not. A dedicated audit event records both teams, context, payment IDs, and the required reason.
+* Verified roster maintenance already permits expansion past the configured division maximum, so transfers follow the same policy.
+
 ### Tournament Registration Lifecycle (Phase 06.1G)
 
 * Applied the additive `ADMIN_REGISTRATION_ONLY` tournament enum migration to `mva_dev` only. Production migration remains pending. Public team registration remains available only in `OPEN_FOR_REGISTRATION`.
