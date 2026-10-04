@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { AdminContext } from "@/lib/auth/admin";
+import { NEW_ADMIN_TEAM_STATUSES } from "@/lib/registration-lifecycle";
 
 /** Legacy required name columns have no structured source in profiles. */
 export function adminRegistrantFromContext(admin: AdminContext, contact: string) {
@@ -9,6 +10,7 @@ export function adminRegistrantFromContext(admin: AdminContext, contact: string)
 
 export async function getAdminRegistrationChoices() {
   const leagues = await prisma.leagues.findMany({
+    where: { status: { in: [...NEW_ADMIN_TEAM_STATUSES] } },
     select: { id: true, name: true, year: true, status: true,
       league_categories: { select: { id: true, name: true, registration_fee: true,
         min_players: true, max_players: true }, orderBy: { name: "asc" } } },

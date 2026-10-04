@@ -26,7 +26,8 @@ async function main() {
       const category = await tx.league_categories.create({ data: { league_id: closed.id, name: "Rollback Division" } });
       const adminTarget = await validateAdminRegistrationTarget(closed.id, category.id, tx);
       const publicTarget = await validateLeagueAndCategory(closed.id, category.id, tx);
-      assert.equal(adminTarget.valid, true);
+      assert.equal(adminTarget.valid, false);
+      assert.match(adminTarget.error ?? "", /no longer accepting new team registrations/);
       assert.equal(publicTarget.valid, false);
       throw new Error(rollback);
     }), { message: rollback });
@@ -43,7 +44,7 @@ async function main() {
     const after = await Promise.all([prisma.registrations.count(), prisma.players.count(), prisma.payments.count(),
       prisma.leagues.count(), prisma.league_categories.count()]);
     assert.deepEqual(after, before, "Read-only verification did not change records");
-    console.log("Closed-target rollback and player-sex checks passed; registration, player, payment, tournament, and division counts unchanged.");
+    console.log("Closed-target lifecycle and player-sex checks passed; registration, player, payment, tournament, and division counts unchanged.");
   } finally {
     await prisma.$disconnect();
   }

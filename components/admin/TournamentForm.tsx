@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { saveTournament, type FormState } from "@/app/admin/(portal)/tournaments/actions";
 
 type Initial = { id?: string; name?: string; year?: number | null; description?: string | null;
@@ -14,6 +14,15 @@ const date = (value?: Date | null) => value?.toISOString().slice(0, 10) ?? "";
 
 export function TournamentForm({ initial = {} }: { initial?: Initial }) {
   const [state, action, pending] = useActionState(saveTournament, { errors: {} } as FormState);
+  const [status, setStatus] = useState(initial.status ?? "DRAFT");
+  const labels: Record<string, string> = { DRAFT: "Draft", OPEN_FOR_REGISTRATION: "Open to Public Registration",
+    ADMIN_REGISTRATION_ONLY: "Admin Registration Only", REGISTRATION_CLOSED: "Registration Closed",
+    ONGOING: "Ongoing", COMPLETED: "Completed", ARCHIVED: "Archived" };
+  const descriptions: Record<string, string> = {
+    OPEN_FOR_REGISTRATION: "Teams may register publicly. Admins may also register teams.",
+    ADMIN_REGISTRATION_ONLY: "Public registration is disabled. Admins may still register new teams.",
+    REGISTRATION_CLOSED: "No new teams may be registered. Admins may maintain existing rosters.",
+  };
   const field = (name: string, label: string, type: string, defaultValue: string, required = false) => (
     <div>
       <label htmlFor={name} className="block text-sm font-semibold text-[#205823]">{label}</label>
@@ -39,9 +48,10 @@ export function TournamentForm({ initial = {} }: { initial?: Initial }) {
       {field("end_date", "Tournament End Date", "date", date(initial.end_date))}
     </div>
     <div><label htmlFor="status" className="block text-sm font-semibold text-[#205823]">{initial.id ? "Status" : "Initial Status"}</label>
-      <select id="status" name="status" defaultValue={initial.status ?? "DRAFT"} className={fieldClass} aria-invalid={Boolean(state.errors.status)}>
-        {(["DRAFT", "OPEN_FOR_REGISTRATION", ...(initial.id ? ["REGISTRATION_CLOSED", "ONGOING", "COMPLETED", "ARCHIVED"] : [])]).map(status =>
-          <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}</select>
+      <select id="status" name="status" value={status} onChange={event => setStatus(event.target.value)} className={fieldClass} aria-invalid={Boolean(state.errors.status)} aria-describedby={descriptions[status] ? "status-help" : undefined}>
+        {(["DRAFT", "OPEN_FOR_REGISTRATION", "ADMIN_REGISTRATION_ONLY", ...(initial.id ? ["REGISTRATION_CLOSED", "ONGOING", "COMPLETED", "ARCHIVED"] : [])]).map(option =>
+          <option key={option} value={option}>{labels[option]}</option>)}</select>
+      {descriptions[status] && <p id="status-help" className="mt-2 text-sm text-[#5F6B61]">{descriptions[status]}</p>}
       {state.errors.status && <p role="alert" className="text-sm text-red-700">{state.errors.status}</p>}
     </div>
     <div className="flex flex-wrap gap-3 border-t border-[#DDE3DE] pt-5">

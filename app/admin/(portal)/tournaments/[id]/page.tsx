@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getTournament } from "@/lib/admin/tournaments";
+import { canAdminRegisterTeam } from "@/lib/registration-lifecycle";
 
 export const dynamic = "force-dynamic";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -20,12 +21,13 @@ export default async function TournamentDetailPage({ params }: { params: Promise
       <p className="text-xs font-bold uppercase tracking-wider text-[#A47415]">{tournament.year ?? "Year not set"} · {tournament.status.replaceAll("_", " ")}</p>
       <h1 className="mt-2 text-3xl font-extrabold text-[#205823]">{tournament.name}</h1>
       <div className="mt-5 flex flex-wrap gap-3">
-        {tournament.league_categories.length > 0 && <Link href={`/admin/registrations/new?tournamentId=${id}`} className="inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-5 font-bold text-white">Register Team</Link>}
+        {tournament.league_categories.length > 0 && canAdminRegisterTeam(tournament.status) && <Link href={`/admin/registrations/new?tournamentId=${id}`} className="inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-5 font-bold text-white">Register Team</Link>}
         <Link href={`/admin/registrations?tournamentId=${id}`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">View Registrations</Link>
         <Link href={`/admin/payments?tournamentId=${id}`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">View Payments</Link>
         <Link href={`/admin/tournaments/${id}/divisions/new`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">Add Division</Link>
         <Link href={`/admin/tournaments/${id}/edit`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">Edit Tournament</Link>
       </div>
+      {tournament.status === "REGISTRATION_CLOSED" && <p className="mt-3 text-sm text-[#5F6B61]">Registration closed — existing teams may still be updated.</p>}
     </header>
     <section className="grid gap-4 rounded-2xl border border-[#DDE3DE] bg-white p-6 sm:grid-cols-2" aria-label="Tournament dates">
       <div><h2 className="font-bold text-[#205823]">Registration opens</h2><p>{display(tournament.registration_open_at, true)}</p></div>

@@ -2,6 +2,7 @@ import { prisma } from "./prisma";
 import type { Prisma } from "@prisma/client";
 import { isPlayerSex, type PlayerSex } from "./player-sex";
 import type { AdminContext } from "./auth/admin";
+import { canAdminRegisterTeam } from "./registration-lifecycle";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -295,8 +296,10 @@ export async function validateAdminRegistrationTarget(
     return { valid: false as const, error: "Choose a valid tournament and division." };
   const category = await db.league_categories.findFirst({ where: { id: categoryId, league_id: leagueId },
     select: { id: true, league_id: true, name: true, description: true, registration_fee: true,
-      min_players: true, max_players: true, leagues: { select: { id: true, name: true } } } });
+      min_players: true, max_players: true, leagues: { select: { id: true, name: true, status: true } } } });
   if (!category) return { valid: false as const, error: "Division was not found in this tournament." };
+  if (!canAdminRegisterTeam(category.leagues.status))
+    return { valid: false as const, error: "This tournament is no longer accepting new team registrations." };
   return { valid: true as const, league: category.leagues,
     category: { id: category.id, league_id: category.league_id, name: category.name,
       description: category.description, registration_fee: Number(category.registration_fee),

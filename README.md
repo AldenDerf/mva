@@ -223,6 +223,9 @@ All contributors and AI agents must read [GEMINI.md](file:///c:/nextjs-projects/
   * **06.1D**: Admin team registration with player sex and closed-tournament override `[Complete]`
   * **06.1E**: Admin registration roster entry and navigation UX `[Complete]`
   * **06.1F**: Tournament-scoped registration and payment monitoring; authenticated admin encoder flow `[Complete]`
+  * **06.1G**: Public, admin-only, and closed registration lifecycle `[Complete on mva_dev; production migration pending]`
+
+Tournament registration lifecycle: `OPEN_FOR_REGISTRATION` accepts public and admin new teams; `ADMIN_REGISTRATION_ONLY` accepts admin new teams only; `REGISTRATION_CLOSED` accepts no new teams, while admins may maintain existing verified rosters under the existing roster and payment safeguards. `ONGOING`, `COMPLETED`, and `ARCHIVED` do not accept new teams. Existing correction permissions for those later states have not been expanded.
 * **Phase 07 — Matches & Results** `[Planned]`
 * **Phase 08 — Statistics** `[Planned]`
 

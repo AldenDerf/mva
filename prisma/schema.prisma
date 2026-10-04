@@ -242,6 +242,7 @@ model payment_allocations {
 enum league_status {
   DRAFT
   OPEN_FOR_REGISTRATION
+  ADMIN_REGISTRATION_ONLY
   REGISTRATION_CLOSED
   ONGOING
   COMPLETED

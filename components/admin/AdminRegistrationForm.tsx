@@ -56,7 +56,7 @@ export function AdminRegistrationForm({ choices, admin, initialTournamentId }: {
           </select></div>
       </div>
       {league && league.divisions.length === 0 && <div id="missing-division" role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"><p className="font-bold">This tournament has no divisions yet.</p><p>Add a division before registering a team.</p><Link href={`/admin/tournaments/${league.id}/divisions/new`} className="mt-2 inline-flex min-h-11 items-center font-bold text-[#205823] underline">Add Division</Link></div>}
-      <p className="text-sm text-[#5F6B61]">Administrators may register into valid tournaments even when public registration is closed. Existing team names are reused.</p>
+      <p className="text-sm text-[#5F6B61]">New teams may be registered when public registration is open or the tournament is in Admin Registration Only status. Existing team names are reused.</p>
       <div><label htmlFor="team_name" className="mb-1 block text-sm font-semibold">Team Name</label>
         <input id="team_name" name="team_name" required maxLength={150} className={field} /></div>
     </section>

@@ -61,6 +61,7 @@ export async function createAdminRegistrationAction(
     if (message.includes("different recorded sex")) return { message };
     if (message.includes("already registered")) return { message };
     if (message.includes("Division was not found") || message.includes("Choose a valid tournament")) return { message };
+    if (message.includes("no longer accepting new team registrations")) return { message };
     return { message: "Unable to create registration. Review the form and try again." };
   }
   revalidatePath("/admin/registrations");

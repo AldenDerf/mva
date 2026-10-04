@@ -8,6 +8,12 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Tournament Registration Lifecycle (Phase 06.1G)
+
+* Applied the additive `ADMIN_REGISTRATION_ONLY` tournament enum migration to `mva_dev` only. Production migration remains pending. Public team registration remains available only in `OPEN_FOR_REGISTRATION`.
+* New admin team registration is permitted only in `OPEN_FOR_REGISTRATION` or `ADMIN_REGISTRATION_ONLY`; `REGISTRATION_CLOSED` blocks new teams while existing roster maintenance continues under its existing safeguards.
+* Added status labels and guidance to tournament forms, hid new-team actions for closed tournaments, and protected direct admin registration URLs and mutations. Existing payment accounting and audit actor behavior remain unchanged.
+
 * Fixed tournament detail loading after division creation by counting registrations in a separate tournament-scoped aggregate, avoiding PostgreSQL truncation of Prisma's long nested relation alias.
 
 ### Tournament Monitoring and Admin Registration (Phase 06.1F)

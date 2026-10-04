@@ -15,6 +15,7 @@ import {
 } from "@/components/admin/StatusBadges";
 import { registration_status, payment_status } from "@prisma/client";
 import { getMonitoringTournaments, resolveDivisionId, resolveTournamentId } from "@/lib/admin/monitoring";
+import { canAdminRegisterTeam } from "@/lib/registration-lifecycle";
 
 export const metadata: Metadata = {
   title: "Registrations | MVA Admin",
@@ -142,7 +143,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
             {tournamentId && tournaments.find(item => item.id === tournamentId)?.league_categories.length === 0 ? (
               <><h2 className="text-base font-bold">No divisions configured yet</h2><p className="mt-1 text-sm text-[#5F6B61]">Create a division before registering teams.</p><Link href={`/admin/tournaments/${tournamentId}/divisions/new`} className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-4 font-bold text-white">Add Division</Link></>
             ) : categoryId && !q && !status && !paymentStatus ? (
-              <><h2 className="text-base font-bold">No teams are registered in this division yet.</h2><Link href={`/admin/registrations/new?tournamentId=${tournamentId ?? ""}`} className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-4 font-bold text-white">Register Team</Link></>
+              <><h2 className="text-base font-bold">No teams are registered in this division yet.</h2>{tournamentId && canAdminRegisterTeam(tournaments.find(item => item.id === tournamentId)!.status) && <Link href={`/admin/registrations/new?tournamentId=${tournamentId}`} className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-4 font-bold text-white">Register Team</Link>}</>
             ) : hasActiveFilters ? (
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-800 border border-amber-500/20">
                 {data.totalCount} {data.totalCount === 1 ? "Filtered Match" : "Filtered Matches"}
@@ -159,7 +160,8 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Link href={tournamentId ? `/admin/registrations/new?tournamentId=${tournamentId}` : "/admin/registrations/new"} className="inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-4 text-sm font-bold text-white">Register Team</Link>
+          {(!tournamentId || canAdminRegisterTeam(tournaments.find(item => item.id === tournamentId)!.status)) &&
+            <Link href={tournamentId ? `/admin/registrations/new?tournamentId=${tournamentId}` : "/admin/registrations/new"} className="inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-4 text-sm font-bold text-white">Register Team</Link>}
           <span className="text-xs font-medium text-[#5F6B61] bg-[#FAFAF8] px-3 py-1.5 rounded-lg border border-[#DDE3DE]">
             Sorted: Newest First
           </span>

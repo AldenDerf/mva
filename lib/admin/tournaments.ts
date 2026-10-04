@@ -185,8 +185,8 @@ export function validateTournament(form: FormData, mode: "create" | "edit"): Tou
     errors.end_date = "Tournament end must follow tournament start.";
   const status = value("status") as league_status;
   const allowed: league_status[] = mode === "create"
-    ? ["DRAFT", "OPEN_FOR_REGISTRATION"]
-    : ["DRAFT", "OPEN_FOR_REGISTRATION", "REGISTRATION_CLOSED", "ONGOING", "COMPLETED", "ARCHIVED"];
+    ? ["DRAFT", "OPEN_FOR_REGISTRATION", "ADMIN_REGISTRATION_ONLY"]
+    : ["DRAFT", "OPEN_FOR_REGISTRATION", "ADMIN_REGISTRATION_ONLY", "REGISTRATION_CLOSED", "ONGOING", "COMPLETED", "ARCHIVED"];
   if (!allowed.includes(status)) errors.status = "Choose a valid status.";
   if (Object.keys(errors).length) return { errors };
   return { errors, input: { name, year, description: value("description") || null,
@@ -217,7 +217,8 @@ export async function updateTournament(admin: AdminContext, id: string, input: T
         description: previous.description, registration_open_at: previous.registration_open_at?.toISOString(),
         registration_close_at: previous.registration_close_at?.toISOString(),
         start_date: previous.start_date?.toISOString(), end_date: previous.end_date?.toISOString() },
-        updated: input, actor_email: admin.email },
+        updated: input, before: { status: previous.status }, after: { status: input.status },
+        actor_email: admin.email },
     } });
     return true;
   });

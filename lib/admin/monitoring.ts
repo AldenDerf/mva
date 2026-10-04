@@ -4,7 +4,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 export async function getMonitoringTournaments() {
   return prisma.leagues.findMany({
-    select: { id: true, name: true, league_categories: {
+    select: { id: true, name: true, status: true, league_categories: {
       select: { id: true, name: true }, orderBy: { name: "asc" },
     } },
     orderBy: [{ year: "desc" }, { created_at: "desc" }],
