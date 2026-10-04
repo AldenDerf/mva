@@ -1,5 +1,7 @@
 import { prisma } from "./prisma";
+import type { Prisma } from "@prisma/client";
 import { isPlayerSex, type PlayerSex } from "./player-sex";
+import type { AdminContext } from "./auth/admin";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -120,13 +122,14 @@ export async function getOpenLeagues(): Promise<OpenLeague[]> {
  * Retrieves a single league by ID only if it is open for registration.
  */
 export async function getOpenLeagueById(
-  leagueId: string
+  leagueId: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma
 ): Promise<OpenLeague | null> {
   if (!isValidUuid(leagueId)) {
     return null;
   }
 
-  const league = await prisma.leagues.findFirst({
+  const league = await db.leagues.findFirst({
     where: {
       id: leagueId,
       status: "OPEN_FOR_REGISTRATION",
@@ -227,7 +230,8 @@ export async function getLeagueCategories(
  */
 export async function validateLeagueAndCategory(
   leagueId: string,
-  categoryId: string
+  categoryId: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma
 ): Promise<LeagueCategoryValidationResult> {
   if (!isValidUuid(leagueId)) {
     return { valid: false, error: "Invalid league ID format." };
@@ -237,7 +241,7 @@ export async function validateLeagueAndCategory(
     return { valid: false, error: "Invalid category ID format." };
   }
 
-  const league = await getOpenLeagueById(leagueId);
+  const league = await getOpenLeagueById(leagueId, db);
   if (!league) {
     return {
       valid: false,
@@ -245,7 +249,7 @@ export async function validateLeagueAndCategory(
     };
   }
 
-  const category = await prisma.league_categories.findFirst({
+  const category = await db.league_categories.findFirst({
     where: {
       id: categoryId,
       league_id: leagueId,
@@ -281,6 +285,22 @@ export async function validateLeagueAndCategory(
       max_players: category.max_players,
     },
   };
+}
+
+/** Admin-only target check. Called only after a protected action supplies AdminContext. */
+export async function validateAdminRegistrationTarget(
+  leagueId: string, categoryId: string, db: Prisma.TransactionClient | typeof prisma = prisma
+) {
+  if (!isValidUuid(leagueId) || !isValidUuid(categoryId))
+    return { valid: false as const, error: "Choose a valid tournament and division." };
+  const category = await db.league_categories.findFirst({ where: { id: categoryId, league_id: leagueId },
+    select: { id: true, league_id: true, name: true, description: true, registration_fee: true,
+      min_players: true, max_players: true, leagues: { select: { id: true, name: true } } } });
+  if (!category) return { valid: false as const, error: "Division was not found in this tournament." };
+  return { valid: true as const, league: category.leagues,
+    category: { id: category.id, league_id: category.league_id, name: category.name,
+      description: category.description, registration_fee: Number(category.registration_fee),
+      min_players: category.min_players, max_players: category.max_players } };
 }
 
 export interface ExistingTeamItem {
@@ -347,6 +367,15 @@ export interface CreateRegistrationResult {
   is_complete: boolean;
   captain_name: string;
   registrant_name: string;
+}
+
+export function resolveRegistrationPlayerSex(
+  stored: PlayerSex | null, submitted: PlayerSex | null | undefined, adminCanComplete: boolean
+): { complete: PlayerSex | null; effective: PlayerSex | null } {
+  if (!adminCanComplete || !submitted) return { complete: null, effective: stored };
+  if (stored && stored !== submitted)
+    throw new Error("Existing player has a different recorded sex. Correct the profile before registering.");
+  return { complete: stored === null ? submitted : null, effective: stored ?? submitted };
 }
 
 function generateSlug(text: string): string {
@@ -457,13 +486,16 @@ export async function getTeamPreviousMembers(
  * Sets status to PENDING_PAYMENT.
  */
 export async function createRegistration(
-  input: CreateRegistrationInput
+  input: CreateRegistrationInput,
+  admin?: AdminContext
 ): Promise<CreateRegistrationResult> {
+  if (admin && (admin.role !== "ADMIN" || !admin.profileId)) {
+    throw new Error("Active administrator access is required.");
+  }
   // 1. Authoritative validation of League and Category
-  const validation = await validateLeagueAndCategory(
-    input.league_id,
-    input.league_category_id
-  );
+  const validation = admin
+    ? await validateAdminRegistrationTarget(input.league_id, input.league_category_id)
+    : await validateLeagueAndCategory(input.league_id, input.league_category_id);
   if (!validation.valid || !validation.league || !validation.category) {
     throw new Error(validation.error ?? "Invalid league or category.");
   }
@@ -602,6 +634,7 @@ export async function createRegistration(
   const isComplete = playerCount >= category.min_players;
 
   const result = await prisma.$transaction(async (tx) => {
+    const completedPlayerSex: Array<{ id: string; name: string; sex: PlayerSex }> = [];
     // A. Resolve or create player records
     const resolvedPlayers: Array<{
       playerId: string;
@@ -617,10 +650,15 @@ export async function createRegistration(
       if (p.player_id && isValidUuid(p.player_id)) {
         const existingPlayer = await tx.players.findUnique({
           where: { id: p.player_id },
-          select: { id: true },
+          select: { id: true, sex: true },
         });
         if (existingPlayer) {
           resolvedPlayerId = existingPlayer.id;
+          const { complete } = resolveRegistrationPlayerSex(existingPlayer.sex, p.sex, Boolean(admin));
+          if (complete) {
+            await tx.players.update({ where: { id: existingPlayer.id }, data: { sex: complete } });
+            completedPlayerSex.push({ id: existingPlayer.id, name: `${p.first_name.trim()} ${p.last_name.trim()}`, sex: complete });
+          }
         }
       }
 
@@ -636,12 +674,24 @@ export async function createRegistration(
               equals: p.last_name.trim(),
               mode: "insensitive",
             },
+            // Admin profile completion must match the full recorded name before changing a reusable identity.
+            ...(admin ? {
+              middle_name: p.middle_name?.trim()
+                ? { equals: p.middle_name.trim(), mode: "insensitive" as const } : null,
+              suffix: p.suffix?.trim()
+                ? { equals: p.suffix.trim(), mode: "insensitive" as const } : null,
+            } : {}),
           },
-          select: { id: true },
+          select: { id: true, sex: true },
         });
 
         if (matchedPlayer) {
           resolvedPlayerId = matchedPlayer.id;
+          const { complete } = resolveRegistrationPlayerSex(matchedPlayer.sex, p.sex, Boolean(admin));
+          if (complete) {
+            await tx.players.update({ where: { id: matchedPlayer.id }, data: { sex: complete } });
+            completedPlayerSex.push({ id: matchedPlayer.id, name: `${p.first_name.trim()} ${p.last_name.trim()}`, sex: complete });
+          }
         }
       }
 
@@ -689,6 +739,24 @@ export async function createRegistration(
         submitted_at: new Date(),
       },
     });
+    if (admin) {
+      for (const completed of completedPlayerSex) {
+        await tx.admin_audit_logs.create({ data: {
+          admin_profile_id: admin.profileId, action: "PLAYER_PROFILE_UPDATED",
+          entity_type: "PLAYER", entity_id: completed.id,
+          metadata: { registration_id: registration.id, player_id: completed.id, player_name: completed.name,
+            changed_fields: ["sex"], before: { sex: null }, after: { sex: completed.sex },
+            actor_name: admin.displayName, actor_email: admin.email },
+        } });
+      }
+      await tx.admin_audit_logs.create({ data: {
+        admin_profile_id: admin.profileId, action: "TEAM_REGISTRATION_CREATED",
+        entity_type: "REGISTRATION", entity_id: registration.id,
+        metadata: { league_id: league.id, category_id: category.id, team_id: targetTeamId,
+          team_name: targetTeamName, player_count: playerCount, public_registration_override: true,
+          actor_name: admin.displayName, actor_email: admin.email },
+      } });
+    }
 
     // C. Create registration_players records and individual player payment assessments
     for (const rp of resolvedPlayers) {

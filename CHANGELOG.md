@@ -8,6 +8,13 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Admin Registration Sex Parity (Phase 06.1D)
+
+* Added a protected admin team-registration page with optional Male/Female player entry, using the existing registration transaction for team reuse, roster membership, and fee assessments.
+* Admin registration validates tournament/division ownership without inheriting the public open-registration rule; public registration continues to require an open tournament.
+* Reused player profiles retain recorded sex. Admin registration may fill a missing value with a transactional `PLAYER_PROFILE_UPDATED` audit event; conflicting non-null values require explicit profile correction. Admin-created registrations write `TEAM_REGISTRATION_CREATED` audit events.
+* Added rollback-based checks for closed-tournament eligibility and player-sex reuse without altering persistent registration, player, or payment counts. Mixed-roster composition rules remain out of scope.
+
 ### Player Sex Foundation for Mixed Tournaments (Phase 06.1C)
 
 * Added nullable PostgreSQL `player_sex` enum (`MALE`, `FEMALE`) and `players.sex`; existing profiles remain `NULL` with no inferred default.

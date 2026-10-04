@@ -138,7 +138,8 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/admin/registrations/new" className="inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-4 text-sm font-bold text-white">Register Team</Link>
           <span className="text-xs font-medium text-[#5F6B61] bg-[#FAFAF8] px-3 py-1.5 rounded-lg border border-[#DDE3DE]">
             Sorted: Newest First
           </span>

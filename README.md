@@ -220,6 +220,7 @@ All contributors and AI agents must read [GEMINI.md](file:///c:/nextjs-projects/
   * **06.1A**: Admin tournament list, create, detail, edit, and audit logging `[Complete]`
   * **06.1B**: Division creation and management `[Complete]`
   * **06.1C**: Nullable player sex profile field and registration/admin workflows `[Complete]`
+  * **06.1D**: Admin team registration with player sex and closed-tournament override `[Complete]`
 * **Phase 07 — Matches & Results** `[Planned]`
 * **Phase 08 — Statistics** `[Planned]`
 
