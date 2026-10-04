@@ -247,8 +247,8 @@ export function calculateRegistrationAccounting(
   const regCode = input.registration_code || `REG-${regId.slice(0, 8).toUpperCase()}`;
 
   const category = input.league_categories_registrations_league_category_idToleague_categories;
-  const rawFee = category ? Number(category.registration_fee) : 0;
-  const feePerPlayer = rawFee > 0 ? rawFee : DEFAULT_PLAYER_REGISTRATION_FEE;
+  // A configured zero fee is valid; only missing category data uses the legacy fallback.
+  const feePerPlayer = category ? Number(category.registration_fee) : DEFAULT_PLAYER_REGISTRATION_FEE;
 
   // Build a map of verified active allocations per registration_player_id from input.payments
   const allocationsByRpId = new Map<string, number>();

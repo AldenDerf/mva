@@ -218,7 +218,7 @@ All contributors and AI agents must read [GEMINI.md](file:///c:/nextjs-projects/
   * **05.4C**: Registration Status Mutations & Audit Logging `[IMPLEMENTED / AWAITING REVIEW]`
 * **Phase 06 — League Management** `[In Progress]`
   * **06.1A**: Admin tournament list, create, detail, edit, and audit logging `[Complete]`
-  * **06.1B**: Division creation and management `[Planned]`
+  * **06.1B**: Division creation and management `[Complete]`
 * **Phase 07 — Matches & Results** `[Planned]`
 * **Phase 08 — Statistics** `[Planned]`
 

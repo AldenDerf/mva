@@ -1,4 +1,4 @@
-import { league_status } from "@prisma/client";
+import { league_status, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { AdminContext } from "@/lib/auth/admin";
 
@@ -26,10 +26,107 @@ export async function getTournament(id: string) {
   return prisma.leagues.findUnique({
     where: { id },
     select: { ...tournamentSelect, league_categories: {
-      select: { id: true, name: true, description: true, _count: { select: { registrations_registrations_league_category_idToleague_categories: true } } },
+      select: { id: true, name: true, description: true, registration_fee: true, min_players: true, max_players: true,
+        _count: { select: { registrations_registrations_league_category_idToleague_categories: true } } },
       orderBy: { name: "asc" as const },
     } },
   });
+}
+
+export async function getDivision(tournamentId: string, divisionId: string) {
+  return prisma.league_categories.findFirst({
+    where: { id: divisionId, league_id: tournamentId },
+    select: { id: true, league_id: true, name: true, description: true,
+      registration_fee: true, min_players: true, max_players: true },
+  });
+}
+
+export type DivisionInput = { name: string; description: string | null; registration_fee: Prisma.Decimal;
+  min_players: number; max_players: number };
+export type DivisionResult = { ok: true } | { ok: false; field: string; message: string };
+
+export function validateDivision(form: FormData): { input?: DivisionInput; errors: Record<string, string> } {
+  const errors: Record<string, string> = {};
+  const value = (key: string) => String(form.get(key) ?? "").trim();
+  const name = value("name");
+  if (!name) errors.name = "Division name is required.";
+  else if (name.length > 100) errors.name = "Use 100 characters or fewer.";
+  const feeText = value("registration_fee");
+  if (!/^(?:0|[1-9]\d{0,7})(?:\.\d{1,2})?$/.test(feeText))
+    errors.registration_fee = "Enter a nonnegative fee with at most two decimal places.";
+  const minText = value("min_players");
+  const maxText = value("max_players");
+  const min = Number(minText);
+  const max = Number(maxText);
+  if (!/^\d+$/.test(minText) || !Number.isSafeInteger(min) || min < 1 || min > 2147483647)
+    errors.min_players = "Minimum players must be a positive whole number.";
+  if (!/^\d+$/.test(maxText) || !Number.isSafeInteger(max) || max < min || max < 1 || max > 2147483647)
+    errors.max_players = "Maximum players must be a whole number at least the minimum.";
+  if (Object.keys(errors).length) return { errors };
+  return { errors, input: { name, description: value("description") || null,
+    registration_fee: new Prisma.Decimal(feeText), min_players: min, max_players: max } };
+}
+
+export async function createDivision(admin: AdminContext, tournamentId: string, input: DivisionInput): Promise<DivisionResult> {
+  return prisma.$transaction(async (tx): Promise<DivisionResult> => {
+    const tournament = await tx.leagues.findUnique({ where: { id: tournamentId }, select: { name: true } });
+    if (!tournament) return { ok: false, field: "form", message: "Tournament was not found." };
+    const duplicate = await tx.league_categories.findFirst({
+      where: { league_id: tournamentId, name: { equals: input.name, mode: "insensitive" } }, select: { id: true },
+    });
+    if (duplicate) return { ok: false, field: "name", message: "This division name is already used in this tournament." };
+    const division = await tx.league_categories.create({ data: { ...input, league_id: tournamentId } });
+    await tx.admin_audit_logs.create({ data: { admin_profile_id: admin.profileId,
+      action: "TOURNAMENT_DIVISION_CREATED", entity_type: "LEAGUE_CATEGORY", entity_id: division.id,
+      metadata: { tournament_id: tournamentId, tournament_name: tournament.name, division_name: division.name,
+        registration_fee: division.registration_fee.toString(), min_players: division.min_players,
+        max_players: division.max_players, actor_email: admin.email } } });
+    return { ok: true };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+export async function updateDivision(admin: AdminContext, tournamentId: string, divisionId: string, input: DivisionInput): Promise<DivisionResult> {
+  return prisma.$transaction(async (tx): Promise<DivisionResult> => {
+    const previous = await tx.league_categories.findFirst({ where: { id: divisionId, league_id: tournamentId },
+      include: { leagues: { select: { name: true } } } });
+    if (!previous) return { ok: false, field: "form", message: "Division was not found in this tournament." };
+    const duplicate = await tx.league_categories.findFirst({ where: {
+      league_id: tournamentId, id: { not: divisionId }, name: { equals: input.name, mode: "insensitive" },
+    }, select: { id: true } });
+    if (duplicate) return { ok: false, field: "name", message: "This division name is already used in this tournament." };
+    const registrationCount = await tx.registrations.count({ where: { league_category_id: divisionId } });
+    // Accounting reads the current category fee, so changing it would retroactively change obligations.
+    if (registrationCount && !previous.registration_fee.equals(input.registration_fee))
+      return { ok: false, field: "registration_fee", message: "Registration fee cannot change after teams have registered." };
+    // Keep every existing active roster valid under the revised limits.
+    if (registrationCount && input.min_players > previous.min_players) {
+      const emptyRoster = await tx.registrations.findFirst({ where: { league_category_id: divisionId,
+        registration_players: { none: { status: "ACTIVE" } } }, select: { id: true } });
+      const undersized = await tx.registration_players.groupBy({ by: ["registration_id"],
+        where: { status: "ACTIVE", registrations: { league_category_id: divisionId } },
+        _count: { id: true }, having: { id: { _count: { lt: input.min_players } } },
+        orderBy: { registration_id: "asc" }, take: 1 });
+      if (emptyRoster || undersized.length)
+        return { ok: false, field: "min_players", message: "Minimum exceeds an existing registered roster size." };
+    }
+    if (registrationCount && input.max_players < previous.max_players) {
+      const oversized = await tx.registration_players.groupBy({ by: ["registration_id"],
+        where: { status: "ACTIVE", registrations: { league_category_id: divisionId } },
+        _count: { id: true }, having: { id: { _count: { gt: input.max_players } } },
+        orderBy: { registration_id: "asc" }, take: 1 });
+      if (oversized.length)
+        return { ok: false, field: "max_players", message: "Maximum is below an existing registered roster size." };
+    }
+    await tx.league_categories.update({ where: { id: divisionId }, data: input });
+    await tx.admin_audit_logs.create({ data: { admin_profile_id: admin.profileId,
+      action: "TOURNAMENT_DIVISION_UPDATED", entity_type: "LEAGUE_CATEGORY", entity_id: divisionId,
+      metadata: { tournament_id: tournamentId, tournament_name: previous.leagues.name,
+        before: { name: previous.name, description: previous.description, registration_fee: previous.registration_fee.toString(),
+          min_players: previous.min_players, max_players: previous.max_players },
+        after: { name: input.name, description: input.description, registration_fee: input.registration_fee.toString(),
+          min_players: input.min_players, max_players: input.max_players }, actor_email: admin.email } } });
+    return { ok: true };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 export type TournamentInput = {

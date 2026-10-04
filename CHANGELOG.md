@@ -8,6 +8,13 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Admin Tournament Division Management (Phase 06.1B)
+
+* Added protected division creation and editing under tournament detail, with registration fee, roster limits, description, and registration counts shown for each division.
+* Added server validation, case-insensitive duplicate-name checks within each tournament, and transactional `TOURNAMENT_DIVISION_CREATED` / `TOURNAMENT_DIVISION_UPDATED` audit logs.
+* Locked registration fees after the first registration because accounting derives obligations from the current division fee. Roster-limit changes are rejected when they would invalidate an existing active roster.
+* Corrected accounting's legacy fallback so a configured ₱0 division fee remains ₱0; the fallback applies only when category data is missing.
+
 ### Admin Tournament Management Foundation (Phase 06.1A)
 
 * Added protected tournament list, creation, detail, and edit pages in the admin portal, with pagination, division and registration counts, and mobile-first navigation.
