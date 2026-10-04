@@ -84,6 +84,7 @@ model players {
   contact_number       String?                @db.VarChar(30)
   date_of_birth        DateTime?              @db.Date
   photo_url            String?
+  sex                  player_sex?
   created_at           DateTime               @default(now()) @db.Timestamptz(6)
   updated_at           DateTime               @default(now()) @db.Timestamptz(6)
   registration_players registration_players[]
@@ -271,4 +272,9 @@ enum registration_status {
 enum roster_status {
   ACTIVE
   REMOVED
+}
+
+enum player_sex {
+  MALE
+  FEMALE
 }

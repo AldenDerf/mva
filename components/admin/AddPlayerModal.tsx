@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import { addPlayerToRosterAction } from "@/app/admin/(portal)/registrations/[id]/roster-actions";
+import type { PlayerSex } from "@/lib/player-sex";
 
 interface AddPlayerModalProps {
   registrationId: string;
@@ -29,6 +30,7 @@ export function AddPlayerModal({
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
   const [suffix, setSuffix] = useState("");
+  const [sex, setSex] = useState<PlayerSex | "">("");
   const [jerseyNumber, setJerseyNumber] = useState("");
   const [position, setPosition] = useState("");
   const [isCaptain, setIsCaptain] = useState(false);
@@ -66,6 +68,7 @@ export function AddPlayerModal({
     setMiddleName("");
     setLastName("");
     setSuffix("");
+    setSex("");
     setJerseyNumber("");
     setPosition("");
     setIsCaptain(false);
@@ -109,6 +112,7 @@ export function AddPlayerModal({
         jerseyNumber: parsedJersey,
         position: position.trim() || null,
         isCaptain,
+        sex: sex || null,
       });
 
       if (!result.success) {
@@ -299,6 +303,15 @@ export function AddPlayerModal({
                     className="w-full text-xs px-3 py-2 bg-[#FAFAF8] border border-[#DDE3DE] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#205823] focus:bg-white transition-all disabled:opacity-50"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label htmlFor="player-sex" className="block text-xs font-bold text-[#172019] mb-1">Sex <span className="font-normal text-[#5F6B61]">(optional)</span></label>
+                <select id="player-sex" value={sex} onChange={(e) => setSex(e.target.value as PlayerSex | "")}
+                  disabled={isPending} className="w-full min-h-11 px-3 py-2 bg-[#FAFAF8] border border-[#DDE3DE] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#205823]">
+                  <option value="">Not recorded</option><option value="MALE">Male</option><option value="FEMALE">Female</option>
+                </select>
+                <p className="mt-1 text-xs text-[#5F6B61]">If this matches an existing player, their recorded sex is preserved. A missing value can be completed here.</p>
               </div>
 
               {/* Roster Details */}

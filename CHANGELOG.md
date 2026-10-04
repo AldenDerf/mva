@@ -8,6 +8,13 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Player Sex Foundation for Mixed Tournaments (Phase 06.1C)
+
+* Added nullable PostgreSQL `player_sex` enum (`MALE`, `FEMALE`) and `players.sex`; existing profiles remain `NULL` with no inferred default.
+* Added optional sex entry to public registration and admin add-player forms, compact admin roster display, and correction through the existing player profile edit workflow.
+* Public reuse preserves stored player sex. Admin add-player can complete a missing value with a `PLAYER_PROFILE_UPDATED` audit event; conflicting stored values require an explicit correction. Correction changes use the same audited player profile transaction.
+* Added rollback-based verification for Male, Female, legacy null, invalid values, and unchanged player counts. Mixed roster ratios remain unenforced.
+
 ### Admin Tournament Division Management (Phase 06.1B)
 
 * Added protected division creation and editing under tournament detail, with registration fee, roster limits, description, and registration counts shown for each division.

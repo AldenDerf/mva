@@ -5,6 +5,7 @@ import {
   payment_status,
   payment_method,
   roster_status,
+  player_sex,
   Prisma,
 } from "@prisma/client";
 import {
@@ -91,6 +92,7 @@ export interface AdminRegistrationDetailPlayer {
   isCaptain: boolean;
   contactNumber: string | null;
   dateOfBirth: Date | null;
+  sex: player_sex | null;
   registrationCount: number;
   status: roster_status;
   removedAt: Date | null;
@@ -514,6 +516,7 @@ export const getAdminRegistrationById = cache(
                 suffix: true,
                 contact_number: true,
                 date_of_birth: true,
+                sex: true,
                 _count: {
                   select: {
                     registration_players: true,
@@ -651,6 +654,7 @@ export const getAdminRegistrationById = cache(
       isCaptain: rp.is_captain,
       contactNumber: rp.players.contact_number,
       dateOfBirth: rp.players.date_of_birth,
+      sex: rp.players.sex,
       registrationCount: rp.players._count?.registration_players ?? 1,
       status: rp.status,
       removedAt: rp.removed_at,

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { playerSexLabel, type PlayerSex } from "@/lib/player-sex";
 
 interface RegistrationWizardProps {
   initialLeagues: SerializedOpenLeague[];
@@ -27,6 +28,7 @@ export interface RosterMember {
   middleName?: string;
   lastName: string;
   suffix?: string;
+  sex?: PlayerSex | null;
 }
 
 type WizardStep = "division" | "team" | "registrant" | "captain" | "review" | "success";
@@ -63,6 +65,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
   const [newFirstName, setNewFirstName] = useState("");
   const [newMiddleName, setNewMiddleName] = useState("");
   const [newLastName, setNewLastName] = useState("");
+  const [newSex, setNewSex] = useState<PlayerSex | "">("");
   const [rosterError, setRosterError] = useState<string | null>(null);
 
   // Step 3: Registrant Info
@@ -160,12 +163,14 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
       firstName: newFirstName.trim(),
       middleName: newMiddleName.trim() || undefined,
       lastName: newLastName.trim(),
+      sex: newSex || null,
     };
 
     setRoster((prev) => [...prev, newPlayer]);
     setNewFirstName("");
     setNewMiddleName("");
     setNewLastName("");
+    setNewSex("");
     setRosterError(null);
   };
 
@@ -260,6 +265,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           middle_name: p.middleName ?? null,
           last_name: p.lastName,
           suffix: p.suffix ?? null,
+          sex: p.sex ?? null,
           is_captain: p.id === captainRosterId,
         })),
       };
@@ -442,6 +448,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
             <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2 text-2xl font-bold">
               ✓
             </div>
+
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
               Registration Submitted!
             </h2>
@@ -783,6 +790,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                         {player.firstName} {player.middleName ? `${player.middleName} ` : ""}
                         {player.lastName} {player.suffix ?? ""}
                       </p>
+                      {player.sex && <p className="text-xs text-[#5F6B61]">{playerSexLabel(player.sex)}</p>}
                     </div>
                   </div>
 
@@ -1137,6 +1145,15 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
               />
             </div>
 
+            <div>
+              <label htmlFor="new-player-sex" className="block text-sm font-semibold text-[#172019] mb-1">Sex (optional)</label>
+              <select id="new-player-sex" value={newSex} onChange={(e) => setNewSex(e.target.value as PlayerSex | "")}
+                className="w-full min-h-11 rounded-lg border border-[#DDE3DE] bg-white px-3 text-[#172019] focus-visible:outline-2 focus-visible:outline-[#205823]">
+                <option value="">Not recorded</option><option value="MALE">Male</option><option value="FEMALE">Female</option>
+              </select>
+              <p className="mt-1 text-xs text-[#5F6B61]">Existing player profiles keep their recorded sex. Ask an administrator to correct an existing profile.</p>
+            </div>
+
             {rosterError && (
               <p className="text-xs text-red-600 font-medium">{rosterError}</p>
             )}
@@ -1182,6 +1199,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
                         {player.firstName} {player.middleName ? `${player.middleName} ` : ""}
                         {player.lastName} {player.suffix ?? ""}
                       </p>
+                      {player.sex && <p className="text-xs text-[#5F6B61]">{playerSexLabel(player.sex)}</p>}
                     </div>
                   </div>
 

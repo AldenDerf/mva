@@ -13,6 +13,7 @@ import { PlayerPaymentActionControls } from "@/components/admin/PlayerPaymentAct
 import { AddPlayerModal } from "@/components/admin/AddPlayerModal";
 import { PaymentCorrectionButton } from "@/components/admin/PaymentCorrectionButton";
 import { EditPlayerButton } from "@/components/admin/EditPlayerButton";
+import { playerSexLabel } from "@/lib/player-sex";
 import { EditTeamButton } from "@/components/admin/EditTeamButton";
 import { RosterMemberActions } from "@/components/admin/RosterMemberActions";
 import { LegacyPaymentCard } from "@/components/admin/LegacyPaymentCard";
@@ -448,6 +449,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                     Captain
                                   </span>
                                 )}
+                                <span className="text-xs font-medium text-[#5F6B61]">Sex: {playerSexLabel(player.sex)}</span>
                               </div>
                               <div className="flex items-center gap-2 text-xs text-[#5F6B61] mt-0.5">
                                 {player.jerseyNumber !== null ? (
@@ -495,6 +497,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                 suffix: player.suffix,
                                 contactNumber: player.contactNumber,
                                 dateOfBirth: player.dateOfBirth,
+                                sex: player.sex,
                                 registrationCount: player.registrationCount,
                                 jerseyNumber: player.jerseyNumber,
                                 position: player.position,
@@ -581,6 +584,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                   Captain
                                 </span>
                               )}
+                              <span className="text-xs font-medium text-[#5F6B61]">Sex: {playerSexLabel(player.sex)}</span>
                             </div>
                           </th>
                           <td className="py-3.5 px-4 text-center text-xs">
@@ -671,6 +675,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                   suffix: player.suffix,
                                   contactNumber: player.contactNumber,
                                   dateOfBirth: player.dateOfBirth,
+                                  sex: player.sex,
                                   registrationCount: player.registrationCount,
                                   jerseyNumber: player.jerseyNumber,
                                   position: player.position,

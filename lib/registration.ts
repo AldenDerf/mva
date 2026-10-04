@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { isPlayerSex, type PlayerSex } from "./player-sex";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -297,6 +298,7 @@ export interface PreviousTeamMember {
   middle_name: string | null;
   last_name: string;
   suffix: string | null;
+  sex: PlayerSex | null;
   jersey_number?: string;
   position?: string;
 }
@@ -306,6 +308,7 @@ export interface RegistrationPlayerInput {
   middle_name?: string | null;
   last_name: string;
   suffix?: string | null;
+  sex?: PlayerSex | null;
   jersey_number?: string | number | null;
   position?: string | null;
   is_captain: boolean;
@@ -436,6 +439,7 @@ export async function getTeamPreviousMembers(
           middle_name: rp.players.middle_name,
           last_name: rp.players.last_name,
           suffix: rp.players.suffix,
+          sex: rp.players.sex,
           jersey_number:
             rp.jersey_number !== null ? String(rp.jersey_number) : undefined,
           position: rp.position ?? undefined,
@@ -477,6 +481,9 @@ export async function createRegistration(
   // 3. Validate Roster: Initial registration requires at least 1 player (no maximum limit)
   if (!input.players || input.players.length === 0) {
     throw new Error("At least one player is required to register a team.");
+  }
+  if (input.players.some((player) => player.sex !== undefined && player.sex !== null && !isPlayerSex(player.sex))) {
+    throw new Error("Player sex must be Male, Female, or not recorded.");
   }
 
   // Check captain assignment: exactly one player must be designated as captain
@@ -646,6 +653,7 @@ export async function createRegistration(
             middle_name: p.middle_name?.trim() || null,
             last_name: p.last_name.trim(),
             suffix: p.suffix?.trim() || null,
+            sex: p.sex ?? null,
           },
           select: { id: true },
         });

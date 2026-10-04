@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/admin";
+import { isPlayerSex, type PlayerSex } from "@/lib/player-sex";
 import {
   addPlayerToRoster,
   AddPlayerResult,
@@ -27,6 +28,7 @@ export interface AddPlayerActionInput {
   jerseyNumber?: number | null;
   position?: string | null;
   isCaptain?: boolean;
+  sex?: PlayerSex | null;
 }
 
 /**
@@ -62,6 +64,7 @@ export async function addPlayerToRosterAction(
     jerseyNumber,
     position,
     isCaptain,
+    sex,
   } = input;
 
   if (!registrationId || !UUID_REGEX.test(registrationId)) {
@@ -91,6 +94,9 @@ export async function addPlayerToRosterAction(
   }
 
   let parsedJersey: number | null = null;
+  if (sex !== undefined && sex !== null && !isPlayerSex(sex)) {
+    return { success: false, error: "VALIDATION_ERROR", message: "Sex must be Male, Female, or not recorded." };
+  }
   if (
     jerseyNumber !== undefined &&
     jerseyNumber !== null &&
@@ -111,6 +117,7 @@ export async function addPlayerToRosterAction(
   const result = await addPlayerToRoster(admin, {
     registrationId,
     firstName: trimmedFirst,
+    sex,
     middleName: typeof middleName === "string" ? middleName.trim() : null,
     lastName: trimmedLast,
     suffix: typeof suffix === "string" ? suffix.trim() : null,

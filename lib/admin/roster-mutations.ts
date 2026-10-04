@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AdminContext } from "@/lib/auth/admin";
+import { isPlayerSex, type PlayerSex } from "@/lib/player-sex";
 
 export interface AddPlayerToRosterInput {
   registrationId: string;
@@ -11,6 +12,7 @@ export interface AddPlayerToRosterInput {
   jerseyNumber?: number | null;
   position?: string | null;
   isCaptain?: boolean;
+  sex?: PlayerSex | null;
 }
 
 export type AddPlayerErrorCode =
@@ -162,6 +164,7 @@ export async function addPlayerToRoster(
     jerseyNumber,
     position,
     isCaptain,
+    sex,
   } = params;
 
   if (!registrationId || !UUID_REGEX.test(registrationId)) {
@@ -193,6 +196,9 @@ export async function addPlayerToRoster(
   const cleanMiddleName = middleName?.trim() || null;
   const cleanSuffix = suffix?.trim() || null;
   const cleanPosition = position?.trim() || null;
+  if (sex !== undefined && sex !== null && !isPlayerSex(sex)) {
+    return { success: false, error: "VALIDATION_ERROR", message: "Sex must be Male, Female, or not recorded." };
+  }
 
   let cleanJerseyNumber: number | null = null;
   if (jerseyNumber !== undefined && jerseyNumber !== null && String(jerseyNumber).trim() !== "") {
@@ -284,6 +290,19 @@ export async function addPlayerToRoster(
         let targetPlayerId: string;
         if (matchedCandidate) {
           targetPlayerId = matchedCandidate.id;
+          if (sex && matchedCandidate.sex && matchedCandidate.sex !== sex) {
+            throw new Error("SEX_CONFLICT");
+          }
+          if (sex && matchedCandidate.sex === null) {
+            await tx.players.update({ where: { id: matchedCandidate.id }, data: { sex } });
+            await tx.admin_audit_logs.create({ data: {
+              admin_profile_id: admin.profileId, action: "PLAYER_PROFILE_UPDATED",
+              entity_type: "PLAYER", entity_id: matchedCandidate.id,
+              metadata: { registration_id: reg.id, player_id: matchedCandidate.id, player_name: fullName,
+                changed_fields: ["sex"], before: { sex: null }, after: { sex },
+                actor_name: admin.displayName, actor_email: admin.email },
+            } });
+          }
         } else {
           const createdPlayer = await tx.players.create({
             data: {
@@ -291,6 +310,7 @@ export async function addPlayerToRoster(
               middle_name: cleanMiddleName,
               last_name: trimmedLastName,
               suffix: cleanSuffix,
+              sex: sex ?? null,
             },
           });
           targetPlayerId = createdPlayer.id;
@@ -348,6 +368,7 @@ export async function addPlayerToRoster(
               team_name: reg.teams.team_name,
               player_id: targetPlayerId,
               player_name: fullName,
+              sex: sex ?? matchedCandidate?.sex ?? null,
               jersey_number: cleanJerseyNumber,
               position: cleanPosition,
               is_captain: Boolean(isCaptain),
@@ -423,6 +444,11 @@ export async function addPlayerToRoster(
         error: "DUPLICATE_ROSTER_PLAYER",
         message: "A player with this name is already registered on this team roster.",
       };
+    }
+
+    if (errMsg === "SEX_CONFLICT") {
+      return { success: false, error: "VALIDATION_ERROR",
+        message: "This existing player has a different recorded sex. Use Edit Player to correct the profile intentionally." };
     }
 
     if (
