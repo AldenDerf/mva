@@ -42,7 +42,7 @@ export default async function TournamentDetailPage({ params }: { params: Promise
           <dl className="mt-3 grid gap-2 text-sm text-[#3D4B3F] sm:grid-cols-2">
             <div><dt className="font-semibold">Registration fee</dt><dd>{currency(Number(category.registration_fee))}</dd></div>
             <div><dt className="font-semibold">Roster size</dt><dd>{category.min_players}–{category.max_players} players</dd></div>
-            <div><dt className="font-semibold">Registrations</dt><dd>{category._count.registrations_registrations_league_category_idToleague_categories}</dd></div>
+            <div><dt className="font-semibold">Registrations</dt><dd>{category.registrationCount}</dd></div>
           </dl></li>)}</ul>
         : <div className="mt-4 rounded-xl border border-dashed border-[#B7C7B9] bg-[#FAFAF8] p-5"><h3 className="font-bold text-[#172019]">No divisions configured yet</h3><p className="mt-1 text-sm text-[#5F6B61]">Create at least one division before registering teams in this tournament.</p><Link href={`/admin/tournaments/${id}/divisions/new`} className="mt-3 inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-4 font-bold text-white">Add Division</Link></div>}
       <p className="mt-4 text-sm font-semibold text-[#205823]">{tournament._count.registrations} total registrations</p>

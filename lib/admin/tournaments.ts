@@ -9,6 +9,13 @@ export const tournamentSelect = {
   _count: { select: { league_categories: true, registrations: true } },
 } as const;
 
+export function mergeDivisionRegistrationCounts<T extends { id: string }>(
+  divisions: T[], counts: Array<{ league_category_id: string; _count: { id: number } }>
+) {
+  const countByDivision = new Map(counts.map(row => [row.league_category_id, row._count.id]));
+  return divisions.map(category => ({ ...category, registrationCount: countByDivision.get(category.id) ?? 0 }));
+}
+
 export async function listTournaments(page: number) {
   const currentPage = Number.isSafeInteger(page) && page > 0 ? page : 1;
   const [items, total] = await Promise.all([
@@ -23,14 +30,22 @@ export async function listTournaments(page: number) {
 }
 
 export async function getTournament(id: string) {
-  return prisma.leagues.findUnique({
+  const tournament = await prisma.leagues.findUnique({
     where: { id },
     select: { ...tournamentSelect, league_categories: {
-      select: { id: true, name: true, description: true, registration_fee: true, min_players: true, max_players: true,
-        _count: { select: { registrations_registrations_league_category_idToleague_categories: true } } },
+      select: { id: true, name: true, description: true, registration_fee: true, min_players: true, max_players: true },
       orderBy: { name: "asc" as const },
     } },
   });
+  if (!tournament) return null;
+  const divisionIds = tournament.league_categories.map(category => category.id);
+  if (divisionIds.length === 0) return { ...tournament, league_categories: mergeDivisionRegistrationCounts(tournament.league_categories, []) };
+  const counts = await prisma.registrations.groupBy({
+    by: ["league_category_id"],
+    where: { league_id: id, league_category_id: { in: divisionIds } },
+    _count: { id: true },
+  });
+  return { ...tournament, league_categories: mergeDivisionRegistrationCounts(tournament.league_categories, counts) };
 }
 
 export async function getDivision(tournamentId: string, divisionId: string) {

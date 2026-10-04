@@ -8,6 +8,8 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+* Fixed tournament detail loading after division creation by counting registrations in a separate tournament-scoped aggregate, avoiding PostgreSQL truncation of Prisma's long nested relation alias.
+
 ### Tournament Monitoring and Admin Registration (Phase 06.1F)
 
 * Added tournament-first registration and payment filters with division scoping, URL-preserved pagination, division headers on paginated results, and tournament operations links.
