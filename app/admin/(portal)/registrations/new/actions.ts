@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/admin";
 import { isPlayerSex, type PlayerSex } from "@/lib/player-sex";
 import { createRegistration, type RegistrationPlayerInput } from "@/lib/registration";
+import { adminRegistrantFromContext } from "@/lib/admin/registration-create";
 
 export type AdminRegistrationFormState = { message?: string };
 
@@ -14,14 +15,11 @@ export async function createAdminRegistrationAction(
   const admin = await requireAdmin();
   const value = (key: string) => String(form.get(key) ?? "").trim();
   const teamName = value("team_name");
-  const first = value("registrant_first_name");
-  const last = value("registrant_last_name");
   const contact = value("registrant_contact");
-  if (!teamName || !first || !last || !contact)
-    return { message: "Team name, registrant name, and contact number are required." };
-  if (teamName.length > 150 || first.length > 100 || last.length > 100 ||
-      value("registrant_middle_name").length > 100 || contact.length > 30 || value("registrant_email").length > 255)
-    return { message: "One or more team or registrant fields are too long." };
+  if (!teamName || !contact)
+    return { message: "Team name and contact number are required." };
+  if (teamName.length > 150 || contact.length > 30)
+    return { message: "Team name or contact number is too long." };
   let parsed: unknown;
   try { parsed = JSON.parse(value("players")); }
   catch { return { message: "Enter a valid player roster." }; }
@@ -53,8 +51,9 @@ export async function createAdminRegistrationAction(
   try {
     const result = await createRegistration({ league_id: value("league_id"),
       league_category_id: value("league_category_id"), team_name: teamName,
-      registrant: { first_name: first, middle_name: value("registrant_middle_name") || null,
-        last_name: last, contact, email: value("registrant_email") || null }, players }, admin);
+      // Compatibility with required legacy name columns. The profile display name is
+      // kept whole; audit actor identity remains admin.profileId, never form text.
+      registrant: adminRegistrantFromContext(admin, contact), players }, admin);
     registrationId = result.registration_id;
   } catch (error) {
     console.error("Admin registration failed:", error);

@@ -7,6 +7,7 @@ export interface FilterCategoryItem {
   id: string;
   name: string;
   leagueName: string;
+  leagueId: string;
 }
 
 interface PaymentFiltersProps {
@@ -17,6 +18,8 @@ interface PaymentFiltersProps {
   currentCategoryId?: string;
   currentCompleteness?: string;
   currentVerifiedOnly?: boolean;
+  currentTournamentId?: string;
+  tournaments: Array<{ id: string; name: string }>;
 }
 
 export function PaymentFilters({
@@ -27,6 +30,8 @@ export function PaymentFilters({
   currentCategoryId = "",
   currentCompleteness = "",
   currentVerifiedOnly = false,
+  currentTournamentId = "",
+  tournaments,
 }: PaymentFiltersProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -48,7 +53,7 @@ export function PaymentFilters({
       currentMethod ||
       currentCategoryId ||
       currentCompleteness ||
-      currentVerifiedOnly
+      currentVerifiedOnly || currentTournamentId
   );
 
   const applyFilters = (updates: Record<string, string | null>) => {
@@ -89,6 +94,14 @@ export function PaymentFilters({
 
   return (
     <div className="bg-white rounded-2xl border border-[#DDE3DE] p-4 sm:p-5 shadow-xs space-y-4">
+      <div><label htmlFor="payment-tournament-filter" className="mb-1.5 block text-xs font-semibold text-[#5F6B61]">Tournament</label>
+        <select id="payment-tournament-filter" value={currentTournamentId} onChange={e => applyFilters({ tournamentId: e.target.value || null, category: null })} className="min-h-11 w-full rounded-xl border border-[#DDE3DE] bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-[#205823] sm:max-w-md">
+          <option value="">All tournaments</option>{tournaments.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select></div>
+      <div><label htmlFor="payment-category-filter" className="mb-1.5 block text-xs font-semibold text-[#5F6B61]">Division</label>
+        <select id="payment-category-filter" value={currentCategoryId} onChange={e => applyFilters({ category: e.target.value || null })} className="min-h-11 w-full rounded-xl border border-[#DDE3DE] bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-[#205823] sm:max-w-md">
+          <option value="">All divisions</option>{categories.filter(c => !currentTournamentId || c.leagueId === currentTournamentId).map(c => <option key={c.id} value={c.id}>{c.name}{currentTournamentId ? "" : ` (${c.leagueName})`}</option>)}
+        </select></div>
       {/* Search and Primary Filters */}
       <form
         onSubmit={handleSearchSubmit}
@@ -124,7 +137,7 @@ export function PaymentFilters({
               value={searchVal}
               onChange={(e) => setSearchVal(e.target.value)}
               placeholder="Search player, team, code, ref..."
-              className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] text-[#172019] placeholder:text-[#5F6B61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-all"
+              className="min-h-11 w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] text-[#172019] placeholder:text-[#5F6B61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-all"
             />
             {searchVal && (
               <button
@@ -160,7 +173,7 @@ export function PaymentFilters({
             id="payment-status-filter"
             value={currentStatus}
             onChange={(e) => applyFilters({ status: e.target.value || null })}
-            className="w-full px-3 py-2 text-xs rounded-xl border border-[#DDE3DE] bg-white text-[#172019] focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-all"
+            className="min-h-11 w-full px-3 py-2 text-xs rounded-xl border border-[#DDE3DE] bg-white text-[#172019] focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-all"
           >
             <option value="">All Statuses</option>
             <option value="PENDING">Pending</option>
@@ -179,7 +192,7 @@ export function PaymentFilters({
             id="payment-method-filter"
             value={currentMethod}
             onChange={(e) => applyFilters({ method: e.target.value || null })}
-            className="w-full px-3 py-2 text-xs rounded-xl border border-[#DDE3DE] bg-white text-[#172019] focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-all"
+            className="min-h-11 w-full px-3 py-2 text-xs rounded-xl border border-[#DDE3DE] bg-white text-[#172019] focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-all"
           >
             <option value="">All Methods</option>
             <option value="CASH">Cash</option>
@@ -189,25 +202,6 @@ export function PaymentFilters({
           </select>
         </div>
 
-        {/* Category / Division Filter (Takes 2 cols on lg) */}
-        <div className="lg:col-span-2">
-          <label htmlFor="payment-category-filter" className="sr-only">
-            Filter by division / category
-          </label>
-          <select
-            id="payment-category-filter"
-            value={currentCategoryId}
-            onChange={(e) => applyFilters({ category: e.target.value || null })}
-            className="w-full px-3 py-2 text-xs rounded-xl border border-[#DDE3DE] bg-white text-[#172019] focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-all"
-          >
-            <option value="">All Divisions</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.leagueName} — {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
 
         {/* Completeness Filter (Takes 2 cols on lg) */}
         <div className="lg:col-span-2">
@@ -220,7 +214,7 @@ export function PaymentFilters({
             onChange={(e) =>
               applyFilters({ completeness: e.target.value || null })
             }
-            className="w-full px-3 py-2 text-xs rounded-xl border border-[#DDE3DE] bg-white text-[#172019] focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-all"
+            className="min-h-11 w-full px-3 py-2 text-xs rounded-xl border border-[#DDE3DE] bg-white text-[#172019] focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-all"
           >
             <option value="">All Completeness</option>
             <option value="COMPLETE">Payment Complete</option>

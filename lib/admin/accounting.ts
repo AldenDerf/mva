@@ -625,6 +625,14 @@ export async function getTournamentAccountingSummary(
           verified_at: true,
           created_at: true,
           notes: true,
+          payment_allocations: {
+            select: {
+              id: true,
+              registration_player_id: true,
+              amount: true,
+              reversed_at: true,
+            },
+          },
         },
       },
     },

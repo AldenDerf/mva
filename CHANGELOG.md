@@ -8,6 +8,13 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Tournament Monitoring and Admin Registration (Phase 06.1F)
+
+* Added tournament-first registration and payment filters with division scoping, URL-preserved pagination, division headers on paginated results, and tournament operations links.
+* Added bounded-batch canonical payment summaries by tournament and division; corrected the existing tournament accounting query to include active legacy allocations.
+* Admin-created registrations now derive the encoder name and email from the authenticated admin profile. Only a contact number remains required because the existing registration schema requires it and admin profiles do not store one. Legacy name columns store the whole profile display name as first name and `Administrator` as last name; audit logs remain the authoritative actor record.
+* Added no-division guidance, tournament preselection, loading states, and read-only monitoring regression checks. Public registration is unchanged.
+
 ### Admin Registration Sex Parity (Phase 06.1D)
 
 * Added a protected admin team-registration page with optional Male/Female player entry, using the existing registration transaction for team reuse, roster membership, and fee assessments.

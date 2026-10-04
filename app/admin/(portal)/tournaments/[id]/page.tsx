@@ -19,8 +19,13 @@ export default async function TournamentDetailPage({ params }: { params: Promise
     <header className="rounded-2xl border border-[#DDE3DE] bg-white p-6">
       <p className="text-xs font-bold uppercase tracking-wider text-[#A47415]">{tournament.year ?? "Year not set"} · {tournament.status.replaceAll("_", " ")}</p>
       <h1 className="mt-2 text-3xl font-extrabold text-[#205823]">{tournament.name}</h1>
-      <div className="mt-5 flex flex-wrap gap-3"><Link href={`/admin/tournaments/${id}/edit`} className="inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-5 font-bold text-white">Edit Tournament</Link>
-        <Link href={`/admin/tournaments/${id}/divisions/new`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">Add Division</Link></div>
+      <div className="mt-5 flex flex-wrap gap-3">
+        {tournament.league_categories.length > 0 && <Link href={`/admin/registrations/new?tournamentId=${id}`} className="inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-5 font-bold text-white">Register Team</Link>}
+        <Link href={`/admin/registrations?tournamentId=${id}`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">View Registrations</Link>
+        <Link href={`/admin/payments?tournamentId=${id}`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">View Payments</Link>
+        <Link href={`/admin/tournaments/${id}/divisions/new`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">Add Division</Link>
+        <Link href={`/admin/tournaments/${id}/edit`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">Edit Tournament</Link>
+      </div>
     </header>
     <section className="grid gap-4 rounded-2xl border border-[#DDE3DE] bg-white p-6 sm:grid-cols-2" aria-label="Tournament dates">
       <div><h2 className="font-bold text-[#205823]">Registration opens</h2><p>{display(tournament.registration_open_at, true)}</p></div>
@@ -39,7 +44,7 @@ export default async function TournamentDetailPage({ params }: { params: Promise
             <div><dt className="font-semibold">Roster size</dt><dd>{category.min_players}–{category.max_players} players</dd></div>
             <div><dt className="font-semibold">Registrations</dt><dd>{category._count.registrations_registrations_league_category_idToleague_categories}</dd></div>
           </dl></li>)}</ul>
-        : <p className="mt-2 text-[#5F6B61]">No divisions yet. Use Add Division to configure this tournament.</p>}
+        : <div className="mt-4 rounded-xl border border-dashed border-[#B7C7B9] bg-[#FAFAF8] p-5"><h3 className="font-bold text-[#172019]">No divisions configured yet</h3><p className="mt-1 text-sm text-[#5F6B61]">Create at least one division before registering teams in this tournament.</p><Link href={`/admin/tournaments/${id}/divisions/new`} className="mt-3 inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-4 font-bold text-white">Add Division</Link></div>}
       <p className="mt-4 text-sm font-semibold text-[#205823]">{tournament._count.registrations} total registrations</p>
     </section>
   </main>;

@@ -10,11 +10,11 @@ type Choice = { id: string; name: string; year: number | null; status: string;
 type PlayerRow = { id: number; first_name: string; middle_name: string; last_name: string; suffix: string; sex: PlayerSex | "" };
 const field = "min-h-11 w-full rounded-lg border border-[#B7C7B9] bg-white px-3 py-2 text-[#172019] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#205823]";
 
-export function AdminRegistrationForm({ choices }: { choices: Choice[] }) {
+export function AdminRegistrationForm({ choices, admin, initialTournamentId }: { choices: Choice[]; admin: { displayName: string; email: string }; initialTournamentId?: string }) {
   const [state, action, pending] = useActionState(createAdminRegistrationAction, {});
-  const [leagueId, setLeagueId] = useState(choices[0]?.id ?? "");
+  const [leagueId, setLeagueId] = useState(initialTournamentId ?? choices[0]?.id ?? "");
   const league = choices.find(item => item.id === leagueId);
-  const [divisionId, setDivisionId] = useState(choices[0]?.divisions[0]?.id ?? "");
+  const [divisionId, setDivisionId] = useState(league?.divisions[0]?.id ?? "");
   const [players, setPlayers] = useState<PlayerRow[]>([{ id: 1, first_name: "", middle_name: "", last_name: "", suffix: "", sex: "" }]);
   const [nextId, setNextId] = useState(2);
   const [captainId, setCaptainId] = useState(1);
@@ -50,24 +50,24 @@ export function AdminRegistrationForm({ choices }: { choices: Choice[] }) {
             {choices.map(item => <option key={item.id} value={item.id}>{item.name} ({item.status.replaceAll("_", " ")})</option>)}
           </select></div>
         <div><label htmlFor="league_category_id" className="mb-1 block text-sm font-semibold">Division</label>
-          <select id="league_category_id" name="league_category_id" value={divisionId} onChange={event => setDivisionId(event.target.value)} className={field} required>
+          <select id="league_category_id" name="league_category_id" value={divisionId} onChange={event => setDivisionId(event.target.value)} className={field} required disabled={!league?.divisions.length} aria-describedby={!league?.divisions.length ? "missing-division" : undefined}>
+            {!league?.divisions.length && <option value="">No divisions available</option>}
             {league?.divisions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select></div>
       </div>
+      {league && league.divisions.length === 0 && <div id="missing-division" role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"><p className="font-bold">This tournament has no divisions yet.</p><p>Add a division before registering a team.</p><Link href={`/admin/tournaments/${league.id}/divisions/new`} className="mt-2 inline-flex min-h-11 items-center font-bold text-[#205823] underline">Add Division</Link></div>}
       <p className="text-sm text-[#5F6B61]">Administrators may register into valid tournaments even when public registration is closed. Existing team names are reused.</p>
       <div><label htmlFor="team_name" className="mb-1 block text-sm font-semibold">Team Name</label>
         <input id="team_name" name="team_name" required maxLength={150} className={field} /></div>
     </section>
-    <section className="space-y-4 rounded-2xl border border-[#DDE3DE] bg-white p-5 sm:p-6">
-      <h2 className="text-xl font-bold text-[#205823]">Registrant</h2>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {([ ["registrant_first_name", "First Name", true], ["registrant_middle_name", "Middle Name", false],
-          ["registrant_last_name", "Last Name", true], ["registrant_contact", "Contact Number", true],
-          ["registrant_email", "Email", false] ] as const).map(([name, label, required]) =>
-          <div key={name}><label htmlFor={name} className="mb-1 block text-sm font-semibold">{label}</label>
-            <input id={name} name={name} type={name === "registrant_email" ? "email" : name === "registrant_contact" ? "tel" : "text"}
-              required={required} maxLength={name === "registrant_email" ? 255 : name === "registrant_contact" ? 30 : 100} className={field} /></div>)}
-      </div>
+    <section className="space-y-3 rounded-2xl border border-[#DDE3DE] bg-white p-5 sm:p-6">
+      <h2 className="text-xl font-bold text-[#205823]">Registered by</h2>
+      <p className="font-semibold text-[#172019]">{admin.displayName} <span className="text-sm font-normal text-[#5F6B61]">· Administrator</span></p>
+      {admin.email && <p className="break-all text-sm text-[#5F6B61]">{admin.email}</p>}
+      <p className="text-sm text-[#5F6B61]">Your authenticated admin account is recorded as the encoder. The team captain is selected below.</p>
+      <div><label htmlFor="registrant_contact" className="mb-1 block text-sm font-semibold">Contact number for this registration</label>
+        <input id="registrant_contact" name="registrant_contact" type="tel" required maxLength={30} className={field} />
+        <p className="mt-1 text-xs text-[#5F6B61]">Required by the existing registration record; your admin profile has no contact number.</p></div>
     </section>
     <section className="space-y-4 rounded-2xl border border-[#DDE3DE] bg-white p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-bold text-[#205823]">Players · {players.length} added</h2>
@@ -98,6 +98,6 @@ export function AdminRegistrationForm({ choices }: { choices: Choice[] }) {
     </section>
     <div className="fixed bottom-0 left-0 right-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-[#DDE3DE] bg-white/95 px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] backdrop-blur-sm lg:left-64 lg:px-8 xl:left-72" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
       <Link href="/admin/registrations" className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-semibold text-[#205823]">Cancel</Link>
-      <button type="submit" disabled={pending || !divisionId} className="min-h-11 rounded-lg bg-[#205823] px-6 font-bold text-white disabled:opacity-60">{pending ? "Registering…" : "Register Team"}</button></div>
+      <button type="submit" disabled={pending || !divisionId} aria-describedby={!divisionId ? "register-disabled-reason" : undefined} className="min-h-11 rounded-lg bg-[#205823] px-6 font-bold text-white disabled:opacity-60">{pending ? "Registering…" : "Register Team"}</button>{!divisionId && <span id="register-disabled-reason" className="sr-only">Add a division before registering a team.</span>}</div>
   </form>;
 }

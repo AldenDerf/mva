@@ -10,6 +10,8 @@ interface RegistrationFiltersProps {
   currentStatus?: string;
   currentPaymentStatus?: string;
   currentCategoryId?: string;
+  currentTournamentId?: string;
+  tournaments: Array<{ id: string; name: string }>;
 }
 
 const REGISTRATION_STATUS_LABELS: Record<string, string> = {
@@ -32,6 +34,8 @@ export function RegistrationFilters({
   currentStatus = "",
   currentPaymentStatus = "",
   currentCategoryId = "",
+  currentTournamentId = "",
+  tournaments,
 }: RegistrationFiltersProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -48,7 +52,7 @@ export function RegistrationFilters({
   }
 
   const hasActiveFilters = Boolean(
-    currentQuery || currentStatus || currentPaymentStatus || currentCategoryId
+    currentQuery || currentStatus || currentPaymentStatus || currentCategoryId || currentTournamentId
   );
 
   const applyFilters = (updates: Record<string, string | null>) => {
@@ -112,6 +116,14 @@ export function RegistrationFilters({
       )}
 
       <div className="p-4 sm:p-5 space-y-4">
+        <div><label htmlFor="filter-tournament" className="mb-1.5 block text-xs font-semibold text-[#5F6B61]">Tournament</label>
+          <select id="filter-tournament" value={currentTournamentId} onChange={e => applyFilters({ tournamentId: e.target.value || null, categoryId: null })} className="min-h-11 w-full rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] px-3 text-sm focus-visible:outline-2 focus-visible:outline-[#205823] sm:max-w-md">
+            <option value="">All tournaments</option>{tournaments.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select></div>
+        <div><label htmlFor="filter-category" className="mb-1.5 block text-xs font-semibold text-[#5F6B61]">Division</label>
+          <select id="filter-category" value={currentCategoryId} onChange={e => applyFilters({ categoryId: e.target.value || null })} className="min-h-11 w-full rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] px-3 text-sm focus-visible:outline-2 focus-visible:outline-[#205823] sm:max-w-md">
+            <option value="">All divisions</option>{categories.filter(cat => !currentTournamentId || cat.leagueId === currentTournamentId).map(cat => <option key={cat.id} value={cat.id}>{cat.name}{currentTournamentId ? "" : ` (${cat.leagueName})`}</option>)}
+          </select></div>
         <form
           onSubmit={handleSearchSubmit}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end"
@@ -214,25 +226,6 @@ export function RegistrationFilters({
             </select>
           </div>
 
-          {/* Category Filter (2 cols on lg, 2 on sm) */}
-          <div className="sm:col-span-2 lg:col-span-2">
-            <label htmlFor="filter-category" className="block text-xs font-semibold text-[#5F6B61] mb-1.5">
-              Division / Category
-            </label>
-            <select
-              id="filter-category"
-              value={currentCategoryId}
-              onChange={(e) => applyFilters({ categoryId: e.target.value || null })}
-              className="w-full min-h-[44px] py-2.5 px-3 text-sm rounded-xl border border-[#DDE3DE] bg-[#FAFAF8] text-[#172019] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#205823] focus:border-transparent transition-colors cursor-pointer"
-            >
-              <option value="">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name} {cat.leagueName ? `(${cat.leagueName})` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
         </form>
 
         {/* Active Filter Chips & Reset Bar */}
