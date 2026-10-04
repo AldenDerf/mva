@@ -27,6 +27,7 @@ const emptySubscribe = () => () => {};
 
 export const AdminShell: React.FC<AdminShellProps> = ({ admin, children }) => {
   const pathname = usePathname();
+  const sectionName = pathname === "/admin" ? "Dashboard" : pathname === "/admin/registrations/new" ? "New Registration" : pathname.startsWith("/admin/registrations/") ? "Registration Details" : pathname.startsWith("/admin/registrations") ? "Registrations" : pathname.startsWith("/admin/payments") ? "Payments" : pathname.startsWith("/admin/tournaments") ? "Tournaments" : "Administration";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -290,10 +291,10 @@ export const AdminShell: React.FC<AdminShellProps> = ({ admin, children }) => {
             {/* Desktop Section Header */}
             <div className="hidden lg:block">
               <h1 className="text-lg font-bold text-[#172019] tracking-tight">
-                Operations &amp; Governance
+                {sectionName}
               </h1>
               <p className="text-xs text-[#5F6B61]">
-                Mahatao Volleyball Association Administrative Portal
+                MVA Administration
               </p>
             </div>
           </div>

@@ -5,6 +5,7 @@ import {
   payment_status,
   payment_method,
   roster_status,
+  player_sex,
   Prisma,
 } from "@prisma/client";
 import {
@@ -17,6 +18,8 @@ export interface AdminRegistrationListItem {
   id: string;
   registrationCode: string;
   teamName: string;
+  leagueId: string;
+  categoryId: string;
   leagueName: string;
   categoryName: string;
   registrantName: string;
@@ -58,12 +61,14 @@ export interface RegistrationListFilterParams {
   paymentStatus?: payment_status;
   paymentCompleteness?: PaymentCompletionStatus;
   categoryId?: string;
+  tournamentId?: string;
 }
 
 export interface FilterCategoryOption {
   id: string;
   name: string;
   leagueName: string;
+  leagueId: string;
 }
 
 export interface AdminPlayerPaymentInfo {
@@ -91,6 +96,7 @@ export interface AdminRegistrationDetailPlayer {
   isCaptain: boolean;
   contactNumber: string | null;
   dateOfBirth: Date | null;
+  sex: player_sex | null;
   registrationCount: number;
   status: roster_status;
   removedAt: Date | null;
@@ -226,6 +232,7 @@ export const getFilterCategories = cache(
         leagues: {
           select: {
             name: true,
+            id: true,
           },
         },
       },
@@ -236,6 +243,7 @@ export const getFilterCategories = cache(
       id: cat.id,
       name: cat.name,
       leagueName: cat.leagues.name,
+      leagueId: cat.leagues.id,
     }));
   }
 );
@@ -252,6 +260,7 @@ export async function getAdminRegistrations(
   const skip = (page - 1) * pageSize;
 
   const where: Prisma.registrationsWhereInput = {};
+  if (params.tournamentId) where.league_id = params.tournamentId;
 
   // Search by registration_code, team_name, or registrant name
   if (params.q && params.q.trim()) {
@@ -289,7 +298,10 @@ export async function getAdminRegistrations(
       where,
       skip,
       take: pageSize,
-      orderBy: { created_at: "desc" },
+      orderBy: params.tournamentId ? [
+        { league_categories_registrations_league_category_idToleague_categories: { name: "asc" } },
+        { created_at: "desc" },
+      ] : [{ created_at: "desc" }],
       select: {
         id: true,
         registration_code: true,
@@ -395,6 +407,8 @@ export async function getAdminRegistrations(
       id: reg.id,
       registrationCode: acct.registrationCode,
       teamName: reg.teams.team_name,
+      leagueId: reg.leagues.id,
+      categoryId: reg.league_categories_registrations_league_category_idToleague_categories.id,
       leagueName: reg.leagues.name,
       categoryName:
         reg.league_categories_registrations_league_category_idToleague_categories
@@ -440,6 +454,12 @@ export async function getAdminRegistrations(
     pageSize,
     totalPages,
   };
+}
+
+export async function getTournamentDivisionCounts(tournamentId: string) {
+  const rows = await prisma.registrations.groupBy({ by: ["league_category_id"],
+    where: { league_id: tournamentId }, _count: { id: true } });
+  return Object.fromEntries(rows.map(row => [row.league_category_id, row._count.id]));
 }
 
 /**
@@ -514,6 +534,7 @@ export const getAdminRegistrationById = cache(
                 suffix: true,
                 contact_number: true,
                 date_of_birth: true,
+                sex: true,
                 _count: {
                   select: {
                     registration_players: true,
@@ -651,6 +672,7 @@ export const getAdminRegistrationById = cache(
       isCaptain: rp.is_captain,
       contactNumber: rp.players.contact_number,
       dateOfBirth: rp.players.date_of_birth,
+      sex: rp.players.sex,
       registrationCount: rp.players._count?.registration_players ?? 1,
       status: rp.status,
       removedAt: rp.removed_at,

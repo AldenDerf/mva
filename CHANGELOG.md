@@ -8,6 +8,42 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Tournament Registration Lifecycle (Phase 06.1G)
+
+* Applied the additive `ADMIN_REGISTRATION_ONLY` tournament enum migration to `mva_dev` only. Production migration remains pending. Public team registration remains available only in `OPEN_FOR_REGISTRATION`.
+* New admin team registration is permitted only in `OPEN_FOR_REGISTRATION` or `ADMIN_REGISTRATION_ONLY`; `REGISTRATION_CLOSED` blocks new teams while existing roster maintenance continues under its existing safeguards.
+* Added status labels and guidance to tournament forms, hid new-team actions for closed tournaments, and protected direct admin registration URLs and mutations. Existing payment accounting and audit actor behavior remain unchanged.
+
+* Fixed tournament detail loading after division creation by counting registrations in a separate tournament-scoped aggregate, avoiding PostgreSQL truncation of Prisma's long nested relation alias.
+
+### Tournament Monitoring and Admin Registration (Phase 06.1F)
+
+* Added tournament-first registration and payment filters with division scoping, URL-preserved pagination, division headers on paginated results, and tournament operations links.
+* Added bounded-batch canonical payment summaries by tournament and division; corrected the existing tournament accounting query to include active legacy allocations.
+* Admin-created registrations now derive the encoder name and email from the authenticated admin profile. Only a contact number remains required because the existing registration schema requires it and admin profiles do not store one. Legacy name columns store the whole profile display name as first name and `Administrator` as last name; audit logs remain the authoritative actor record.
+* Added no-division guidance, tournament preselection, loading states, and read-only monitoring regression checks. Public registration is unchanged.
+
+### Admin Registration Sex Parity (Phase 06.1D)
+
+* Added a protected admin team-registration page with optional Male/Female player entry, using the existing registration transaction for team reuse, roster membership, and fee assessments.
+* Admin registration validates tournament/division ownership without inheriting the public open-registration rule; public registration continues to require an open tournament.
+* Reused player profiles retain recorded sex. Admin registration may fill a missing value with a transactional `PLAYER_PROFILE_UPDATED` audit event; conflicting non-null values require explicit profile correction. Admin-created registrations write `TEAM_REGISTRATION_CREATED` audit events.
+* Added rollback-based checks for closed-tournament eligibility and player-sex reuse without altering persistent registration, player, or payment counts. Mixed-roster composition rules remain out of scope.
+
+### Player Sex Foundation for Mixed Tournaments (Phase 06.1C)
+
+* Added nullable PostgreSQL `player_sex` enum (`MALE`, `FEMALE`) and `players.sex`; existing profiles remain `NULL` with no inferred default.
+* Added optional sex entry to public registration and admin add-player forms, compact admin roster display, and correction through the existing player profile edit workflow.
+* Public reuse preserves stored player sex. Admin add-player can complete a missing value with a `PLAYER_PROFILE_UPDATED` audit event; conflicting stored values require an explicit correction. Correction changes use the same audited player profile transaction.
+* Added rollback-based verification for Male, Female, legacy null, invalid values, and unchanged player counts. Mixed roster ratios remain unenforced.
+
+### Admin Tournament Division Management (Phase 06.1B)
+
+* Added protected division creation and editing under tournament detail, with registration fee, roster limits, description, and registration counts shown for each division.
+* Added server validation, case-insensitive duplicate-name checks within each tournament, and transactional `TOURNAMENT_DIVISION_CREATED` / `TOURNAMENT_DIVISION_UPDATED` audit logs.
+* Locked registration fees after the first registration because accounting derives obligations from the current division fee. Roster-limit changes are rejected when they would invalidate an existing active roster.
+* Corrected accounting's legacy fallback so a configured ₱0 division fee remains ₱0; the fallback applies only when category data is missing.
+
 ### Admin Tournament Management Foundation (Phase 06.1A)
 
 * Added protected tournament list, creation, detail, and edit pages in the admin portal, with pagination, division and registration counts, and mobile-first navigation.

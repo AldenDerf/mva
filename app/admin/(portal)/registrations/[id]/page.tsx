@@ -13,6 +13,7 @@ import { PlayerPaymentActionControls } from "@/components/admin/PlayerPaymentAct
 import { AddPlayerModal } from "@/components/admin/AddPlayerModal";
 import { PaymentCorrectionButton } from "@/components/admin/PaymentCorrectionButton";
 import { EditPlayerButton } from "@/components/admin/EditPlayerButton";
+import { playerSexLabel } from "@/lib/player-sex";
 import { EditTeamButton } from "@/components/admin/EditTeamButton";
 import { RosterMemberActions } from "@/components/admin/RosterMemberActions";
 import { LegacyPaymentCard } from "@/components/admin/LegacyPaymentCard";
@@ -194,6 +195,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
             </span>
             <RegistrationStatusBadge status={reg.status} />
             <PaymentCompletionBadge status={reg.accounting.paymentCompletionStatus} />
+            <span className="text-xs font-semibold text-[#5F6B61]">{reg.playerCount} {reg.playerCount === 1 ? "player" : "players"}</span>
           </div>
         </div>
 
@@ -234,6 +236,12 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
           />
         </div>
       </div>
+
+      <nav aria-label="Registration sections" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 text-sm font-semibold text-[#205823]">
+        {[["overview", "Overview"], ["roster", "Roster"], ["payment-records", "Payments"], ["team", "Team"], ["registrant", "Registrant"]].map(([target, label]) => (
+          <a key={target} href={`#${target}`} className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-3 hover:bg-[#eef5ef] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#205823]">{label}</a>
+        ))}
+      </nav>
 
       {/* ============================================================ */}
       {/* ATTENTION BANNER: PAYMENT NEEDS REVIEW */}
@@ -382,8 +390,9 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
         <div className="lg:col-span-2 space-y-6">
           {/* SECTION: PLAYER PAYMENT ROSTER */}
           <section
+            id="roster"
             aria-labelledby="roster-heading"
-            className="bg-white rounded-2xl border border-[#DDE3DE] shadow-xs overflow-hidden"
+            className="scroll-mt-24 bg-white rounded-2xl border border-[#DDE3DE] shadow-xs overflow-hidden"
           >
             <div className="p-5 sm:p-6 border-b border-[#DDE3DE] flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -408,6 +417,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                     registrationId={reg.id}
                     registrationCode={reg.registrationCode}
                     teamName={reg.team.name}
+                    bottomTriggerId="roster-bottom-add-player"
                   />
                 )}
               </div>
@@ -448,6 +458,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                     Captain
                                   </span>
                                 )}
+                                <span className="text-xs font-medium text-[#5F6B61]">Sex: {playerSexLabel(player.sex)}</span>
                               </div>
                               <div className="flex items-center gap-2 text-xs text-[#5F6B61] mt-0.5">
                                 {player.jerseyNumber !== null ? (
@@ -495,6 +506,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                 suffix: player.suffix,
                                 contactNumber: player.contactNumber,
                                 dateOfBirth: player.dateOfBirth,
+                                sex: player.sex,
                                 registrationCount: player.registrationCount,
                                 jerseyNumber: player.jerseyNumber,
                                 position: player.position,
@@ -581,6 +593,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                   Captain
                                 </span>
                               )}
+                              <span className="text-xs font-medium text-[#5F6B61]">Sex: {playerSexLabel(player.sex)}</span>
                             </div>
                           </th>
                           <td className="py-3.5 px-4 text-center text-xs">
@@ -671,6 +684,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                   suffix: player.suffix,
                                   contactNumber: player.contactNumber,
                                   dateOfBirth: player.dateOfBirth,
+                                  sex: player.sex,
                                   registrationCount: player.registrationCount,
                                   jerseyNumber: player.jerseyNumber,
                                   position: player.position,
@@ -699,6 +713,8 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                 </div>
               </>
             )}
+
+            {reg.status === "VERIFIED" && <div className="border-t border-[#DDE3DE] p-4 text-center sm:p-5"><p className="mb-2 text-sm font-semibold text-[#5F6B61]">{reg.playerCount} active {reg.playerCount === 1 ? "player" : "players"}</p><div id="roster-bottom-add-player" /></div>}
 
             {/* ============================================================ */}
             {/* SUBSECTION: REMOVED PLAYERS (Historical Roster Members)       */}
@@ -786,7 +802,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
           <section
             id="payment-records"
             aria-labelledby="payment-heading"
-            className="bg-white rounded-2xl border border-[#DDE3DE] shadow-xs overflow-hidden"
+            className="scroll-mt-24 bg-white rounded-2xl border border-[#DDE3DE] shadow-xs overflow-hidden"
           >
             <div className="p-5 sm:p-6 border-b border-[#DDE3DE] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -1049,8 +1065,9 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
         <div className="space-y-6">
           {/* SECTION A: REGISTRATION OVERVIEW */}
           <section
+            id="overview"
             aria-labelledby="overview-heading"
-            className="bg-white rounded-2xl border border-[#DDE3DE] p-5 sm:p-6 shadow-xs space-y-4"
+            className="scroll-mt-24 bg-white rounded-2xl border border-[#DDE3DE] p-5 sm:p-6 shadow-xs space-y-4"
           >
             <h2 id="overview-heading" className="text-base font-bold text-[#172019] pb-3 border-b border-[#DDE3DE]">
               Registration Overview
@@ -1157,8 +1174,9 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
 
           {/* SECTION B: TEAM INFORMATION */}
           <section
+            id="team"
             aria-labelledby="team-heading"
-            className="bg-white rounded-2xl border border-[#DDE3DE] p-5 sm:p-6 shadow-xs space-y-4"
+            className="scroll-mt-24 bg-white rounded-2xl border border-[#DDE3DE] p-5 sm:p-6 shadow-xs space-y-4"
           >
             <h2 id="team-heading" className="text-base font-bold text-[#172019] pb-3 border-b border-[#DDE3DE]">
               Team Information
@@ -1186,8 +1204,9 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
 
           {/* SECTION C: REGISTRANT INFORMATION */}
           <section
+            id="registrant"
             aria-labelledby="registrant-heading"
-            className="bg-white rounded-2xl border border-[#DDE3DE] p-5 sm:p-6 shadow-xs space-y-4"
+            className="scroll-mt-24 bg-white rounded-2xl border border-[#DDE3DE] p-5 sm:p-6 shadow-xs space-y-4"
           >
             <h2 id="registrant-heading" className="text-base font-bold text-[#172019] pb-3 border-b border-[#DDE3DE]">
               Registrant Information

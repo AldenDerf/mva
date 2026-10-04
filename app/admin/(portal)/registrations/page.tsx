@@ -1,9 +1,11 @@
 import React from "react";
 import { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   getAdminRegistrations,
   getFilterCategories,
+  getTournamentDivisionCounts,
   AdminRegistrationListItem,
 } from "@/lib/admin/registrations";
 import { RegistrationFilters } from "@/components/admin/RegistrationFilters";
@@ -12,6 +14,8 @@ import {
   PaymentCompletionBadge,
 } from "@/components/admin/StatusBadges";
 import { registration_status, payment_status } from "@prisma/client";
+import { getMonitoringTournaments, resolveDivisionId, resolveTournamentId } from "@/lib/admin/monitoring";
+import { canAdminRegisterTeam } from "@/lib/registration-lifecycle";
 
 export const metadata: Metadata = {
   title: "Registrations | MVA Admin",
@@ -26,6 +30,7 @@ interface PageProps {
     status?: string;
     paymentStatus?: string;
     categoryId?: string;
+    tournamentId?: string;
     page?: string;
   }>;
 }
@@ -55,7 +60,16 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
   const q = resolvedParams.q?.trim() || undefined;
   const rawStatus = resolvedParams.status?.trim();
   const rawPaymentStatus = resolvedParams.paymentStatus?.trim();
-  const categoryId = resolvedParams.categoryId?.trim() || undefined;
+  const tournaments = await getMonitoringTournaments();
+  const tournamentId = resolveTournamentId(resolvedParams.tournamentId, tournaments);
+  const categoryId = resolveDivisionId(resolvedParams.categoryId, tournamentId, tournaments);
+  if ((resolvedParams.tournamentId && !tournamentId) || (resolvedParams.categoryId && !categoryId)) {
+    const clean = new URLSearchParams();
+    for (const [key, value] of Object.entries(resolvedParams)) if (value && key !== "page" && key !== "tournamentId" && key !== "categoryId") clean.set(key, value);
+    if (tournamentId) clean.set("tournamentId", tournamentId);
+    if (categoryId) clean.set("categoryId", categoryId);
+    redirect(`/admin/registrations${clean.size ? `?${clean}` : ""}`);
+  }
   const page = Math.max(1, parseInt(resolvedParams.page || "1", 10) || 1);
 
   // Validate enums against Prisma definitions
@@ -84,7 +98,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
     ? (rawPaymentStatus as payment_status)
     : undefined;
 
-  const [data, categories] = await Promise.all([
+  const [data, categories, divisionCounts] = await Promise.all([
     getAdminRegistrations({
       page,
       pageSize: 20,
@@ -92,11 +106,13 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
       status,
       paymentStatus,
       categoryId,
+      tournamentId,
     }),
     getFilterCategories(),
+    tournamentId ? getTournamentDivisionCounts(tournamentId) : Promise.resolve({} as Record<string, number>),
   ]);
 
-  const hasActiveFilters = Boolean(q || status || paymentStatus || categoryId);
+  const hasActiveFilters = Boolean(q || status || paymentStatus || categoryId || tournamentId);
 
   // Helper to construct pagination URLs while preserving current filters
   const buildPageUrl = (targetPage: number) => {
@@ -105,6 +121,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
     if (status) params.set("status", status);
     if (paymentStatus) params.set("paymentStatus", paymentStatus);
     if (categoryId) params.set("categoryId", categoryId);
+    if (tournamentId) params.set("tournamentId", tournamentId);
     params.set("page", targetPage.toString());
     return `/admin/registrations?${params.toString()}`;
   };
@@ -123,7 +140,11 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#172019]">
               Team Registrations
             </h1>
-            {hasActiveFilters ? (
+            {tournamentId && tournaments.find(item => item.id === tournamentId)?.league_categories.length === 0 ? (
+              <><h2 className="text-base font-bold">No divisions configured yet</h2><p className="mt-1 text-sm text-[#5F6B61]">Create a division before registering teams.</p><Link href={`/admin/tournaments/${tournamentId}/divisions/new`} className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-4 font-bold text-white">Add Division</Link></>
+            ) : categoryId && !q && !status && !paymentStatus ? (
+              <><h2 className="text-base font-bold">No teams are registered in this division yet.</h2>{tournamentId && canAdminRegisterTeam(tournaments.find(item => item.id === tournamentId)!.status) && <Link href={`/admin/registrations/new?tournamentId=${tournamentId}`} className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-4 font-bold text-white">Register Team</Link>}</>
+            ) : hasActiveFilters ? (
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-800 border border-amber-500/20">
                 {data.totalCount} {data.totalCount === 1 ? "Filtered Match" : "Filtered Matches"}
               </span>
@@ -138,7 +159,9 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {(!tournamentId || canAdminRegisterTeam(tournaments.find(item => item.id === tournamentId)!.status)) &&
+            <Link href={tournamentId ? `/admin/registrations/new?tournamentId=${tournamentId}` : "/admin/registrations/new"} className="inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-4 text-sm font-bold text-white">Register Team</Link>}
           <span className="text-xs font-medium text-[#5F6B61] bg-[#FAFAF8] px-3 py-1.5 rounded-lg border border-[#DDE3DE]">
             Sorted: Newest First
           </span>
@@ -150,6 +173,8 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
       {/* ============================================================ */}
       <RegistrationFilters
         categories={categories}
+        tournaments={tournaments}
+        currentTournamentId={tournamentId}
         currentQuery={q}
         currentStatus={status}
         currentPaymentStatus={paymentStatus}
@@ -239,9 +264,9 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#DDE3DE] text-[#172019]">
-                  {data.items.map((item: AdminRegistrationListItem) => (
+                  {data.items.map((item: AdminRegistrationListItem, index) => <React.Fragment key={item.id}>
+                    {tournamentId && (index === 0 || data.items[index - 1].categoryId !== item.categoryId) && <tr className="bg-[#eef5ef]"><th colSpan={9} scope="colgroup" className="px-5 py-3 text-left text-sm font-bold text-[#205823]">{item.categoryName} · {divisionCounts[item.categoryId] ?? 0} total teams</th></tr>}
                     <tr
-                      key={item.id}
                       className="hover:bg-[#FAFAF8]/80 transition-colors group"
                     >
                       {/* Reference Code */}
@@ -353,7 +378,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                         </Link>
                       </td>
                     </tr>
-                  ))}
+                  </React.Fragment>)}
                 </tbody>
               </table>
             </div>
@@ -361,7 +386,8 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
             {/* MOBILE & TABLET CARD VIEW (Visible below lg: 360px, 390px, 430px) */}
             <div className="lg:hidden divide-y divide-[#DDE3DE]">
               <h2 className="sr-only">Registration Entries</h2>
-              {data.items.map((item: AdminRegistrationListItem) => (
+              {data.items.map((item: AdminRegistrationListItem, index) => <React.Fragment key={item.id}>
+                {tournamentId && (index === 0 || data.items[index - 1].categoryId !== item.categoryId) && <h3 className="bg-[#eef5ef] px-4 py-3 text-sm font-bold text-[#205823]">{item.categoryName} · {divisionCounts[item.categoryId] ?? 0} total teams</h3>}
                 <article key={item.id} className="p-4 sm:p-5 space-y-3.5">
                   {/* Card Top: Team Name as Primary Title + Registration Status */}
                   <div className="flex items-start justify-between gap-3">
@@ -506,7 +532,7 @@ export default async function AdminRegistrationsPage({ searchParams }: PageProps
                     </Link>
                   </div>
                 </article>
-              ))}
+              </React.Fragment>)}
             </div>
 
             {/* ============================================================ */}

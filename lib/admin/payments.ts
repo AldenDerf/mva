@@ -33,6 +33,7 @@ export interface AdminPaymentListItem {
   // Division
   categoryId: string;
   categoryName: string;
+  leagueId: string;
 
   // Player
   registrationPlayerId: string | null;
@@ -63,6 +64,7 @@ export interface AdminPaymentsQueryParams {
   paymentStatus?: payment_status;
   paymentMethod?: payment_method;
   categoryId?: string;
+  tournamentId?: string;
   verifiedRegistrationOnly?: boolean;
   completeness?: PaymentCompletionStatus;
   page?: number;
@@ -206,6 +208,7 @@ export function buildBasePaymentsWhereClause(
   params: AdminPaymentsQueryParams
 ): Prisma.paymentsWhereInput {
   const andConditions: Prisma.paymentsWhereInput[] = [];
+  if (params.tournamentId) andConditions.push({ registrations: { league_id: params.tournamentId } });
 
   // 1. Payment Status Filter
   const statusFilter = params.paymentStatus ?? params.status;
@@ -440,10 +443,10 @@ export async function getAdminPaymentsList(
       where: finalWhere,
       skip,
       take: pageSize,
-      orderBy: [
-        { created_at: "desc" },
-        { id: "desc" },
-      ],
+      orderBy: params.tournamentId ? [
+        { registrations: { league_categories_registrations_league_category_idToleague_categories: { name: "asc" } } },
+        { created_at: "desc" }, { id: "desc" },
+      ] : [{ created_at: "desc" }, { id: "desc" }],
       select: {
         id: true,
         amount: true,
@@ -471,6 +474,7 @@ export async function getAdminPaymentsList(
           select: {
             id: true,
             registration_code: true,
+            league_id: true,
             status: true,
             teams: {
               select: {
@@ -598,6 +602,7 @@ export async function getAdminPaymentsList(
 
       categoryId: category ? category.id : "",
       categoryName: category ? category.name : "Unassigned",
+      leagueId: reg.league_id,
 
       registrationPlayerId,
       playerId,
@@ -634,7 +639,7 @@ export async function getAdminPaymentsList(
  * Fetches all active league categories for filter dropdown options.
  */
 export async function getAdminPaymentFilterCategories(): Promise<
-  Array<{ id: string; name: string; leagueName: string }>
+  Array<{ id: string; name: string; leagueName: string; leagueId: string }>
 > {
   const categories = await prisma.league_categories.findMany({
     orderBy: [
@@ -647,6 +652,7 @@ export async function getAdminPaymentFilterCategories(): Promise<
       leagues: {
         select: {
           name: true,
+          id: true,
         },
       },
     },
@@ -656,6 +662,7 @@ export async function getAdminPaymentFilterCategories(): Promise<
     id: c.id,
     name: c.name,
     leagueName: c.leagues.name,
+    leagueId: c.leagues.id,
   }));
 }
 

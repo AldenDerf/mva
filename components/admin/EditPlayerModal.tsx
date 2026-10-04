@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useTransition } from "react";
 import { updatePlayerDetailsAction } from "@/app/admin/(portal)/registrations/[id]/player-edit-actions";
+import type { PlayerSex } from "@/lib/player-sex";
 
 export interface EditPlayerTarget {
   registrationId: string;
@@ -16,6 +17,7 @@ export interface EditPlayerTarget {
   suffix: string | null;
   contactNumber: string | null;
   dateOfBirth: Date | null;
+  sex: PlayerSex | null;
   registrationCount: number;
 
   // Roster Information
@@ -55,6 +57,7 @@ function EditPlayerDialogContent({
       ? new Date(player.dateOfBirth).toISOString().split("T")[0]
       : ""
   );
+  const [sex, setSex] = useState<PlayerSex | "">(player.sex ?? "");
 
   // Roster Info Form State
   const [jerseyNumber, setJerseyNumber] = useState<string>(
@@ -122,6 +125,7 @@ function EditPlayerDialogContent({
           suffix: suffix.trim() || null,
           contactNumber: contactNumber.trim() || null,
           dateOfBirth: dateOfBirth ? dateOfBirth : null,
+          sex: sex || null,
           jerseyNumber: parsedJersey,
           position: position.trim() || null,
           isCaptain,
@@ -309,6 +313,13 @@ function EditPlayerDialogContent({
               />
             </div>
 
+            <div>
+              <label htmlFor="edit-player-sex" className="block text-xs font-semibold text-[#172019] mb-1">Sex <span className="font-normal text-[#5F6B61]">(Optional)</span></label>
+              <select id="edit-player-sex" value={sex} onChange={(e) => setSex(e.target.value as PlayerSex | "")}
+                disabled={isPending} className="w-full min-h-11 px-3 py-2 rounded-xl border border-[#DDE3DE] text-sm text-[#172019] bg-white focus:outline-none focus:ring-2 focus:ring-[#205823]">
+                <option value="">Not recorded</option><option value="MALE">Male</option><option value="FEMALE">Female</option>
+              </select>
+            </div>
             <div>
               <label
                 htmlFor="edit-player-dob"

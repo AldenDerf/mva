@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { isPlayerSex, type PlayerSex } from "@/lib/player-sex";
 import { AdminContext } from "@/lib/auth/admin";
 
 export type PlayerCorrectionErrorCode =
@@ -22,6 +23,7 @@ export interface CorrectPlayerAndRosterParams {
   suffix?: string | null;
   contactNumber?: string | null;
   dateOfBirth?: Date | string | null;
+  sex?: PlayerSex | null;
 
   // Tournament Roster Information (registration_players table)
   jerseyNumber?: number | null;
@@ -106,6 +108,7 @@ export async function correctPlayerAndRosterDetails(
     suffix,
     contactNumber,
     dateOfBirth,
+    sex,
     jerseyNumber,
     position,
     isCaptain,
@@ -195,6 +198,10 @@ export async function correctPlayerAndRosterDetails(
         ? contactNumber.trim().slice(0, 30)
         : null
       : undefined;
+
+  if (sex !== undefined && sex !== null && !isPlayerSex(sex)) {
+    return { success: false, error: "VALIDATION_ERROR", message: "Sex must be Male, Female, or not recorded." };
+  }
 
   let parsedDob: Date | null | undefined;
   if (dateOfBirth !== undefined) {
@@ -316,6 +323,13 @@ export async function correctPlayerAndRosterDetails(
       const beforePersonal: Record<string, string | number | boolean | null> = {};
       const afterPersonal: Record<string, string | number | boolean | null> = {};
       const playerUpdateData: Prisma.playersUpdateInput = {};
+
+      if (sex !== undefined && currentPlayer.sex !== sex) {
+        changedPersonalFields.push("sex");
+        beforePersonal.sex = currentPlayer.sex;
+        afterPersonal.sex = sex;
+        playerUpdateData.sex = sex;
+      }
 
       if (trimmedFirst !== undefined && currentPlayer.first_name !== trimmedFirst) {
         changedPersonalFields.push("first_name");

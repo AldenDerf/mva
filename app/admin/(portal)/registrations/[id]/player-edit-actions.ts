@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/admin";
+import type { PlayerSex } from "@/lib/player-sex";
 import {
   correctPlayerAndRosterDetails,
   PlayerCorrectionResult,
@@ -20,6 +21,7 @@ export interface UpdatePlayerDetailsActionInput {
   suffix?: string | null;
   contactNumber?: string | null;
   dateOfBirth?: string | null;
+  sex?: PlayerSex | null;
 
   // Roster Information
   jerseyNumber?: number | null;
@@ -58,6 +60,7 @@ export async function updatePlayerDetailsAction(
     suffix: input.suffix,
     contactNumber: input.contactNumber,
     dateOfBirth: input.dateOfBirth,
+    sex: input.sex,
     jerseyNumber: input.jerseyNumber,
     position: input.position,
     isCaptain: input.isCaptain,

@@ -22,6 +22,7 @@ interface PaymentListViewProps {
   totalPages: number;
   hasPreviousPage: boolean;
   hasNextPage: boolean;
+  tournamentId?: string;
 }
 
 function formatCurrency(amount: number): string {
@@ -40,6 +41,7 @@ export function PaymentListView({
   totalPages,
   hasPreviousPage,
   hasNextPage,
+  tournamentId,
 }: PaymentListViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -115,9 +117,9 @@ export function PaymentListView({
           {/* MOBILE VIEW (< md): Mobile-first Payment Cards (Section I) */}
           {/* ============================================================ */}
           <div className="block md:hidden space-y-3.5">
-            {items.map((item) => (
+            {items.map((item, index) => <React.Fragment key={item.id}>
+              {tournamentId && (index === 0 || items[index - 1].categoryId !== item.categoryId) && <h3 className="rounded-lg bg-[#eef5ef] px-4 py-3 text-sm font-bold text-[#205823]">{item.categoryName}</h3>}
               <div
-                key={item.id}
                 className="bg-white rounded-2xl border border-[#DDE3DE] p-4 shadow-xs space-y-3.5"
               >
                 {/* Header: Player Name or Legacy demarcation */}
@@ -286,7 +288,7 @@ export function PaymentListView({
                   </Link>
                 </div>
               </div>
-            ))}
+            </React.Fragment>)}
           </div>
 
           {/* ============================================================ */}
@@ -327,9 +329,9 @@ export function PaymentListView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#DDE3DE] text-[#172019]">
-                  {items.map((item) => (
+                  {items.map((item, index) => <React.Fragment key={item.id}>
+                    {tournamentId && (index === 0 || items[index - 1].categoryId !== item.categoryId) && <tr className="bg-[#eef5ef]"><th colSpan={9} scope="colgroup" className="px-4 py-3 text-left text-sm font-bold text-[#205823]">{item.categoryName}</th></tr>}
                     <tr
-                      key={item.id}
                       className="hover:bg-[#FAFAF8]/80 transition-colors"
                     >
                       {/* Player Column */}
@@ -455,7 +457,7 @@ export function PaymentListView({
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  </React.Fragment>)}
                 </tbody>
               </table>
             </div>
