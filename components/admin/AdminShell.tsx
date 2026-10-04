@@ -109,6 +109,16 @@ export const AdminShell: React.FC<AdminShellProps> = ({ admin, children }) => {
       ),
     },
     {
+      label: "Tournaments",
+      href: "/admin/tournaments",
+      active: pathname === "/admin/tournaments" || pathname.startsWith("/admin/tournaments/"),
+      icon: ({ className }) => (
+        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 3h8v3h4v3a5 5 0 01-5 5h-1a4 4 0 01-3 2v3h4v2H9v-2h4v-3a4 4 0 01-3-2H9a5 5 0 01-5-5V6h4V3zm0 5H6v1a3 3 0 003 3h1M16 8h2v1a3 3 0 01-3 3h-1" />
+        </svg>
+      ),
+    },
+    {
       label: "Teams",
       href: "#",
       active: false,

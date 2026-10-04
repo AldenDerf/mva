@@ -8,6 +8,12 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+### Admin Tournament Management Foundation (Phase 06.1A)
+
+* Added protected tournament list, creation, detail, and edit pages in the admin portal, with pagination, division and registration counts, and mobile-first navigation.
+* Added server-side validation for names, years, dates, and statuses. Tournament creation allows draft or open-for-registration status; edits support existing league statuses.
+* Tournament writes and `TOURNAMENT_CREATED` / `TOURNAMENT_UPDATED` audit events are committed together through Prisma transactions. Division creation follows in Phase 06.1B.
+
 ### Legacy Verified Payment Reconciliation (Phase 05.7D.5)
 
 * **Historical Payment Allocation Data Model (`prisma/schema.prisma`, `prisma/migrations/20260924_legacy_payment_allocation/migration.sql`)**:

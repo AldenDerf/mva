@@ -171,7 +171,7 @@ async function runSuite() {
     const nonAdminContext: AdminContext = {
       profileId: adminProfile.id,
       authUserId: adminAuthId,
-      role: "VIEWER" as any,
+      role: "VIEWER" as AdminContext["role"],
       email: adminProfile.email || "user@mva.org",
       displayName: "Non-Admin User",
     };

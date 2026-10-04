@@ -219,7 +219,7 @@ async function runVerification() {
     const unauthorizedAdminContext: AdminContext = {
       profileId: adminProfile.id,
       authUserId: adminAuthId,
-      role: "VIEWER" as any,
+      role: "VIEWER" as AdminContext["role"],
       email: adminProfile.email || "admin@mva.org",
       displayName: adminProfile.display_name || "Admin Official",
     };
@@ -490,7 +490,7 @@ async function runVerification() {
           status: "VERIFIED", // Collides with existing VERIFIED payment for rp1
         },
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       partialUniqueIndexBlocked =
         String(e).includes("uq_payments_active_verified_player") ||
         String(e).includes("Unique constraint failed");
