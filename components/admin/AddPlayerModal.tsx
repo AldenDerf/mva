@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { addPlayerToRosterAction } from "@/app/admin/(portal)/registrations/[id]/roster-actions";
 import type { PlayerSex } from "@/lib/player-sex";
 
@@ -8,6 +9,7 @@ interface AddPlayerModalProps {
   registrationId: string;
   registrationCode: string;
   teamName: string;
+  bottomTriggerId?: string;
 }
 
 const COMMON_POSITIONS = [
@@ -24,8 +26,20 @@ export function AddPlayerModal({
   registrationId,
   registrationCode,
   teamName,
+  bottomTriggerId,
 }: AddPlayerModalProps) {
+  const [bottomTarget, setBottomTarget] = useState<HTMLElement | null>(null);
+  React.useEffect(() => {
+    if (!bottomTriggerId) return;
+    const frame = requestAnimationFrame(() => setBottomTarget(document.getElementById(bottomTriggerId)));
+    return () => cancelAnimationFrame(frame);
+  }, [bottomTriggerId]);
   const [isOpen, setIsOpen] = useState(false);
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const frame = requestAnimationFrame(() => document.getElementById("player-first-name")?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen]);
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -123,12 +137,11 @@ export function AddPlayerModal({
     });
   };
 
-  return (
-    <>
+  const trigger = (label: string) => (
       <button
         type="button"
         onClick={handleOpen}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#205823] text-white hover:bg-[#1a471c] active:scale-[0.98] transition-all shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] focus-visible:ring-offset-1"
+        className="inline-flex min-h-11 items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[#205823] text-white hover:bg-[#1a471c] transition-all shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] focus-visible:ring-offset-2"
       >
         <svg
           className="w-3.5 h-3.5"
@@ -144,9 +157,14 @@ export function AddPlayerModal({
             d="M12 4v16m8-8H4"
           />
         </svg>
-        <span>Add Player</span>
+        <span>{label}</span>
       </button>
+  );
 
+  return (
+    <>
+      {trigger("Add Player")}
+      {bottomTarget && createPortal(trigger("Add Another Player"), bottomTarget)}
       {isOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
