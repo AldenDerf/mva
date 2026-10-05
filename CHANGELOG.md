@@ -8,6 +8,8 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+* New team registrations create only per-player pending fee assessments, preventing duplicate unassigned pending payments.
+
 ### Same Tournament and Division Player Transfer (Phase 06.2A)
 
 * Admins can move active players between verified registrations only when tournament and division IDs match. Captains must be reassigned first; removed members must be restored first.
