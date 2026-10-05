@@ -2,9 +2,11 @@ import {
   getOpenLeagues,
   getLeagueCategories,
   getRegistrationByReference,
+  createRegistration,
 } from "../lib/registration";
 import { submitTeamRegistrationAction } from "../app/actions/registration";
 import { prisma } from "../lib/prisma";
+import { randomUUID } from "node:crypto";
 
 async function verifySimplifiedTeamRegistration() {
   console.log("=== Simplified Public Team Registration Verification ===");
@@ -21,6 +23,8 @@ async function verifySimplifiedTeamRegistration() {
 
   const createdRegistrationIds: string[] = [];
   const createdTeamIds: string[] = [];
+  let adminProfileId: string | undefined;
+  let adminPlayerLastName: string | undefined;
 
   const testRegistrant = {
     first_name: "Elena",
@@ -133,6 +137,25 @@ async function verifySimplifiedTeamRegistration() {
     if (res5.data.total_fee !== 1500) {
       throw new Error(`Expected fee 1500, got ${res5.data.total_fee}`);
     }
+    const roster5 = await prisma.registration_players.findMany({
+      where: { registration_id: res5.data.registration_id },
+      select: { id: true },
+    });
+    const payments5 = await prisma.payments.findMany({
+      where: { registration_id: res5.data.registration_id },
+      select: { registration_player_id: true, amount: true, status: true, notes: true },
+    });
+    const fee5 = Number(category.registration_fee);
+    if (roster5.length !== players5.length || payments5.length !== players5.length ||
+        res5.data.player_count !== players5.length || res5.data.fee_per_player !== fee5 ||
+        res5.data.total_fee !== players5.length * fee5 ||
+        payments5.some((payment) => payment.registration_player_id === null ||
+          payment.status !== "PENDING" || Number(payment.amount) !== fee5 ||
+          payment.notes?.startsWith("Initial registration fee assessment:")) ||
+        roster5.some((player) => !payments5.some((payment) => payment.registration_player_id === player.id))) {
+      throw new Error("Expected exactly one linked pending assessment at the category fee for each roster member.");
+    }
+    console.log("[PASS] Five roster members have exactly five linked pending assessments and the calculated fee is returned.");
 
     // 7. Test Exactly 12 Players Registration (target roster requirement satisfied, fee = ₱3,600)
     console.log("\n--- 7. Testing 12 Players Registration ---");
@@ -192,10 +215,38 @@ async function verifySimplifiedTeamRegistration() {
       throw new Error(`Failed to lookup registration by reference code: ${refCode}`);
     }
     console.log(`[PASS] Registration reference found: Team="${refSummary.team_name}", Code="${refSummary.registration_code}", Status="${refSummary.status}"`);
+    const authUserId = randomUUID();
+    adminPlayerLastName = authUserId;
+    const profile = await prisma.profiles.create({ data: {
+      auth_user_id: authUserId, display_name: "Registration Verification",
+      email: `registration-${authUserId}@example.invalid`,
+    } });
+    adminProfileId = profile.id;
+    await prisma.admin_access.create({ data: { profile_id: profile.id, role: "ADMIN" } });
+    const adminResult = await createRegistration({
+      league_id: league.id, league_category_id: category.id,
+      team_name: `Admin Spikers ${authUserId}`, registrant: testRegistrant,
+      players: [
+        { first_name: "AdminOne", last_name: authUserId, sex: "MALE", is_captain: true },
+        { first_name: "AdminTwo", last_name: authUserId, sex: "FEMALE", is_captain: false },
+      ],
+    }, { authUserId, profileId: profile.id, displayName: profile.display_name ?? "Registration Verification",
+      email: profile.email!, role: "ADMIN" });
+    createdRegistrationIds.push(adminResult.registration_id);
+    createdTeamIds.push(adminResult.team_id);
+    const adminPayments = await prisma.payments.findMany({ where: { registration_id: adminResult.registration_id } });
+    const adminRoster = await prisma.registration_players.findMany({ where: { registration_id: adminResult.registration_id } });
+    if (adminRoster.length !== 2 || adminPayments.length !== 2 ||
+        adminPayments.some(payment => !payment.registration_player_id || payment.status !== "PENDING") ||
+        adminResult.total_fee !== 2 * Number(category.registration_fee)) {
+      throw new Error("Admin registration must create exactly one linked pending assessment per player.");
+    }
+    console.log("[PASS] Admin registration uses the same per-player payment flow.");
   } finally {
     // 10. Clean up test records
     console.log("\n--- 10. Cleaning up test records ---");
     for (const regId of createdRegistrationIds) {
+      await prisma.admin_audit_logs.deleteMany({ where: { entity_id: regId } });
       await prisma.payments.deleteMany({ where: { registration_id: regId } });
       await prisma.registration_players.deleteMany({ where: { registration_id: regId } });
       await prisma.registrations.delete({ where: { id: regId } });
@@ -203,9 +254,13 @@ async function verifySimplifiedTeamRegistration() {
     for (const teamId of createdTeamIds) {
       await prisma.teams.delete({ where: { id: teamId } });
     }
+    if (adminProfileId) {
+      await prisma.admin_access.deleteMany({ where: { profile_id: adminProfileId } });
+      await prisma.profiles.delete({ where: { id: adminProfileId } });
+    }
     await prisma.players.deleteMany({
       where: {
-        last_name: { in: ["Spiker", "TeamFive", "TeamTwelve", "TeamSixteen"] },
+        last_name: { in: ["Spiker", "TeamFive", "TeamTwelve", "TeamSixteen", ...(adminPlayerLastName ? [adminPlayerLastName] : [])] },
         registration_players: { none: {} },
       },
     });
