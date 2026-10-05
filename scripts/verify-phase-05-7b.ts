@@ -399,7 +399,7 @@ async function run() {
     });
     testIds.paymentIds.push(pay6.id);
 
-    // Payment 7: Legacy / Unallocated Payment for Team 2 (registration_player_id = null)
+    // Payment 7: pending unassigned payment for Team 2 (registration_player_id = null)
     const pay7Legacy = await prisma.payments.create({
       data: {
         registration_id: reg2.id,
@@ -612,8 +612,11 @@ async function run() {
     console.log("\n[Test 20] Legacy payment appears correctly");
     const legacyItem = fIncomplete.items.find((i) => i.id === pay7Legacy.id);
     assert(Boolean(legacyItem), "Legacy payment record found in view items");
-    assert(legacyItem?.isLegacyUnallocated === true, "isLegacyUnallocated is strictly true");
-    assert(legacyItem?.fullName === "Legacy / Unallocated Payment", "Full name explicitly indicates unallocated payment");
+    const activeLegacyAllocations = await prisma.payment_allocations.count({ where: { payment_id: pay7Legacy.id, reversed_at: null } });
+    console.log(`  [DIAGNOSTIC] payment=${pay7Legacy.id}, registration=${reg2.id} (${reg2.status}), team=${team2.team_name}, status=${pay7Legacy.status}, registration_player_id=${pay7Legacy.registration_player_id}, active_allocations=${activeLegacyAllocations}, isLegacyUnallocated=${legacyItem?.isLegacyUnallocated}`);
+    assert(activeLegacyAllocations === 0, "Pending unassigned fixture has no active allocations");
+    assert(legacyItem?.isLegacyUnallocated === false, "Pending unassigned payment is not verified legacy unallocated money");
+    assert(legacyItem?.fullName === "Unassigned Pending Payment", "Pending unassigned payment has its own label");
 
     // Test 21: Legacy payment does not become attributed to a player
     console.log("\n[Test 21] Legacy payment does not become attributed to a player");
@@ -1142,8 +1145,8 @@ async function run() {
       categoryId: category.id,
     });
     assert(h14Legacy.totalCount === 1, "Legacy payment found with completeness filter");
-    assert(h14Legacy.items[0].isLegacyUnallocated === true, "isLegacyUnallocated is true for unallocated payment");
-    assert(h14Legacy.items[0].fullName === "Legacy / Unallocated Payment", "Placeholder name for legacy payment");
+    assert(h14Legacy.items[0].isLegacyUnallocated === false, "Corrected pending unassigned payment is not verified legacy unallocated money");
+    assert(h14Legacy.items[0].fullName === "Unassigned Pending Payment", "Pending unassigned label survives detail correction");
     assert(h14Legacy.items[0].registrationPlayerId === null, "registrationPlayerId is null for legacy payment");
 
     // Test 61: Existing payment status mutation behavior remains functional

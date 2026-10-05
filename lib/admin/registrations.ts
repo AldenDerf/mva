@@ -626,6 +626,8 @@ export const getAdminRegistrationById = cache(
           { entity_type: "REGISTRATION", entity_id: id },
           { entity_type: "PAYMENT", metadata: { path: ["registration_id"], equals: id } },
           { entity_type: "REGISTRATION_PLAYER", metadata: { path: ["registration_id"], equals: id } },
+          { action: "PLAYER_MOVED_BETWEEN_TEAMS", metadata: { path: ["source_registration_id"], equals: id } },
+          { action: "PLAYER_MOVED_BETWEEN_TEAMS", metadata: { path: ["destination_registration_id"], equals: id } },
           { entity_type: "PAYMENT_ALLOCATION", metadata: { path: ["registration_id"], equals: id } },
         ],
       },
