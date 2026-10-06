@@ -257,6 +257,10 @@ async function run() {
       },
     });
     cleanup.registrationPlayerIds.push(rp1.id);
+    const otherMembership = await prisma.registration_players.create({
+      data: { registration_id: regRejected.id, player_id: p1.id, status: "ACTIVE" },
+    });
+    cleanup.registrationPlayerIds.push(otherMembership.id);
 
     // Add placeholder pending payment
     const payPending = await prisma.payments.create({
@@ -272,9 +276,25 @@ async function run() {
     cleanup.paymentIds.push(payPending.id);
 
     const evalPending = await evaluateRosterMemberDeletionEligibility(rp1.id);
-    assert(evalPending.eligible === true, "Pre-verification roster member with no verified payments must be eligible for deletion");
-    assert(evalPending.policy === "UNVERIFIED_HARD_DELETE_ALLOWED");
+    assert(evalPending.eligible === false, "Active roster member must be ineligible for deletion");
+    assert(evalPending.policy === "BLOCKED_NOT_REMOVED");
     assert(evalPending.registrationStatus === "PENDING_PAYMENT");
+    const directPendingDelete = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
+      registrationId: regPending.id, registrationPlayerId: rp1.id, reason: "Direct active delete must fail",
+    });
+    assert(directPendingDelete.success === false && directPendingDelete.error === "PLAYER_NOT_REMOVED");
+    const removedPending = await executeRosterMemberSoftRemoval(validAdmin, {
+      registrationId: regPending.id, registrationPlayerId: rp1.id, reason: "Remove before hard delete",
+    });
+    assert(removedPending.success === true);
+    const evalRemovedPending = await evaluateRosterMemberDeletionEligibility(rp1.id);
+    assert(evalRemovedPending.eligible === true && evalRemovedPending.policy === "REMOVED_HARD_DELETE_ALLOWED");
+    await prisma.admin_access.update({ where: { profile_id: adminProfile.id }, data: { is_active: false } });
+    const inactiveAdminDelete = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
+      registrationId: regPending.id, registrationPlayerId: rp1.id, reason: "Inactive admin must be blocked",
+    });
+    assert(inactiveAdminDelete.success === false && inactiveAdminDelete.error === "UNAUTHORIZED");
+    await prisma.admin_access.update({ where: { profile_id: adminProfile.id }, data: { is_active: true } });
 
     const delPendingRes = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
       registrationId: regPending.id,
@@ -291,6 +311,7 @@ async function run() {
     // TEST 18: Verify global player identity preserved
     const checkP1 = await prisma.players.findUnique({ where: { id: p1.id } });
     assert(checkP1 !== null, "CRITICAL: Global players record MUST be preserved");
+    assert(await prisma.registration_players.findUnique({ where: { id: otherMembership.id } }), "Other registration membership must remain");
 
     // Placeholder pending payment explicitly purged
     const checkPayPending = await prisma.payments.findUnique({ where: { id: payPending.id } });
@@ -300,6 +321,8 @@ async function run() {
     assert(delPendingRes.auditLogId, "Audit log ID must be returned");
     const auditDel1 = await prisma.admin_audit_logs.findUnique({ where: { id: delPendingRes.auditLogId } });
     assert(auditDel1 !== null && auditDel1.action === "ROSTER_MEMBER_DELETED");
+    assert((auditDel1.metadata as Record<string, unknown>).previous_roster_status === "REMOVED");
+    assert.deepEqual((auditDel1.metadata as Record<string, unknown>).purged_unpaid_payment_ids, [payPending.id]);
     console.log("  PASS: Test 1 & 18: PENDING_PAYMENT player safely deleted; global player preserved; audit logged\n");
 
     // -------------------------------------------------------------------------
@@ -321,11 +344,21 @@ async function run() {
       },
     });
     cleanup.registrationPlayerIds.push(rp2.id);
+    const rejectedAssessment = await prisma.payments.create({ data: {
+      registration_id: regRejected.id, registration_player_id: rp2.id,
+      payment_method: "OTHER", amount: 300, status: "REJECTED",
+    } });
+    cleanup.paymentIds.push(rejectedAssessment.id);
 
     const evalRejected = await evaluateRosterMemberDeletionEligibility(rp2.id);
-    assert(evalRejected.eligible === true, "REJECTED registration player must be eligible for pre-verification correction");
-    assert(evalRejected.policy === "UNVERIFIED_HARD_DELETE_ALLOWED");
+    assert(evalRejected.eligible === false, "Active rejected-registration player must first be removed");
+    assert(evalRejected.policy === "BLOCKED_NOT_REMOVED");
     assert(evalRejected.registrationStatus === "REJECTED");
+    const removedRejected = await executeRosterMemberSoftRemoval(validAdmin, {
+      registrationId: regRejected.id, registrationPlayerId: rp2.id, reason: "Remove before hard delete",
+    });
+    assert(removedRejected.success === true);
+    assert((await evaluateRosterMemberDeletionEligibility(rp2.id)).policy === "REMOVED_HARD_DELETE_ALLOWED");
 
     const delRejectedRes = await executeUnverifiedRosterMemberHardDelete(validAdmin, {
       registrationId: regRejected.id,
@@ -333,6 +366,9 @@ async function run() {
       reason: "Correction on rejected registration",
     });
     assert(delRejectedRes.success === true, `Delete on rejected registration failed: ${delRejectedRes.message}`);
+    assert(await prisma.payments.findUnique({ where: { id: rejectedAssessment.id } }) === null, "Rejected assessment must be purged");
+    const rejectedAudit = await prisma.admin_audit_logs.findUniqueOrThrow({ where: { id: delRejectedRes.auditLogId! } });
+    assert.deepEqual((rejectedAudit.metadata as Record<string, unknown>).purged_unpaid_payment_ids, [rejectedAssessment.id]);
 
     const checkRp2 = await prisma.registration_players.findUnique({ where: { id: rp2.id } });
     assert(checkRp2 === null, "registration_players row must be physically deleted");
@@ -429,9 +465,9 @@ async function run() {
     console.log("[TEST 3] Testing VERIFIED Registration + ACTIVE Player Hard Delete Blocked...");
     const evalActiveUnpaid = await evaluateRosterMemberDeletionEligibility(rpActiveUnpaid.id);
     assert(evalActiveUnpaid.eligible === false, "ACTIVE player in VERIFIED registration MUST be ineligible for hard delete");
-    assert(evalActiveUnpaid.policy === "BLOCKED_VERIFIED_REGISTRATION");
+    assert(evalActiveUnpaid.policy === "BLOCKED_NOT_REMOVED");
     assert(
-      evalActiveUnpaid.reason === "This registration is already verified. Players can no longer be permanently deleted. Use roster management actions instead.",
+      evalActiveUnpaid.reason === "Only players in Removed Players can be permanently deleted. Remove the player from the roster first.",
       `Unexpected reason: ${evalActiveUnpaid.reason}`
     );
 
@@ -441,8 +477,8 @@ async function run() {
       reason: "Attempt hard delete of active player in verified registration",
     });
     assert(delActiveRes.success === false, "Hard delete on ACTIVE player in verified registration must fail");
-    assert(delActiveRes.error === "BLOCKED_VERIFIED_REGISTRATION");
-    assert(delActiveRes.message === "This registration is already verified. Players can no longer be permanently deleted. Use roster management actions instead.");
+    assert(delActiveRes.error === "PLAYER_NOT_REMOVED");
+    assert(delActiveRes.message === "Only players in Removed Players can be permanently deleted. Remove the player from the roster first.");
     console.log("  PASS: Test 3: Hard delete strictly blocked for ACTIVE player in VERIFIED registration\n");
 
     // -------------------------------------------------------------------------
@@ -679,7 +715,11 @@ async function run() {
     });
     cleanup.registrationPlayerIds.push(rpRace.id);
 
-    // Initial pre-check: eligible when registration is PENDING_PAYMENT
+    // Initial pre-check: removed and eligible while registration is PENDING_PAYMENT
+    const removeRace = await executeRosterMemberSoftRemoval(validAdmin, {
+      registrationId: regRace.id, registrationPlayerId: rpRace.id, reason: "Remove before race",
+    });
+    assert(removeRace.success === true);
     const evalPreRace = await evaluateRosterMemberDeletionEligibility(rpRace.id);
     assert(evalPreRace.eligible === true, "Must be initially eligible while PENDING_PAYMENT");
 
@@ -713,7 +753,7 @@ async function run() {
       reason: "Direct API invocation attempt",
     });
     assert(directDelRes.success === false);
-    assert(directDelRes.error === "BLOCKED_VERIFIED_REGISTRATION");
+    assert(directDelRes.error === "PLAYER_NOT_REMOVED");
     console.log("  PASS: Test 16: Direct server/domain call against VERIFIED registration strictly fails\n");
 
     // -------------------------------------------------------------------------
@@ -772,6 +812,56 @@ async function run() {
     assert(verifyPayIntact !== null && verifyPayIntact.status === "VERIFIED");
     console.log("  PASS: Test 19: Verified payment records completely untouched and preserved\n");
 
+    // Removed members in an unverified registration still retain real financial history.
+    async function createProtectedRemovedMember(label: string) {
+      const person = await prisma.players.create({ data: { first_name: label, last_name: `Protected${uniqueSuffix}` } });
+      cleanup.playerIds.push(person.id);
+      const member = await prisma.registration_players.create({ data: {
+        registration_id: regPending.id, player_id: person.id, status: "REMOVED", is_captain: false,
+      } });
+      cleanup.registrationPlayerIds.push(member.id);
+      return member;
+    }
+    const verifiedMember = await createProtectedRemovedMember("Verified");
+    const verifiedDirect = await prisma.payments.create({ data: {
+      registration_id: regPending.id, registration_player_id: verifiedMember.id,
+      payment_method: "CASH", amount: 300, status: "VERIFIED", verified_at: new Date(),
+    } });
+    cleanup.paymentIds.push(verifiedDirect.id);
+    assert((await evaluateRosterMemberDeletionEligibility(verifiedMember.id)).policy === "BLOCKED_VERIFIED_PAYMENT");
+    assert((await executeUnverifiedRosterMemberHardDelete(validAdmin, {
+      registrationId: regPending.id, registrationPlayerId: verifiedMember.id, reason: "Must preserve verified money",
+    })).error === "BLOCKED_VERIFIED_PAYMENT");
+
+    const refundedMember = await createProtectedRemovedMember("Refunded");
+    const refundedDirect = await prisma.payments.create({ data: {
+      registration_id: regPending.id, registration_player_id: refundedMember.id,
+      payment_method: "CASH", amount: 300, status: "REFUNDED", verified_at: new Date(),
+    } });
+    cleanup.paymentIds.push(refundedDirect.id);
+    assert((await evaluateRosterMemberDeletionEligibility(refundedMember.id)).policy === "BLOCKED_FINANCIAL_HISTORY");
+    assert((await executeUnverifiedRosterMemberHardDelete(validAdmin, {
+      registrationId: regPending.id, registrationPlayerId: refundedMember.id, reason: "Must preserve refunded history",
+    })).error === "BLOCKED_FINANCIAL_HISTORY");
+
+    const allocatedMember = await createProtectedRemovedMember("Allocated");
+    const legacySource = await prisma.payments.create({ data: {
+      registration_id: regPending.id, payment_method: "CASH", amount: 300,
+      status: "VERIFIED", verified_at: new Date(),
+    } });
+    cleanup.paymentIds.push(legacySource.id);
+    const allocation = await prisma.payment_allocations.create({ data: {
+      payment_id: legacySource.id, registration_player_id: allocatedMember.id,
+      amount: 300, allocated_by_profile_id: adminProfile.id,
+      reconciliation_note: "Roster deletion safety regression",
+    } });
+    assert((await evaluateRosterMemberDeletionEligibility(allocatedMember.id)).policy === "BLOCKED_FINANCIAL_HISTORY");
+    assert((await executeUnverifiedRosterMemberHardDelete(validAdmin, {
+      registrationId: regPending.id, registrationPlayerId: allocatedMember.id, reason: "Must preserve allocated credit",
+    })).error === "BLOCKED_FINANCIAL_HISTORY");
+    assert(await prisma.payment_allocations.findUnique({ where: { id: allocation.id } }), "Allocation must remain after blocked deletion");
+    console.log("  PASS: Removed members with verified, refunded, and allocated money remain protected\n");
+
     console.log("================================================================================");
     console.log("  ALL 20 VERIFICATION TESTS COMPLETED AND PASSED SUCCESSFULLY!");
     console.log("================================================================================\n");
@@ -783,6 +873,9 @@ async function run() {
         await prisma.admin_audit_logs.deleteMany({
           where: { admin_profile_id: { in: cleanup.profileIds } },
         });
+      }
+      if (cleanup.paymentIds.length > 0) {
+        await prisma.payment_allocations.deleteMany({ where: { payment_id: { in: cleanup.paymentIds } } });
       }
       if (cleanup.paymentIds.length > 0) {
         await prisma.payments.deleteMany({ where: { id: { in: cleanup.paymentIds } } });

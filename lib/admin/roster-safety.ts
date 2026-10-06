@@ -5,8 +5,10 @@ import { Prisma, registration_status, roster_status } from "@prisma/client";
 export type RosterDeletionPolicy =
   | "BLOCKED_VERIFIED_REGISTRATION"
   | "BLOCKED_VERIFIED_PAYMENT"
+  | "BLOCKED_FINANCIAL_HISTORY"
+  | "BLOCKED_NOT_REMOVED"
   | "BLOCKED_CAPTAIN"
-  | "UNVERIFIED_HARD_DELETE_ALLOWED"
+  | "REMOVED_HARD_DELETE_ALLOWED"
   | "NOT_FOUND";
 
 export interface RosterMemberDeletionEligibility {
@@ -63,18 +65,19 @@ export interface RosterMemberSoftRemoveResult {
  * Evaluates whether an individual roster membership is eligible for hard deletion.
  * 
  * FINAL AUTHORITATIVE BUSINESS RULES (Phase 05.7D.4 — VERIFICATION BOUNDARY):
- * 1. Historical boundary: REGISTRATION VERIFICATION IS THE ABSOLUTE BOUNDARY.
+ * 1. The roster membership must already be REMOVED.
+ * 2. Historical boundary: REGISTRATION VERIFICATION IS THE ABSOLUTE BOUNDARY.
  *    - Once registration.status === 'VERIFIED', the registration and its roster become
  *      historical/accountable records.
  *    - A player belonging to a VERIFIED registration can NEVER be hard-deleted,
  *      regardless of payment status, roster status, or future refund status.
- * 2. Pre-Verification Correction:
+ * 3. Pre-Verification Correction:
  *    - For registrations that have NOT been VERIFIED (e.g. PENDING_PAYMENT, REJECTED, CANCELLED):
- *      guarded administrative hard deletion is available subject to captain protection,
- *      absence of verified payments, and transaction validation.
- * 3. PENDING payment placeholders do not represent collected money and may be purged inside
+ *      guarded administrative hard deletion of removed members is available subject to captain protection,
+ *      absence of real payment and allocation history, and transaction validation.
+ * 4. PENDING/REJECTED payment placeholders do not represent collected money and may be purged inside
  *    the explicit transaction, but NEVER via automatic generic FK cascade.
- * 4. Global player identity (players table) is preserved independently of roster membership.
+ * 5. Global player identity (players table) is preserved independently of roster membership.
  */
 export async function evaluateRosterMemberDeletionEligibility(
   registrationPlayerId: string
@@ -98,6 +101,8 @@ export async function evaluateRosterMemberDeletionEligibility(
           id: true,
           status: true,
           amount: true,
+          verified_at: true,
+          verified_by_profile_id: true,
         },
       },
       players: {
@@ -132,6 +137,23 @@ export async function evaluateRosterMemberDeletionEligibility(
 
   const verifiedPayments = rp.payments.filter((p) => p.status === "VERIFIED");
   const pendingPayments = rp.payments.filter((p) => p.status === "PENDING" || p.status === "REJECTED");
+  const financialHistory = rp.payments.some((p) => p.status === "REFUNDED" || p.verified_at !== null || p.verified_by_profile_id !== null) ||
+    await prisma.payment_allocations.count({ where: { OR: [
+      { registration_player_id: rp.id },
+      { payment_id: { in: rp.payments.map((payment) => payment.id) } },
+    ] } }) > 0;
+
+  if (rp.status !== "REMOVED") {
+    return {
+      eligible: false, policy: "BLOCKED_NOT_REMOVED",
+      reason: "Only players in Removed Players can be permanently deleted. Remove the player from the roster first.",
+      registrationPlayerId: rp.id, registrationId: rp.registration_id,
+      registrationStatus: rp.registrations.status, playerId: rp.player_id,
+      currentStatus: rp.status, verifiedPaymentCount: verifiedPayments.length,
+      pendingPaymentCount: pendingPayments.length, pendingPaymentIds: pendingPayments.map((p) => p.id),
+      hasOtherRegistrations: (rp.players._count.registration_players ?? 1) > 1,
+    };
+  }
 
   // Rule 1: Registration Verification is the Historical Boundary.
   // Once verified, players can NEVER be hard-deleted.
@@ -188,10 +210,22 @@ export async function evaluateRosterMemberDeletionEligibility(
     };
   }
 
+  if (financialHistory) {
+    return {
+      eligible: false, policy: "BLOCKED_FINANCIAL_HISTORY",
+      reason: "This player has refunded payment or allocation history that must be preserved.",
+      registrationPlayerId: rp.id, registrationId: rp.registration_id,
+      registrationStatus: rp.registrations.status, playerId: rp.player_id,
+      currentStatus: rp.status, verifiedPaymentCount: verifiedPayments.length,
+      pendingPaymentCount: pendingPayments.length, pendingPaymentIds: pendingPayments.map((p) => p.id),
+      hasOtherRegistrations: (rp.players._count.registration_players ?? 1) > 1,
+    };
+  }
+
   return {
     eligible: true,
-    policy: "UNVERIFIED_HARD_DELETE_ALLOWED",
-    reason: "Roster member belongs to an unverified registration with no verified payments and is eligible for administrative deletion.",
+    policy: "REMOVED_HARD_DELETE_ALLOWED",
+    reason: "Removed roster member has no protected financial history and is eligible for administrative deletion.",
     registrationPlayerId: rp.id,
     registrationId: rp.registration_id,
     registrationStatus: rp.registrations.status,
@@ -346,6 +380,16 @@ export async function executeUnverifiedRosterMemberHardDelete(
 
   try {
     return await prisma.$transaction(async (tx) => {
+      const access = await tx.admin_access.findFirst({
+        where: {
+          profile_id: admin.profileId, role: "ADMIN", is_active: true,
+          profiles: { auth_user_id: admin.authUserId },
+        },
+        select: { id: true },
+      });
+      if (!access) {
+        return { success: false, error: "UNAUTHORIZED", message: "Active administrator credentials required." };
+      }
       // 1. Fetch under transaction with relations
       const rp = await tx.registration_players.findUnique({
         where: { id: params.registrationPlayerId },
@@ -373,6 +417,14 @@ export async function executeUnverifiedRosterMemberHardDelete(
         };
       }
 
+      if (rp.status !== "REMOVED") {
+        return {
+          success: false,
+          error: "PLAYER_NOT_REMOVED",
+          message: "Only players in Removed Players can be permanently deleted. Remove the player from the roster first.",
+        };
+      }
+
       // 1. REGISTRATION VERIFICATION HISTORICAL BOUNDARY:
       // Once registration.status === 'VERIFIED', roster members can NEVER be hard-deleted.
       if (rp.registrations.status === "VERIFIED") {
@@ -383,7 +435,7 @@ export async function executeUnverifiedRosterMemberHardDelete(
         };
       }
 
-      // 2. Captain Guard: Do NOT allow deleting active captain
+      // 2. Captain Guard: do not delete a designated captain.
       if (rp.is_captain) {
         return {
           success: false,
@@ -392,7 +444,7 @@ export async function executeUnverifiedRosterMemberHardDelete(
         };
       }
 
-      // 3. Financial Boundary Check: ZERO verified payments allowed
+      // 3. Financial Boundary Check: preserve all real payment and allocation history.
       const verifiedPayments = rp.payments.filter((p) => p.status === "VERIFIED");
       if (verifiedPayments.length > 0) {
         return {
@@ -402,19 +454,41 @@ export async function executeUnverifiedRosterMemberHardDelete(
         };
       }
 
+      const protectedPayment = rp.payments.some((p) =>
+        p.status === "REFUNDED" || p.verified_at !== null || p.verified_by_profile_id !== null
+      );
+      const allocation = await tx.payment_allocations.findFirst({
+        where: { OR: [
+          { registration_player_id: rp.id },
+          { payment_id: { in: rp.payments.map((payment) => payment.id) } },
+        ] }, select: { id: true },
+      });
+      if (protectedPayment || allocation) {
+        return {
+          success: false,
+          error: "BLOCKED_FINANCIAL_HISTORY",
+          message: "This player has payment or allocation history that must be preserved.",
+        };
+      }
+
       // 5. Purge unverified PENDING/REJECTED payment placeholders
       const pendingPaymentIds = rp.payments
         .filter((p) => p.status === "PENDING" || p.status === "REJECTED")
         .map((p) => p.id);
 
       if (pendingPaymentIds.length > 0) {
-        await tx.payments.deleteMany({
+        const purged = await tx.payments.deleteMany({
           where: {
             id: { in: pendingPaymentIds },
             registration_player_id: rp.id,
             status: { in: ["PENDING", "REJECTED"] },
+            verified_at: null,
+            verified_by_profile_id: null,
           },
         });
+        if (purged.count !== pendingPaymentIds.length) {
+          throw new Error("PAYMENT_STATE_CHANGED");
+        }
       }
 
       // 6. Delete the roster member (registration_players)
@@ -452,6 +526,7 @@ export async function executeUnverifiedRosterMemberHardDelete(
             reason: trimmedReason,
             payment_state_summary: "No verified payments; unverified placeholder payments purged",
             purged_pending_payment_ids: pendingPaymentIds,
+            purged_unpaid_payment_ids: pendingPaymentIds,
             global_player_preserved: true,
             actor_profile_id: admin.profileId,
             actor_name: admin.displayName,
@@ -462,15 +537,18 @@ export async function executeUnverifiedRosterMemberHardDelete(
 
       return {
         success: true,
-        message: "Unverified roster member safely deleted from roster.",
+        message: "Removed roster member safely deleted from roster.",
         deletedRegistrationPlayerId: rp.id,
         purgedPendingPaymentIds: pendingPaymentIds,
         preservedPlayerId: rp.player_id,
         auditLogId: auditLog.id,
       };
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2034") {
+      return { success: false, error: "STALE_STATE", message: "Roster or payment records changed. Refresh and try again." };
+    }
     if (errMsg.includes("fk_payments_registration_player") || errMsg.includes("restrict_violation")) {
       return {
         success: false,

@@ -17,6 +17,7 @@ export interface RosterMemberActionsProps {
   teamSlug?: string;
   status: "ACTIVE" | "REMOVED";
   hasVerifiedPayment: boolean;
+  hasProtectedFinancialHistory?: boolean;
   isCaptain: boolean;
   size?: "sm" | "xs";
 }
@@ -32,6 +33,7 @@ export function RosterMemberActions({
   teamSlug,
   status,
   hasVerifiedPayment,
+  hasProtectedFinancialHistory = false,
   isCaptain,
   size = "xs",
 }: RosterMemberActionsProps) {
@@ -214,29 +216,9 @@ export function RosterMemberActions({
         )
       ) : (
         /* ======================================================== */
-        /* PRE-VERIFICATION REGISTRATION: Correction Stage           */
-        /* Guarded deletion is available for unverified members.     */
+        /* UNVERIFIED REGISTRATION: Remove before any hard deletion.  */
         /* ======================================================== */
         status === "ACTIVE" ? (
-          !hasVerifiedPayment ? (
-            <button
-              type="button"
-              onClick={handleOpenDelete}
-              disabled={isPending}
-              aria-label={`Delete ${playerName} from roster`}
-              className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 hover:border-red-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 cursor-pointer shadow-2xs ${
-                isXs
-                  ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
-                  : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
-              }`}
-              title="Delete player from pre-verification roster"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              <span>Delete</span>
-            </button>
-          ) : (
             <button
               type="button"
               onClick={handleOpenRemove}
@@ -254,7 +236,6 @@ export function RosterMemberActions({
               </svg>
               <span>Remove</span>
             </button>
-          )
         ) : (
           <div className="flex items-center gap-1.5">
             <button
@@ -274,7 +255,7 @@ export function RosterMemberActions({
               </svg>
               <span>Restore</span>
             </button>
-            {!hasVerifiedPayment && (
+            {!hasVerifiedPayment && !hasProtectedFinancialHistory && !isCaptain && (
               <button
                 type="button"
                 onClick={handleOpenDelete}
@@ -285,7 +266,7 @@ export function RosterMemberActions({
                     ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
                     : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
                 }`}
-                title="Permanently delete unverified roster membership"
+                title="Permanently delete removed roster membership"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -345,7 +326,7 @@ export function RosterMemberActions({
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: DELETE UNVERIFIED PLAYER */}
+      {/* MODAL: DELETE REMOVED PLAYER */}
       {/* ========================================================================= */}
       {activeModal === "DELETE" && (
         <div
@@ -363,7 +344,7 @@ export function RosterMemberActions({
               </div>
               <div className="space-y-1">
                 <h3 id="delete-player-title" className="text-base font-bold text-[#172019]">
-                  Delete {playerName} from Roster?
+                  Permanently delete this removed player?
                 </h3>
                 <p className="text-xs text-[#5F6B61] leading-relaxed">
                   Team: <span className="font-semibold text-[#172019]">{teamName}</span>
@@ -372,9 +353,9 @@ export function RosterMemberActions({
             </div>
 
             <div className="p-3 bg-red-50/70 border border-red-200 rounded-xl text-xs text-red-950 leading-relaxed">
-              <p className="font-semibold">This permanently deletes this roster membership.</p>
+              <p className="font-semibold">This removes the player&apos;s roster membership and unpaid assessment records. This action cannot be undone.</p>
               <p className="text-[11px] text-red-900 mt-0.5">
-                The player&apos;s main profile and required financial/audit history will remain preserved.
+                The reusable player profile will remain.
               </p>
             </div>
 
