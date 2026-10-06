@@ -8,6 +8,7 @@ import {
   MutationResult,
 } from "@/lib/admin/registration-mutations";
 import { registration_status } from "@prisma/client";
+import { deleteUnverifiedRegistration, type DeleteRegistrationResult } from "@/lib/admin/delete-unverified-registration";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -106,5 +107,21 @@ export async function updateRegistrationStatusAction(
     revalidatePath(`/admin/registrations/${registrationId}`);
   }
 
+  return result;
+}
+
+export async function deleteRegistrationAction(input: {
+  registrationId: string;
+  expectedStatus: registration_status;
+  confirmationCode: string;
+  reason: string;
+}): Promise<DeleteRegistrationResult> {
+  const admin = await requireAdmin();
+  const result = await deleteUnverifiedRegistration(admin, input);
+  if (result.success) {
+    for (const path of ["/admin", "/admin/registrations", `/admin/registrations/${input.registrationId}`, "/admin/payments", "/teams", "/admin/tournaments"]) {
+      revalidatePath(path);
+    }
+  }
   return result;
 }
