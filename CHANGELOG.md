@@ -8,6 +8,8 @@ Git commits remain the authoritative technical history. This file records meanin
 
 ## [Unreleased]
 
+* Added guarded admin deletion for never-verified, unpaid registrations while preserving reusable team and player identities and blocking verified financial history.
+
 * New team registrations create only per-player pending fee assessments, preventing duplicate unassigned pending payments.
 
 ### Same Tournament and Division Player Transfer (Phase 06.2A)

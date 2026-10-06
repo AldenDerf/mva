@@ -9,6 +9,7 @@ import {
   PaymentCompletionBadge,
 } from "@/components/admin/StatusBadges";
 import { RegistrationActionControls } from "@/components/admin/RegistrationActionControls";
+import { DeleteRegistrationButton } from "@/components/admin/DeleteRegistrationButton";
 import { PlayerPaymentActionControls } from "@/components/admin/PlayerPaymentActionControls";
 import { AddPlayerModal } from "@/components/admin/AddPlayerModal";
 import { PaymentCorrectionButton } from "@/components/admin/PaymentCorrectionButton";
@@ -236,6 +237,14 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                 : 0
             }
           />
+          {reg.status !== "VERIFIED" && !reg.verifiedAt &&
+            !reg.auditHistory.some((entry) => entry.action === "REGISTRATION_VERIFIED") &&
+            reg.payments.every((payment) =>
+              (payment.status === "PENDING" || payment.status === "REJECTED") &&
+              !payment.verifiedAt && !payment.verifiedByProfileId && payment.allocations.length === 0
+            ) &&
+            reg.accounting.verifiedPaidAmount === 0 &&
+            <DeleteRegistrationButton registrationId={reg.id} registrationCode={reg.registrationCode} status={reg.status} />}
         </div>
       </div>
 
