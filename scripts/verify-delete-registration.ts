@@ -123,6 +123,31 @@ async function main() {
     const historicallyVerified = await extra("CANCELLED");
     await prisma.registrations.update({ where: { id: historicallyVerified.registration.id }, data: { verified_at: new Date() } });
     assert.equal((await deleteUnverifiedRegistration(admin, { registrationId: historicallyVerified.registration.id, expectedStatus: "CANCELLED", confirmationCode: historicallyVerified.registration.registration_code!, reason: "Historical verification" })).success, false);
+    const auditOnlyHistory = await extra("CANCELLED");
+    assert.equal(auditOnlyHistory.registration.verified_at, null);
+    assert.equal(await prisma.payments.count({ where: { registration_id: auditOnlyHistory.registration.id, status: { in: ["VERIFIED", "REFUNDED"] } } }), 0);
+    assert.equal(await prisma.payment_allocations.count({ where: { registration_players: { registration_id: auditOnlyHistory.registration.id } } }), 0);
+    const verificationAudit = await prisma.admin_audit_logs.create({ data: {
+      admin_profile_id: profile.id,
+      action: "REGISTRATION_VERIFIED",
+      entity_type: "REGISTRATION",
+      entity_id: auditOnlyHistory.registration.id,
+      metadata: {
+        previous_status: "PENDING_PAYMENT", new_status: "VERIFIED",
+        registration_code: auditOnlyHistory.registration.registration_code,
+        team_name: team.team_name, actor_name: admin.displayName,
+        actor_email: admin.email, reason: "Historical verification fixture",
+      },
+    } });
+    const auditOnlyResult = await deleteUnverifiedRegistration(admin, {
+      registrationId: auditOnlyHistory.registration.id,
+      expectedStatus: "CANCELLED",
+      confirmationCode: auditOnlyHistory.registration.registration_code!,
+      reason: "Audit-only verification history",
+    });
+    assert.deepEqual(auditOnlyResult.success ? { success: true } : { success: false, error: auditOnlyResult.error }, { success: false, error: "INELIGIBLE" });
+    assert.equal(await prisma.registrations.count({ where: { id: auditOnlyHistory.registration.id } }), 1);
+    assert.equal(await prisma.admin_audit_logs.count({ where: { id: verificationAudit.id } }), 1);
     const verified = await extra("VERIFIED");
     assert.equal((await deleteUnverifiedRegistration(admin, { registrationId: verified.registration.id, expectedStatus: "VERIFIED", confirmationCode: verified.registration.registration_code!, reason: "Verified registration" })).success, false);
     const legacy = await extra("PENDING_PAYMENT");
@@ -132,9 +157,10 @@ async function main() {
     const source = await prisma.payments.create({ data: { registration_id: allocated.registration.id, payment_method: "CASH", amount: 300, status: "VERIFIED", verified_at: new Date() } });
     await prisma.payment_allocations.create({ data: { payment_id: source.id, registration_player_id: allocated.roster.id, amount: 300, allocated_by_profile_id: profile.id, reconciliation_note: "Delete regression" } });
     assert.equal((await deleteUnverifiedRegistration(admin, { registrationId: allocated.registration.id, expectedStatus: "PENDING_PAYMENT", confirmationCode: allocated.registration.registration_code!, reason: "Allocated real money" })).success, false);
-    console.log("PASS: service deletion, audit, identity preservation, authorization, stale state, verified and refunded payment guards");
+    console.log("PASS: service deletion, audit-only historical verification, identity preservation, authorization, stale state, verified and refunded payment guards");
   } finally {
-    await prisma.admin_audit_logs.deleteMany({ where: { entity_id: { in: registrationIds }, action: "REGISTRATION_DELETED" } });
+    await prisma.admin_audit_logs.deleteMany({ where: { entity_type: "REGISTRATION", entity_id: { in: registrationIds } } });
+    assert.equal(await prisma.admin_audit_logs.count({ where: { entity_type: "REGISTRATION", entity_id: { in: registrationIds } } }), 0);
     await prisma.payment_allocations.deleteMany({ where: { payments: { registration_id: { in: registrationIds } } } });
     await prisma.payments.deleteMany({ where: { registration_id: { in: registrationIds } } });
     await prisma.registration_players.deleteMany({ where: { registration_id: { in: registrationIds } } });
