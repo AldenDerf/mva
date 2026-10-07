@@ -69,7 +69,10 @@ export function RowActionsMenu({ label, title, subtitle, items = [], children }:
 
   useEffect(() => {
     if (!open) return;
-    if (mobile || position) panel.current?.querySelector<HTMLElement>('a, button:not(:disabled)')?.focus();
+    if (mobile || position) {
+      const firstAction = panel.current?.querySelector<HTMLElement>('a, button:not([data-menu-close]):not(:disabled)');
+      (firstAction ?? panel.current?.querySelector<HTMLElement>('[data-menu-close]'))?.focus();
+    }
     const nestedDialogOpen = () => Boolean(panel.current?.querySelector('[role="dialog"]'));
     const outside = (event: PointerEvent) => {
       if (!nestedDialogOpen() && !trigger.current?.contains(event.target as Node) && !panel.current?.contains(event.target as Node)) close();
@@ -105,15 +108,18 @@ export function RowActionsMenu({ label, title, subtitle, items = [], children }:
       className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-[#DDE3DE] bg-white text-lg font-bold text-[#205823] hover:bg-[#eef5ef] focus-visible:outline-2 focus-visible:outline-[#205823]"
     >⋮</button>
     {open && createPortal(<>
-      {mobile && <button type="button" aria-label="Close actions" onClick={() => close()} className="fixed inset-0 z-40 bg-black/30" />}
+      {mobile && <button type="button" aria-label="Close actions" onClick={() => close()} className="fixed inset-0 z-40 bg-black/35" />}
       <div ref={panel} id={id} role={mobile ? "dialog" : "group"} aria-modal={mobile ? true : undefined} aria-label={label}
         style={mobile ? undefined : { left: position?.left ?? 0, top: position?.top ?? 0, visibility: position ? "visible" : "hidden" }}
         className={mobile
-          ? "fixed inset-x-2 bottom-0 z-50 max-h-[min(70dvh,40rem)] overflow-y-auto rounded-t-2xl border border-[#DDE3DE] bg-white p-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-xl"
+          ? "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm max-h-[80dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[#DDE3DE] bg-white p-3 shadow-xl"
           : "fixed z-50 max-h-[calc(100dvh-16px)] min-w-44 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-[#DDE3DE] bg-white p-1 shadow-lg"}>
-        {mobile && (title || subtitle) && <div className="border-b border-[#DDE3DE] px-2 pb-3 pt-1">
-          {title && <p className="font-bold text-[#172019]">{title}</p>}
-          {subtitle && <p className="text-xs text-[#5F6B61]">{subtitle}</p>}
+        {mobile && <div className="flex items-start justify-between gap-3 px-2 pb-2 pt-1">
+          <div>
+            {title && <p className="font-bold text-[#172019]">{title}</p>}
+            {subtitle && <p className="text-xs text-[#5F6B61]">{subtitle}</p>}
+          </div>
+          <button type="button" data-menu-close aria-label="Close actions" onClick={() => close()} className="-mr-1 -mt-1 inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg text-lg text-[#5F6B61] hover:bg-[#eef5ef] focus-visible:outline-2 focus-visible:outline-[#205823]">×</button>
         </div>}
         {items.map((item, index) => <div key={`${item.label}-${index}`} className={item.destructive ? "mt-1 border-t border-[#DDE3DE] pt-1" : ""}>
           {item.href && !item.disabled ? <Link href={item.href} onClick={() => close(false)} className={`block min-h-11 rounded-lg px-3 py-3 text-sm font-semibold hover:bg-[#FAFAF8] focus-visible:outline-2 focus-visible:outline-[#205823] ${item.destructive ? "text-red-700" : "text-[#172019]"}`}>{item.label}</Link>
