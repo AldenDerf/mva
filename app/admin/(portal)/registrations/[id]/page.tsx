@@ -417,11 +417,11 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                   Tournament Roster & Player Payments
                 </h2>
                 <p className="text-xs text-[#5F6B61] mt-0.5">
-                  Official player list and individual payment verification states.
+                  Active players and payment verification.
                 </p>
               </div>
               <div className="flex items-center gap-2.5">
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#FAFAF8] text-[#172019] border border-[#DDE3DE]">
+                <span className="text-xs font-semibold text-[#5F6B61]">
                   {reg.playerCount} Active {reg.playerCount === 1 ? "Player" : "Players"}
                   {reg.removedPlayerCount > 0 && (
                     <span className="ml-1 text-[#5F6B61] font-normal">
@@ -451,66 +451,28 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                 {/* ------------------------------------------------------------ */}
                 <div className="md:hidden divide-y divide-[#DDE3DE]">
                   {reg.roster.map((player, idx) => {
-                    const isPaid = player.payment?.status === "VERIFIED";
+                    const playerAccount = reg.accounting.playerPayments.find(item => item.registrationPlayerId === player.id);
+                    const isPaid = playerAccount?.isPaid ?? false;
+                    const paymentLabel = isPaid ? "Verified" : player.payment?.status === "PENDING" ? "Pending" : player.payment?.status === "REFUNDED" ? "Refunded" : player.payment?.status === "REJECTED" ? "Rejected" : "Unpaid";
 
                     return (
                       <div
                         key={player.id}
-                        className={`p-4 space-y-3 ${
+                        className={`px-4 py-3 ${
                           player.isCaptain ? "bg-[#eef5ef]/30" : "hover:bg-[#FAFAF8]/60"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 text-center text-xs font-mono text-[#5F6B61]">
-                              {idx + 1}.
-                            </span>
-                            <div>
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="font-bold text-[#172019] text-sm">
-                                  {player.fullName}
-                                </span>
-                                {player.isCaptain && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#205823] text-white">
-                                    Captain
-                                  </span>
-                                )}
-                                <span className="text-xs font-medium text-[#5F6B61]">Sex: {playerSexLabel(player.sex)}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-[#5F6B61] mt-0.5">
-                                {player.jerseyNumber !== null ? (
-                                  <span className="font-mono font-bold text-[#172019]">
-                                    #{player.jerseyNumber}
-                                  </span>
-                                ) : (
-                                  <span>No Jersey #</span>
-                                )}
-                                <span aria-hidden="true">•</span>
-                                <span>{player.position || "Position not specified"}</span>
-                              </div>
-                            </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-[#172019]"><span className="mr-1 font-mono text-xs font-normal text-[#5F6B61]">{idx + 1}.</span>{player.fullName}</p>
+                            {player.isCaptain && <p className="mt-0.5 text-xs font-semibold text-[#205823]">Captain</p>}
+                            <p className="mt-1 text-xs text-[#5F6B61]">{player.jerseyNumber !== null ? `#${player.jerseyNumber}` : "No jersey #"} · {player.position || "Position not specified"}</p>
+                            <p className="mt-0.5 text-xs text-[#5F6B61]">Sex: {playerSexLabel(player.sex)}</p>
                           </div>
 
-                          {/* Quick Payment State Badge */}
-                          <div>
-                            {isPaid ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#205823]/10 text-[#205823] border border-[#205823]/25">
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span>Paid</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                                Unpaid
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Mobile Action Row */}
-                        <div className="pt-2 border-t border-[#DDE3DE]/60 flex flex-wrap items-center justify-between gap-2">
-                          <RowActionsMenu label={`More actions for ${player.fullName}`}>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <span className={`text-[11px] font-bold ${isPaid ? "text-[#205823]" : "text-amber-800"}`}>{paymentLabel}</span>
+                            <RowActionsMenu label={`Actions for ${player.fullName}`} title={player.fullName} subtitle="Player actions">
                             <EditPlayerButton
                               player={{
                                 registrationId: reg.id,
@@ -530,22 +492,11 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                 isCaptain: player.isCaptain,
                               }}
                               size="xs"
+                              variant="menu"
                             />
-                            <RosterMemberActions
-                              registrationId={reg.id}
-                              registrationPlayerId={player.id}
-                              playerName={player.fullName}
-                              teamName={reg.team.name}
-                              teamSlug={reg.team.slug}
-                              status={player.status}
-                              registrationStatus={reg.status}
-                              hasVerifiedPayment={isPaid}
-                              isCaptain={player.isCaptain}
-                              size="xs"
-                            />
-                            {reg.status === "VERIFIED" && <MovePlayerButton registrationPlayerId={player.id} playerId={player.playerId} playerName={player.fullName} sourceRegistrationId={reg.id} sourceTeamName={reg.team.name} tournamentName={reg.league.name} divisionName={reg.category.name} hasVerifiedPayment={isPaid} isCaptain={player.isCaptain} />}
-                          </RowActionsMenu>
-                          <PlayerPaymentActionControls
+                            {reg.status === "VERIFIED" && <MovePlayerButton variant="menu" registrationPlayerId={player.id} playerId={player.playerId} playerName={player.fullName} sourceRegistrationId={reg.id} sourceTeamName={reg.team.name} tournamentName={reg.league.name} divisionName={reg.category.name} hasVerifiedPayment={player.payment?.status === "VERIFIED"} isCaptain={player.isCaptain} />}
+                            {!isPaid && player.payment?.status !== "REFUNDED" && <PlayerPaymentActionControls
+                            variant="menu"
                             registrationId={reg.id}
                             registrationPlayerId={player.id}
                             paymentId={player.payment?.id}
@@ -555,7 +506,25 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                             paymentMethod={player.payment?.paymentMethod}
                             referenceNumber={player.payment?.referenceNumber}
                             verifiedAt={player.payment?.verifiedAt}
-                          />
+                            />}
+                            {isPaid && player.payment?.status === "VERIFIED" && <div className="border-t border-[#DDE3DE] pt-1"><PlayerPaymentActionControls variant="menu" registrationId={reg.id} registrationPlayerId={player.id} paymentId={player.payment.id} playerName={player.fullName} paymentStatus="VERIFIED" amount={player.payment.amount} paymentMethod={player.payment.paymentMethod} referenceNumber={player.payment.referenceNumber} verifiedAt={player.payment.verifiedAt} /></div>}
+                            <div className="mt-1 border-t border-[#DDE3DE] pt-1">
+                              <RosterMemberActions
+                                registrationId={reg.id}
+                                registrationPlayerId={player.id}
+                                playerName={player.fullName}
+                                teamName={reg.team.name}
+                                teamSlug={reg.team.slug}
+                                status={player.status}
+                                registrationStatus={reg.status}
+                                hasVerifiedPayment={player.payment?.status === "VERIFIED"}
+                                isCaptain={player.isCaptain}
+                                size="xs"
+                                variant="menu"
+                              />
+                            </div>
+                            </RowActionsMenu>
+                          </div>
                         </div>
                       </div>
                     );
@@ -690,7 +659,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                   />
                                 );
                               })()}
-                              <RowActionsMenu label={`More actions for ${player.fullName}`}>
+                              <RowActionsMenu label={`Actions for ${player.fullName}`} title={player.fullName} subtitle="Player actions">
                               <EditPlayerButton
                                 player={{
                                   registrationId: reg.id,
@@ -710,7 +679,10 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                   isCaptain: player.isCaptain,
                                 }}
                                 size="xs"
+                                variant="menu"
                               />
+                              {reg.status === "VERIFIED" && <MovePlayerButton variant="menu" registrationPlayerId={player.id} playerId={player.playerId} playerName={player.fullName} sourceRegistrationId={reg.id} sourceTeamName={reg.team.name} tournamentName={reg.league.name} divisionName={reg.category.name} hasVerifiedPayment={player.payment?.status === "VERIFIED"} isCaptain={player.isCaptain} />}
+                              <div className="mt-1 border-t border-[#DDE3DE] pt-1">
                               <RosterMemberActions
                                 registrationId={reg.id}
                                 registrationPlayerId={player.id}
@@ -722,8 +694,9 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                 hasVerifiedPayment={player.payment?.status === "VERIFIED"}
                                 isCaptain={player.isCaptain}
                                 size="xs"
+                                variant="menu"
                               />
-                              {reg.status === "VERIFIED" && <MovePlayerButton registrationPlayerId={player.id} playerId={player.playerId} playerName={player.fullName} sourceRegistrationId={reg.id} sourceTeamName={reg.team.name} tournamentName={reg.league.name} divisionName={reg.category.name} hasVerifiedPayment={player.payment?.status === "VERIFIED"} isCaptain={player.isCaptain} />}
+                              </div>
                               </RowActionsMenu>
                             </div>
                           </td>

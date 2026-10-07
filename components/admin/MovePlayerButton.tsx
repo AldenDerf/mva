@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getMovePlayerDestinationsAction, movePlayerAction } from "@/app/admin/(portal)/registrations/[id]/move-player-actions";
 
 interface Props {
+  variant?: "default" | "menu";
   registrationPlayerId: string;
   playerId: string;
   playerName: string;
@@ -52,7 +53,7 @@ export function MovePlayerButton(props: Props) {
   }
 
   return <>
-    <button type="button" onClick={show} className="min-h-[36px] rounded-lg border border-[#205823]/30 px-2.5 py-1 text-xs font-semibold text-[#205823] hover:bg-[#eef5ef]">Move</button>
+    <button type="button" onClick={show} className={props.variant === "menu" ? "min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#172019] hover:bg-[#eef5ef] active:bg-[#dcebdd]" : "min-h-[36px] rounded-lg border border-[#205823]/30 px-2.5 py-1 text-xs font-semibold text-[#205823] hover:bg-[#eef5ef]"}>{props.variant === "menu" ? "Move player" : "Move"}</button>
     {open && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="move-player-title">
       <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl space-y-4">
         <h2 id="move-player-title" className="text-lg font-bold">Move Player</h2>
