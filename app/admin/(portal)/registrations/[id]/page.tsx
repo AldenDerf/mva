@@ -799,7 +799,14 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                             status="REMOVED"
                             registrationStatus={reg.status}
                             hasVerifiedPayment={hasVerified}
-                            isCaptain={false}
+                            hasProtectedFinancialHistory={reg.payments.some((payment) =>
+                              (payment.registrationPlayerId === player.id &&
+                                (payment.status === "VERIFIED" || payment.status === "REFUNDED" ||
+                                  payment.verifiedAt !== null || payment.verifiedByProfileId !== null ||
+                                  payment.allocations.length > 0)) ||
+                              payment.allocations.some((allocation) => allocation.registrationPlayerId === player.id)
+                            )}
+                            isCaptain={player.isCaptain}
                             size="xs"
                           />
                         </div>

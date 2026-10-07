@@ -92,8 +92,10 @@ async function run() {
     categoryId2: "",
     teamId1: "",
     teamId2: "",
+    teamId3: "",
     registrationId1: "",
     registrationId2: "",
+    registrationId3: "",
     registrationPlayerIds: [] as string[],
     playerIds: [] as string[],
     paymentIds: [] as string[],
@@ -487,13 +489,24 @@ async function run() {
     // Verify policy evaluation blocks deletion
     const evalRp5 = await evaluateRosterMemberDeletionEligibility(rp5.id);
     assert(evalRp5.eligible === false, "evaluateRosterMemberDeletionEligibility must block paid player");
-    assert(evalRp5.policy === "BLOCKED_VERIFIED_PAYMENT");
+    assert(evalRp5.policy === "BLOCKED_VERIFIED_REGISTRATION");
     console.log("  PASS: Test F: Physical delete strictly rejected by Postgres constraint and application policy\n");
 
     // -------------------------------------------------------------------------
     // TEST G: UNVERIFIED HARD DELETE
     // -------------------------------------------------------------------------
     console.log("[TEST G] Testing Unverified Hard Delete (accidental player deletion)...");
+    const correctionTeam = await prisma.teams.create({ data: {
+      team_name: `Correction Team ${uniqueSuffix}`, slug: `correction-team-${uniqueSuffix}`,
+    } });
+    cleanup.teamId3 = correctionTeam.id;
+    const correctionRegistration = await prisma.registrations.create({ data: {
+      league_id: league.id, league_category_id: cat1.id, team_id: correctionTeam.id,
+      registrant_first_name: "Test", registrant_last_name: "Registrant",
+      registrant_contact: "09170009998", status: "PENDING_PAYMENT",
+      registration_code: `MVA-CORR-${uniqueSuffix}`,
+    } });
+    cleanup.registrationId3 = correctionRegistration.id;
     // Create an unverified accidental player
     const accidentalPlayer = await prisma.players.create({
       data: { first_name: "Accidental", last_name: `Entry${uniqueSuffix}` },
@@ -502,7 +515,7 @@ async function run() {
 
     const rpAccidental = await prisma.registration_players.create({
       data: {
-        registration_id: reg1.id,
+        registration_id: correctionRegistration.id,
         player_id: accidentalPlayer.id,
         jersey_number: 99,
         position: "Utility",
@@ -513,7 +526,7 @@ async function run() {
 
     const payAccidental = await prisma.payments.create({
       data: {
-        registration_id: reg1.id,
+        registration_id: correctionRegistration.id,
         registration_player_id: rpAccidental.id,
         payment_method: "OTHER",
         amount: 300.0,
@@ -525,13 +538,23 @@ async function run() {
 
     // Eligibility check
     const evalAccidental = await evaluateRosterMemberDeletionEligibility(rpAccidental.id);
-    assert(evalAccidental.eligible === true, "Unverified player must be eligible for deletion");
-    assert(evalAccidental.policy === "UNVERIFIED_HARD_DELETE_ALLOWED");
+    assert(evalAccidental.eligible === false, "Active player must not be eligible for deletion");
+    assert(evalAccidental.policy === "BLOCKED_NOT_REMOVED");
+    const directActiveDelete = await executeUnverifiedRosterMemberHardDelete(adminContext, {
+      registrationPlayerId: rpAccidental.id, registrationId: correctionRegistration.id,
+    });
+    assert(directActiveDelete.success === false && directActiveDelete.error === "PLAYER_NOT_REMOVED");
+    const removeAccidental = await executeRosterMemberSoftRemoval(adminContext, {
+      registrationPlayerId: rpAccidental.id, registrationId: correctionRegistration.id,
+    });
+    assert(removeAccidental.success === true);
+    const evalRemovedAccidental = await evaluateRosterMemberDeletionEligibility(rpAccidental.id);
+    assert(evalRemovedAccidental.eligible === true && evalRemovedAccidental.policy === "REMOVED_HARD_DELETE_ALLOWED");
 
     // Execute atomic hard delete
     const delResult = await executeUnverifiedRosterMemberHardDelete(adminContext, {
       registrationPlayerId: rpAccidental.id,
-      registrationId: reg1.id,
+      registrationId: correctionRegistration.id,
     });
     assert(delResult.success === true, "Hard delete must succeed");
 
@@ -649,11 +672,17 @@ async function run() {
       if (cleanup.registrationId2) {
         await prisma.registrations.deleteMany({ where: { id: cleanup.registrationId2 } });
       }
+      if (cleanup.registrationId3) {
+        await prisma.registrations.deleteMany({ where: { id: cleanup.registrationId3 } });
+      }
       if (cleanup.teamId1) {
         await prisma.teams.deleteMany({ where: { id: cleanup.teamId1 } });
       }
       if (cleanup.teamId2) {
         await prisma.teams.deleteMany({ where: { id: cleanup.teamId2 } });
+      }
+      if (cleanup.teamId3) {
+        await prisma.teams.deleteMany({ where: { id: cleanup.teamId3 } });
       }
       if (cleanup.categoryId1) {
         await prisma.league_categories.deleteMany({ where: { id: cleanup.categoryId1 } });
