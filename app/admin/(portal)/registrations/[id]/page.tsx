@@ -18,6 +18,7 @@ import { playerSexLabel } from "@/lib/player-sex";
 import { EditTeamButton } from "@/components/admin/EditTeamButton";
 import { RosterMemberActions } from "@/components/admin/RosterMemberActions";
 import { MovePlayerButton } from "@/components/admin/MovePlayerButton";
+import { RowActionsMenu } from "@/components/admin/RowActionsMenu";
 import { LegacyPaymentCard } from "@/components/admin/LegacyPaymentCard";
 import { RosterCandidateForAllocation } from "@/components/admin/AllocatePaymentModal";
 
@@ -291,6 +292,11 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
       )}
 
       {/* ============================================================ */}
+      {/* Active roster monitoring summary */}
+      <section aria-label="Active player summary" className="grid grid-cols-3 gap-3">
+        {[["Players", reg.accounting.rosterCount], ["Verified", reg.accounting.paidPlayerCount], ["Pending", reg.accounting.unpaidPlayerCount]].map(([label, count]) =>
+          <div key={label} className="rounded-2xl border border-[#DDE3DE] bg-white p-4 shadow-xs"><span className="block text-xs font-bold uppercase text-[#5F6B61]">{label}</span><strong className="mt-2 block text-2xl text-[#205823]">{count}</strong></div>)}
+      </section>
       {/* FINANCIAL & PAYMENT COMPLETENESS SUMMARY */}
       {/* ============================================================ */}
       <section aria-labelledby="payment-summary-heading" className="space-y-3">
@@ -504,7 +510,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
 
                         {/* Mobile Action Row */}
                         <div className="pt-2 border-t border-[#DDE3DE]/60 flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5">
+                          <RowActionsMenu label={`More actions for ${player.fullName}`}>
                             <EditPlayerButton
                               player={{
                                 registrationId: reg.id,
@@ -538,7 +544,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                               size="xs"
                             />
                             {reg.status === "VERIFIED" && <MovePlayerButton registrationPlayerId={player.id} playerId={player.playerId} playerName={player.fullName} sourceRegistrationId={reg.id} sourceTeamName={reg.team.name} tournamentName={reg.league.name} divisionName={reg.category.name} hasVerifiedPayment={isPaid} isCaptain={player.isCaptain} />}
-                          </div>
+                          </RowActionsMenu>
                           <PlayerPaymentActionControls
                             registrationId={reg.id}
                             registrationPlayerId={player.id}
@@ -684,6 +690,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                   />
                                 );
                               })()}
+                              <RowActionsMenu label={`More actions for ${player.fullName}`}>
                               <EditPlayerButton
                                 player={{
                                   registrationId: reg.id,
@@ -717,6 +724,7 @@ export default async function AdminRegistrationDetailPage({ params }: PageProps)
                                 size="xs"
                               />
                               {reg.status === "VERIFIED" && <MovePlayerButton registrationPlayerId={player.id} playerId={player.playerId} playerName={player.fullName} sourceRegistrationId={reg.id} sourceTeamName={reg.team.name} tournamentName={reg.league.name} divisionName={reg.category.name} hasVerifiedPayment={player.payment?.status === "VERIFIED"} isCaptain={player.isCaptain} />}
+                              </RowActionsMenu>
                             </div>
                           </td>
                         </tr>
