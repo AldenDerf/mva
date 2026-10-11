@@ -5,6 +5,7 @@ import { payment_status, payment_method } from "@prisma/client";
 import { updatePlayerPaymentAction } from "@/app/admin/(portal)/registrations/[id]/payment-actions";
 
 interface PlayerPaymentActionControlsProps {
+  variant?: "default" | "menu";
   registrationId: string;
   registrationPlayerId: string;
   paymentId?: string | null;
@@ -19,6 +20,7 @@ interface PlayerPaymentActionControlsProps {
 type ModalType = "VERIFY" | "REJECT" | "REFUND" | null;
 
 export function PlayerPaymentActionControls({
+  variant = "default",
   registrationId,
   registrationPlayerId,
   paymentId,
@@ -36,6 +38,7 @@ export function PlayerPaymentActionControls({
   const [reason, setReason] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const menuTrigger = "min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#172019] hover:bg-[#eef5ef] active:bg-[#dcebdd] disabled:opacity-45";
 
   const handleCloseModal = React.useCallback(() => {
     if (isPending) return;
@@ -102,60 +105,60 @@ export function PlayerPaymentActionControls({
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={variant === "menu" ? "w-full" : "flex items-center gap-2"}>
       {/* Badge & Trigger Button based on status */}
       {paymentStatus === "VERIFIED" ? (
-        <div className="flex items-center gap-1.5">
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#205823]/10 text-[#205823] border border-[#205823]/20">
+        <div className={variant === "menu" ? "w-full" : "flex items-center gap-1.5"}>
+          {variant !== "menu" && <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#205823]/10 text-[#205823] border border-[#205823]/20">
             <svg className="w-3 h-3 text-[#205823]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
             </svg>
             <span>Paid ₱{amount.toFixed(0)}</span>
-          </span>
+          </span>}
 
           <button
             type="button"
             onClick={() => handleOpenModal("REFUND")}
             disabled={isPending}
             aria-label={`Refund payment for ${playerName}`}
-            className="text-xs text-[#5F6B61] hover:text-rose-700 underline font-medium ml-1 transition-colors disabled:opacity-50 min-h-[36px] py-1 px-1.5 inline-flex items-center"
+            className={variant === "menu" ? `${menuTrigger} text-red-700 hover:bg-red-50 active:bg-red-100` : "text-xs text-[#5F6B61] hover:text-rose-700 underline font-medium ml-1 transition-colors disabled:opacity-50 min-h-[36px] py-1 px-1.5 inline-flex items-center"}
           >
-            Refund
+            {variant === "menu" ? "Refund payment" : "Refund"}
           </button>
         </div>
       ) : paymentStatus === "REJECTED" ? (
-        <div className="flex items-center gap-1.5">
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+        <div className={variant === "menu" ? "w-full" : "flex items-center gap-1.5"}>
+          {variant !== "menu" && <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
             Rejected
-          </span>
+          </span>}
           <button
             type="button"
             onClick={() => handleOpenModal("VERIFY")}
             disabled={isPending}
             aria-label={`Verify payment for ${playerName}`}
-            className="min-h-[36px] px-3 py-1.5 text-xs font-bold bg-[#205823] hover:bg-[#18441a] text-white rounded-lg shadow-2xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] disabled:opacity-50 inline-flex items-center justify-center cursor-pointer"
+            className={variant === "menu" ? menuTrigger : "min-h-[36px] px-3 py-1.5 text-xs font-bold bg-[#205823] hover:bg-[#18441a] text-white rounded-lg shadow-2xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] disabled:opacity-50 inline-flex items-center justify-center cursor-pointer"}
           >
-            Verify
+            {variant === "menu" ? "Verify payment" : "Verify"}
           </button>
         </div>
       ) : paymentStatus === "REFUNDED" ? (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-[#FAFAF8] text-[#5F6B61] border border-[#DDE3DE]">
+        variant === "menu" ? null : <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-[#FAFAF8] text-[#5F6B61] border border-[#DDE3DE]">
           Refunded
         </span>
       ) : (
         /* PENDING or UNPAID */
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+        <div className={variant === "menu" ? "w-full" : "flex items-center gap-2"}>
+          {variant !== "menu" && <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
             Unpaid (₱{amount.toFixed(0)})
-          </span>
+          </span>}
           <button
             type="button"
             onClick={() => handleOpenModal("VERIFY")}
             disabled={isPending}
             aria-label={`Verify payment for ${playerName}`}
-            className="min-h-[36px] px-3 py-1.5 text-xs font-bold bg-[#205823] hover:bg-[#18441a] text-white rounded-lg shadow-2xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] disabled:opacity-50 inline-flex items-center justify-center cursor-pointer"
+            className={variant === "menu" ? menuTrigger : "min-h-[36px] px-3 py-1.5 text-xs font-bold bg-[#205823] hover:bg-[#18441a] text-white rounded-lg shadow-2xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] disabled:opacity-50 inline-flex items-center justify-center cursor-pointer"}
           >
-            Verify
+            {variant === "menu" ? "Verify payment" : "Verify"}
           </button>
         </div>
       )}

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/admin";
 import { getTournament } from "@/lib/admin/tournaments";
 import { canAdminRegisterTeam } from "@/lib/registration-lifecycle";
+import { RowActionsMenu } from "@/components/admin/RowActionsMenu";
 
 export const dynamic = "force-dynamic";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -22,10 +23,12 @@ export default async function TournamentDetailPage({ params }: { params: Promise
       <h1 className="mt-2 text-3xl font-extrabold text-[#205823]">{tournament.name}</h1>
       <div className="mt-5 flex flex-wrap gap-3">
         {tournament.league_categories.length > 0 && canAdminRegisterTeam(tournament.status) && <Link href={`/admin/registrations/new?tournamentId=${id}`} className="inline-flex min-h-11 items-center rounded-lg bg-[#205823] px-5 font-bold text-white">Register Team</Link>}
-        <Link href={`/admin/registrations?tournamentId=${id}`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">View Registrations</Link>
-        <Link href={`/admin/payments?tournamentId=${id}`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">View Payments</Link>
-        <Link href={`/admin/tournaments/${id}/divisions/new`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">Add Division</Link>
-        <Link href={`/admin/tournaments/${id}/edit`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">Edit Tournament</Link>
+        <Link href={`/admin/registrations/tournaments/${id}`} className="inline-flex min-h-11 items-center rounded-lg border border-[#B7C7B9] px-5 font-bold text-[#205823]">Registration Monitoring</Link>
+        <RowActionsMenu label={`More actions for ${tournament.name}`} items={[
+          { label: "View Payments", href: `/admin/payments?tournamentId=${id}` },
+          { label: "Add Division", href: `/admin/tournaments/${id}/divisions/new` },
+          { label: "Edit Tournament", href: `/admin/tournaments/${id}/edit` },
+        ]} />
       </div>
       {tournament.status === "REGISTRATION_CLOSED" && <p className="mt-3 text-sm text-[#5F6B61]">Registration closed — existing teams may still be updated.</p>}
     </header>

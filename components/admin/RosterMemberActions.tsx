@@ -20,6 +20,7 @@ export interface RosterMemberActionsProps {
   hasProtectedFinancialHistory?: boolean;
   isCaptain: boolean;
   size?: "sm" | "xs";
+  variant?: "default" | "menu";
 }
 
 type ModalType = "DELETE" | "REMOVE" | "RESTORE" | "CAPTAIN_WARNING" | null;
@@ -36,6 +37,7 @@ export function RosterMemberActions({
   hasProtectedFinancialHistory = false,
   isCaptain,
   size = "xs",
+  variant = "default",
 }: RosterMemberActionsProps) {
   const router = useRouter();
   const [activeModal, setActiveModal] = useState<ModalType>(null);
@@ -165,6 +167,8 @@ export function RosterMemberActions({
   };
 
   const isXs = size === "xs";
+  const menuTrigger = "min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm font-semibold hover:bg-red-50 active:bg-red-100 focus-visible:outline-2 focus-visible:outline-red-700 disabled:opacity-45";
+  const menuRestore = "min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#172019] hover:bg-[#eef5ef] active:bg-[#dcebdd] focus-visible:outline-2 focus-visible:outline-[#205823] disabled:opacity-45";
 
   return (
     <>
@@ -181,36 +185,36 @@ export function RosterMemberActions({
             onClick={handleOpenRemove}
             disabled={isPending}
             aria-label={`Remove ${playerName} from active roster`}
-            className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-[#DDE3DE] bg-white text-[#5F6B61] hover:text-amber-800 hover:border-amber-300 hover:bg-amber-50/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 cursor-pointer shadow-2xs ${
+            className={variant === "menu" ? `${menuTrigger} text-red-700` : `inline-flex items-center gap-1 font-semibold rounded-lg border border-[#DDE3DE] bg-white text-[#5F6B61] hover:text-amber-800 hover:border-amber-300 hover:bg-amber-50/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 cursor-pointer shadow-2xs ${
               isXs
                 ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
                 : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
             }`}
             title="Remove player from active roster (preserves historical record)"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            {variant !== "menu" && <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
-            </svg>
-            <span>Remove</span>
+            </svg>}
+            <span>{variant === "menu" ? "Remove from roster" : "Remove"}</span>
           </button>
         ) : (
-          <div className="flex items-center gap-1.5">
+          <div className={variant === "menu" ? "w-full" : "flex items-center gap-1.5"}>
             <button
               type="button"
               onClick={handleOpenRestore}
               disabled={isPending}
               aria-label={`Restore ${playerName} to active roster`}
-              className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-[#205823]/30 bg-white text-[#205823] hover:bg-[#eef5ef] hover:border-[#205823] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] cursor-pointer shadow-2xs ${
+              className={variant === "menu" ? menuRestore : `inline-flex items-center gap-1 font-semibold rounded-lg border border-[#205823]/30 bg-white text-[#205823] hover:bg-[#eef5ef] hover:border-[#205823] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] cursor-pointer shadow-2xs ${
                 isXs
                   ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
                   : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
               }`}
               title="Restore player to active roster"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              {variant !== "menu" && <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>Restore</span>
+              </svg>}
+              <span>{variant === "menu" ? "Restore to roster" : "Restore"}</span>
             </button>
           </div>
         )
@@ -224,36 +228,36 @@ export function RosterMemberActions({
               onClick={handleOpenRemove}
               disabled={isPending}
               aria-label={`Remove ${playerName} from active roster`}
-              className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-[#DDE3DE] bg-white text-[#5F6B61] hover:text-amber-800 hover:border-amber-300 hover:bg-amber-50/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 cursor-pointer shadow-2xs ${
+              className={variant === "menu" ? `${menuTrigger} text-red-700` : `inline-flex items-center gap-1 font-semibold rounded-lg border border-[#DDE3DE] bg-white text-[#5F6B61] hover:text-amber-800 hover:border-amber-300 hover:bg-amber-50/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 cursor-pointer shadow-2xs ${
                 isXs
                   ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
                   : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
               }`}
               title="Remove player from active roster"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              {variant !== "menu" && <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
-              </svg>
-              <span>Remove</span>
+              </svg>}
+              <span>{variant === "menu" ? "Remove from roster" : "Remove"}</span>
             </button>
         ) : (
-          <div className="flex items-center gap-1.5">
+          <div className={variant === "menu" ? "w-full" : "flex items-center gap-1.5"}>
             <button
               type="button"
               onClick={handleOpenRestore}
               disabled={isPending}
               aria-label={`Restore ${playerName} to active roster`}
-              className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-[#205823]/30 bg-white text-[#205823] hover:bg-[#eef5ef] hover:border-[#205823] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] cursor-pointer shadow-2xs ${
+              className={variant === "menu" ? menuRestore : `inline-flex items-center gap-1 font-semibold rounded-lg border border-[#205823]/30 bg-white text-[#205823] hover:bg-[#eef5ef] hover:border-[#205823] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#205823] cursor-pointer shadow-2xs ${
                 isXs
                   ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
                   : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
               }`}
               title="Restore player to active roster"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              {variant !== "menu" && <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>Restore</span>
+              </svg>}
+              <span>{variant === "menu" ? "Restore to roster" : "Restore"}</span>
             </button>
             {!hasVerifiedPayment && !hasProtectedFinancialHistory && !isCaptain && (
               <button
@@ -261,17 +265,17 @@ export function RosterMemberActions({
                 onClick={handleOpenDelete}
                 disabled={isPending}
                 aria-label={`Delete ${playerName} from roster`}
-                className={`inline-flex items-center gap-1 font-semibold rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 hover:border-red-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 cursor-pointer shadow-2xs ${
+                className={variant === "menu" ? `${menuTrigger} mt-1 border-t border-[#DDE3DE] text-red-700` : `inline-flex items-center gap-1 font-semibold rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 hover:border-red-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 cursor-pointer shadow-2xs ${
                   isXs
                     ? "min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 text-xs sm:text-[11px]"
                     : "min-h-[40px] sm:min-h-0 px-3 py-2 sm:py-1.5 text-xs"
                 }`}
                 title="Permanently delete removed roster membership"
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                {variant !== "menu" && <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                <span>Delete</span>
+                </svg>}
+                <span>{variant === "menu" ? "Delete player" : "Delete"}</span>
               </button>
             )}
           </div>
