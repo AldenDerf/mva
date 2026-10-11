@@ -80,16 +80,27 @@ export function RowActionsMenu({ label, title, subtitle, items = [], children }:
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !nestedDialogOpen()) { event.preventDefault(); close(); }
     };
+    const containFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || !mobile || nestedDialogOpen()) return;
+      const focusable = Array.from(panel.current?.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])') ?? []);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
     const anotherMenu = (event: Event) => { if ((event as CustomEvent<string>).detail !== id) close(false); };
     const viewportChanged = (event: Event) => { if (!panel.current?.contains(event.target as Node) && !nestedDialogOpen()) close(false); };
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", escape);
+    document.addEventListener("keydown", containFocus);
     document.addEventListener("mva-row-actions-open", anotherMenu);
     window.addEventListener("scroll", viewportChanged, true);
     window.addEventListener("resize", viewportChanged);
     return () => {
       document.removeEventListener("pointerdown", outside);
       document.removeEventListener("keydown", escape);
+      document.removeEventListener("keydown", containFocus);
       document.removeEventListener("mva-row-actions-open", anotherMenu);
       window.removeEventListener("scroll", viewportChanged, true);
       window.removeEventListener("resize", viewportChanged);
@@ -112,7 +123,7 @@ export function RowActionsMenu({ label, title, subtitle, items = [], children }:
       <div ref={panel} id={id} role={mobile ? "dialog" : "group"} aria-modal={mobile ? true : undefined} aria-label={label}
         style={mobile ? undefined : { left: position?.left ?? 0, top: position?.top ?? 0, visibility: position ? "visible" : "hidden" }}
         className={mobile
-          ? "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm max-h-[80dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[#DDE3DE] bg-white p-3 shadow-xl"
+          ? "fixed inset-0 z-50 m-auto h-fit w-[calc(100%-2rem)] max-w-sm max-h-[80dvh] overflow-y-auto rounded-2xl border border-[#DDE3DE] bg-white p-3 shadow-xl"
           : "fixed z-50 max-h-[calc(100dvh-16px)] min-w-44 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-[#DDE3DE] bg-white p-1 shadow-lg"}>
         {mobile && <div className="flex items-start justify-between gap-3 px-2 pb-2 pt-1">
           <div>
