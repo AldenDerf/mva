@@ -5,7 +5,9 @@ import {
   handleListTeamsRequest,
   handleListTournamentsRequest,
   handleValidateMatchupRequest,
+  handleVerifyAdminRequest,
   sanitizeScoreboardLogoUrl,
+  type CatalogAdminAccessRecord,
   type CatalogDivisionRecord,
   type CatalogLeagueRecord,
   type CatalogRegistrationRecord,
@@ -42,6 +44,7 @@ function createFixtureStore(overrides?: {
   leagues?: CatalogLeagueRecord[];
   divisions?: CatalogDivisionRecord[];
   registrations?: CatalogRegistrationRecord[];
+  admins?: CatalogAdminAccessRecord[];
   throwOnQuery?: boolean;
 }): ScoreboardCatalogStore {
   const leagues: CatalogLeagueRecord[] = overrides?.leagues ?? [
@@ -207,6 +210,15 @@ function createFixtureStore(overrides?: {
       const set = new Set(registrationIds.map((id) => id.toLowerCase()));
       return registrations.filter((r) =>
         set.has(r.registrationId.toLowerCase())
+      );
+    },
+    async findAdminAccessByAuthUserId(authUserId) {
+      maybeThrow();
+      const admins = overrides?.admins ?? [];
+      return (
+        admins.find(
+          (a) => a.authUserId.toLowerCase() === authUserId.toLowerCase()
+        ) ?? null
       );
     },
   };
@@ -557,4 +569,118 @@ test("database failure returns safe 503 response without leaking internal error 
   const body = (await res.json()) as { error: string; code: string };
   assert.equal(body.code, "UPSTREAM_ERROR");
   assert.equal(body.error.includes("Database connection failure"), false);
+});
+
+test("verify-admin endpoint verifies active MVA administrators by UUID and rejects forged or unauthenticated requests", async () => {
+  const ACTIVE_ADMIN_UUID = "99999999-9999-4999-8999-999999999999";
+  const INACTIVE_ADMIN_UUID = "88888888-8888-4888-8888-888888888888";
+  const NON_ADMIN_ROLE_UUID = "77777777-7777-4777-8777-777777777777";
+  const UNKNOWN_UUID = "66666666-6666-4666-8666-666666666666";
+
+  const store = createFixtureStore({
+    admins: [
+      { authUserId: ACTIVE_ADMIN_UUID, isActive: true, role: "ADMIN" },
+      { authUserId: INACTIVE_ADMIN_UUID, isActive: false, role: "ADMIN" },
+      { authUserId: NON_ADMIN_ROLE_UUID, isActive: true, role: "VIEWER" },
+    ],
+  });
+
+  // 1. Missing or invalid Bearer token -> 401
+  const noAuthRes = await handleVerifyAdminRequest(
+    new Request("https://mva.example.org/api/integrations/scoreboard/verify-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ authUserId: ACTIVE_ADMIN_UUID }),
+    }),
+    { store, secret: VALID_SECRET }
+  );
+  assert.equal(noAuthRes.status, 401);
+
+  // 2. Active MVA ADMIN -> isActiveAdmin: true
+  const activeRes = await handleVerifyAdminRequest(
+    authRequest("https://mva.example.org/api/integrations/scoreboard/verify-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ authUserId: ACTIVE_ADMIN_UUID }),
+    }),
+    { store, secret: VALID_SECRET }
+  );
+  assert.equal(activeRes.status, 200);
+  const activeBody = (await activeRes.json()) as {
+    authUserId: string;
+    isActiveAdmin: boolean;
+    verifiedAt: string;
+  };
+  assert.equal(activeBody.authUserId, ACTIVE_ADMIN_UUID);
+  assert.equal(activeBody.isActiveAdmin, true);
+  assert.deepEqual(Object.keys(activeBody).sort(), [
+    "authUserId",
+    "isActiveAdmin",
+    "verifiedAt",
+  ]);
+
+  // 3. Inactive MVA ADMIN -> isActiveAdmin: false
+  const inactiveRes = await handleVerifyAdminRequest(
+    authRequest("https://mva.example.org/api/integrations/scoreboard/verify-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ authUserId: INACTIVE_ADMIN_UUID }),
+    }),
+    { store, secret: VALID_SECRET }
+  );
+  assert.equal(inactiveRes.status, 200);
+  const inactiveBody = (await inactiveRes.json()) as { isActiveAdmin: boolean };
+  assert.equal(inactiveBody.isActiveAdmin, false);
+
+  // 4. Non-ADMIN role -> isActiveAdmin: false
+  const nonAdminRes = await handleVerifyAdminRequest(
+    authRequest("https://mva.example.org/api/integrations/scoreboard/verify-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ authUserId: NON_ADMIN_ROLE_UUID }),
+    }),
+    { store, secret: VALID_SECRET }
+  );
+  assert.equal(nonAdminRes.status, 200);
+  const nonAdminBody = (await nonAdminRes.json()) as { isActiveAdmin: boolean };
+  assert.equal(nonAdminBody.isActiveAdmin, false);
+
+  // 5. Unknown UUID -> isActiveAdmin: false
+  const unknownRes = await handleVerifyAdminRequest(
+    authRequest("https://mva.example.org/api/integrations/scoreboard/verify-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ authUserId: UNKNOWN_UUID }),
+    }),
+    { store, secret: VALID_SECRET }
+  );
+  assert.equal(unknownRes.status, 200);
+  const unknownBody = (await unknownRes.json()) as { isActiveAdmin: boolean };
+  assert.equal(unknownBody.isActiveAdmin, false);
+
+  // 6. Forged boolean or extra payload fields rejected -> 400
+  const forgedRes = await handleVerifyAdminRequest(
+    authRequest("https://mva.example.org/api/integrations/scoreboard/verify-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        authUserId: UNKNOWN_UUID,
+        isActiveAdmin: true,
+      }),
+    }),
+    { store, secret: VALID_SECRET }
+  );
+  assert.equal(forgedRes.status, 400);
+
+  // 7. Database outage fails closed -> 503
+  const failingStore = createFixtureStore({ throwOnQuery: true });
+  const failRes = await handleVerifyAdminRequest(
+    authRequest("https://mva.example.org/api/integrations/scoreboard/verify-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ authUserId: ACTIVE_ADMIN_UUID }),
+    }),
+    { store: failingStore, secret: VALID_SECRET }
+  );
+  assert.equal(failRes.status, 503);
 });

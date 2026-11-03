@@ -1,5 +1,6 @@
 import { prisma } from "../prisma";
 import type {
+  CatalogAdminAccessRecord,
   CatalogDivisionRecord,
   CatalogLeagueRecord,
   CatalogRegistrationRecord,
@@ -184,5 +185,32 @@ export const prismaScoreboardCatalogStore: ScoreboardCatalogStore = {
       logoUrl: row.teams.logo_url,
       status: row.status,
     }));
+  },
+
+  async findAdminAccessByAuthUserId(
+    authUserId: string
+  ): Promise<CatalogAdminAccessRecord | null> {
+    const profile = await prisma.profiles.findUnique({
+      where: { auth_user_id: authUserId },
+      select: {
+        auth_user_id: true,
+        admin_access: {
+          select: {
+            is_active: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!profile || !profile.admin_access) {
+      return null;
+    }
+
+    return {
+      authUserId: profile.auth_user_id,
+      isActive: profile.admin_access.is_active,
+      role: profile.admin_access.role,
+    };
   },
 };

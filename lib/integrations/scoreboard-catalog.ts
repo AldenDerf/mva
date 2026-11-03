@@ -105,6 +105,12 @@ export interface ValidatedMatchup {
   validatedAt: string;
 }
 
+export interface VerifyAdminStatusResponse {
+  authUserId: string;
+  isActiveAdmin: boolean;
+  verifiedAt: string;
+}
+
 export interface CatalogLeagueRecord {
   id: string;
   name: string;
@@ -129,6 +135,12 @@ export interface CatalogRegistrationRecord {
   status: MvaRegistrationStatus;
 }
 
+export interface CatalogAdminAccessRecord {
+  authUserId: string;
+  isActive: boolean;
+  role: string;
+}
+
 export interface ScoreboardCatalogStore {
   listLeaguesByStatuses(
     statuses: readonly ScoreboardEligibleLeagueStatus[]
@@ -146,6 +158,9 @@ export interface ScoreboardCatalogStore {
   findRegistrationsByIds(
     registrationIds: readonly string[]
   ): Promise<CatalogRegistrationRecord[]>;
+  findAdminAccessByAuthUserId?(
+    authUserId: string
+  ): Promise<CatalogAdminAccessRecord | null>;
 }
 
 export type IntegrationAuthResult =
@@ -828,6 +843,89 @@ export async function handleValidateMatchupRequest(
   } catch {
     return jsonResponse(
       { error: "Matchup validation is temporarily unavailable.", code: "UPSTREAM_ERROR" },
+      503
+    );
+  }
+}
+
+/**
+ * E. POST /api/integrations/scoreboard/verify-admin
+ */
+export async function handleVerifyAdminRequest(
+  request: Request,
+  options: CatalogHandlerOptions
+): Promise<Response> {
+  if (request.method !== "POST") {
+    return methodNotAllowedResponse("POST");
+  }
+
+  const authError = authorizeOrRespond(request, options.secret);
+  if (authError) return authError;
+
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (contentLength > 1024) {
+    return jsonResponse(
+      { error: "Request payload too large.", code: "PAYLOAD_TOO_LARGE" },
+      413
+    );
+  }
+
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return jsonResponse(
+      { error: "Invalid JSON body.", code: "INVALID_REQUEST" },
+      400
+    );
+  }
+
+  if (!rawBody || typeof rawBody !== "object" || Array.isArray(rawBody)) {
+    return jsonResponse(
+      { error: "Admin verification payload must be a JSON object.", code: "INVALID_REQUEST" },
+      400
+    );
+  }
+
+  const input = rawBody as Record<string, unknown>;
+  const { authUserId } = input;
+  const keys = Object.keys(input);
+
+  if (keys.length !== 1 || keys[0] !== "authUserId" || !isValidUuid(authUserId)) {
+    return jsonResponse(
+      { error: "A valid authUserId UUID is required.", code: "INVALID_REQUEST" },
+      400
+    );
+  }
+
+  const normAuthUserId = authUserId.trim().toLowerCase();
+
+  try {
+    if (!options.store.findAdminAccessByAuthUserId) {
+      return jsonResponse(
+        { error: "Admin verification is temporarily unavailable.", code: "UPSTREAM_ERROR" },
+        503
+      );
+    }
+
+    const record = await options.store.findAdminAccessByAuthUserId(normAuthUserId);
+    const isActiveAdmin = Boolean(
+      record &&
+      record.authUserId.toLowerCase() === normAuthUserId &&
+      record.isActive === true &&
+      record.role === "ADMIN"
+    );
+
+    const payload: VerifyAdminStatusResponse = {
+      authUserId: record?.authUserId ?? normAuthUserId,
+      isActiveAdmin,
+      verifiedAt: new Date().toISOString(),
+    };
+
+    return jsonResponse(payload, 200);
+  } catch {
+    return jsonResponse(
+      { error: "Admin verification is temporarily unavailable.", code: "UPSTREAM_ERROR" },
       503
     );
   }
